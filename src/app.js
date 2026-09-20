@@ -72,7 +72,7 @@ const AuthUI = {
     btn.textContent = 'Versturen…';
     const { error } = await sb.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: 'https://paulvelthuis93.github.io/horeca-united/' }
+      options: { emailRedirectTo: 'https://horeca-united.github.io/horeca-united/' }
     });
     btn.disabled = false;
     btn.textContent = 'Stuur inloglink';
