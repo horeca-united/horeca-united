@@ -923,6 +923,33 @@ function dashboardCostSelection(rows){
   return { selected, categoriesWith2025 };
 }
 
+// Annualise only distinct, documented 2025 waste billing periods. This is an
+// indicative run-rate, never a claim about actual full-year expenditure.
+function wasteAnnualEstimate(rows){
+  const periods = new Map();
+  rows.filter(t => dashboardCategory(t) === 'Afval & milieu' && bookYearTransaction(t).included).forEach(t => {
+    const start = t.period_start, end = t.period_end;
+    if(!start || !end) return;
+    const a = new Date(start+'T00:00:00Z'), b = new Date(end+'T00:00:00Z');
+    if(!Number.isFinite(+a) || !Number.isFinite(+b) || b < a) return;
+    const endExclusive = new Date(b);
+    // Some annual statements use the first day of the next period as end.
+    const isExclusive = end.slice(5) === '01-01' && end > start;
+    if(!isExclusive) endExclusive.setUTCDate(endExclusive.getUTCDate()+1);
+    const days = Math.round((endExclusive-a)/86400000);
+    const amount = dashboardAmount(t);
+    if(days < 1 || !Number.isFinite(amount)) return;
+    const key = start+'|'+end;
+    if(!periods.has(key)) periods.set(key,{days,amount});
+    else periods.get(key).amount += amount;
+  });
+  const values = [...periods.values()];
+  if(!values.length) return null;
+  const coveredDays = values.reduce((sum,p)=>sum+p.days,0);
+  const actual = values.reduce((sum,p)=>sum+p.amount,0);
+  return {actual, coveredDays, estimate:Math.round(actual*365/coveredDays*100)/100, periods:values.length};
+}
+
 /* ---------------- Klantdashboard ---------------- */
 const Dashboard = {
   async open(){
@@ -995,6 +1022,11 @@ const Dashboard = {
         }
       });
     }
+    const wasteEstimate = CURRENT_USER ? wasteAnnualEstimate(txRows || []) : null;
+    if(wasteEstimate){
+      spendBySubgroup.afval = wasteEstimate.estimate;
+      detailBySubgroup.afval = {...(detailBySubgroup.afval || {}), wasteEstimate};
+    }
     const rows = buildSubgroupRows(uploadedSubgroups, spendBySubgroup, yearBySubgroup, detailBySubgroup);
     document.getElementById("dashCompanyName").textContent =
       CURRENT_USER ? (STATE.account.companyName || CURRENT_USER.email) : (STATE.account.companyName || "Voorbeeld Horecazaak");
@@ -1036,7 +1068,7 @@ const Dashboard = {
     const nlDate = date => date ? date.split('-').reverse().join('-') : 'onbekend';
     const safe = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const fullBody = rows.map(r=>`
-      <tr><td><strong>${r.name}</strong></td><td>${safe(r.supplier)}${r.id === 'afval' && r.cost != null ? `<br><details style="margin-top:7px"><summary class="btn btn-ghost btn-sm" style="display:inline-block;cursor:pointer">Prijsontwikkeling ↗</summary><div style="margin-top:12px;max-width:330px;min-width:220px;font-size:12px;line-height:1.45"><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:5px"><strong>Q4 2025</strong><span>€ 428,16</span></div><div role="img" aria-label="Q4 2025: 428 euro en 16 cent exclusief btw" style="height:13px;background:var(--border,#e7e9e7);border-radius:8px;overflow:hidden"><div style="width:87.43%;height:100%;background:#659c87;border-radius:8px"></div></div><div style="display:flex;justify-content:space-between;gap:8px;margin:12px 0 5px"><strong>Q2 2026</strong><span>€ 489,75</span></div><div role="img" aria-label="Q2 2026: 489 euro en 75 cent exclusief btw, waarvan 61 euro en 59 cent meer dan in Q4 2025" style="display:flex;height:13px;background:var(--border,#e7e9e7);border-radius:8px;overflow:hidden"><div style="width:87.43%;height:100%;background:#659c87"></div><div style="width:12.57%;height:100%;background:#d79543"></div></div><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:9px"><span style="color:var(--muted)">Extra kosten <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#d79543"></span></span><strong style="color:#a96618">+ € 61,59 · 14,39%</strong></div><p style="margin:9px 0 0;color:var(--muted)">Per kwartaal · excl. btw. 2026 is een benchmark en telt niet mee in het kostentotaal van 2025.</p><details style="margin-top:7px"><summary style="cursor:pointer;color:var(--muted)">Opbouw prijsstijging</summary><p style="margin:6px 0 0;color:var(--muted)">Abonnement per maand: € 142,72 → € 152,57 (+6,90%). In Q2 2026 is daarnaast € 32,04 CO₂- en brandstofheffing berekend. Beide facturen betreffen een 1.100L-restafvalcontainer met wekelijkse lediging.</p></details></div></details>` : ''}</td><td>${r.cost == null ? '—' : new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.cost)}${r.id === 'wijn' ? `<br><button class="btn btn-ghost btn-sm" style="margin-top:7px" onclick="Dashboard.openWineDetail()">Bekijk inkoop per leverancier →</button>` : ''}</td><td>${r.sourceYear || '—'}${r.id === 'afval' && r.sourceYear === 2025 ? ' · Q4' : ''}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
+      <tr><td><strong>${r.name}</strong></td><td>${safe(r.supplier)}${r.id === 'afval' && r.cost != null ? `<br><details style="margin-top:7px"><summary class="btn btn-ghost btn-sm" style="display:inline-block;cursor:pointer">Prijsontwikkeling ↗</summary><div style="margin-top:12px;max-width:330px;min-width:220px;font-size:12px;line-height:1.45"><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:5px"><strong>Q4 2025</strong><span>€ 428,16</span></div><div role="img" aria-label="Q4 2025: 428 euro en 16 cent exclusief btw" style="height:13px;background:var(--border,#e7e9e7);border-radius:8px;overflow:hidden"><div style="width:87.43%;height:100%;background:#659c87;border-radius:8px"></div></div><div style="display:flex;justify-content:space-between;gap:8px;margin:12px 0 5px"><strong>Q2 2026</strong><span>€ 489,75</span></div><div role="img" aria-label="Q2 2026: 489 euro en 75 cent exclusief btw, waarvan 61 euro en 59 cent meer dan in Q4 2025" style="display:flex;height:13px;background:var(--border,#e7e9e7);border-radius:8px;overflow:hidden"><div style="width:87.43%;height:100%;background:#659c87"></div><div style="width:12.57%;height:100%;background:#d79543"></div></div><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:9px"><span style="color:var(--muted)">Extra kosten <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#d79543"></span></span><strong style="color:#a96618">+ € 61,59 · 14,39%</strong></div><p style="margin:9px 0 0;color:var(--muted)">Per kwartaal · excl. btw. 2026 is een benchmark en telt niet mee in het kostentotaal van 2025.</p><details style="margin-top:7px"><summary style="cursor:pointer;color:var(--muted)">Opbouw prijsstijging</summary><p style="margin:6px 0 0;color:var(--muted)">Abonnement per maand: € 142,72 → € 152,57 (+6,90%). In Q2 2026 is daarnaast € 32,04 CO₂- en brandstofheffing berekend. Beide facturen betreffen een 1.100L-restafvalcontainer met wekelijkse lediging.</p></details></div></details>` : ''}</td><td>${r.cost == null ? '—' : new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.cost)}${r.id === 'afval' && wasteEstimate ? '<br><small style="color:var(--muted)">Indicatie per jaar · '+new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(wasteEstimate.actual)+' werkelijk over '+wasteEstimate.coveredDays+' dagen</small>' : ''}${r.id === 'wijn' ? `<br><button class="btn btn-ghost btn-sm" style="margin-top:7px" onclick="Dashboard.openWineDetail()">Bekijk inkoop per leverancier →</button>` : ''}</td><td>${r.sourceYear || '—'}${r.id === 'afval' && r.sourceYear === 2025 ? ' · Q4' : ''}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
       <td><span class="badge ${r.badge}">${r.status}</span></td><td>${r.kans}</td><td>${r.contractEnd}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="alert('In deze demo start dit de analyse-flow voor ${r.name}.')">${r.status==="Nog niet ingevuld"?"Start analyse":"Bekijk"}</button></td></tr>`).join("");
     document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="8" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
@@ -1531,6 +1563,8 @@ const Dashboard = {
       const amount = dashboardAmount(r);
       if(Number.isFinite(amount)) agg[cat] = (agg[cat] || 0) + amount;
     });
+    const wasteEstimate = wasteAnnualEstimate(data);
+    if(wasteEstimate) agg['Afval & milieu'] = wasteEstimate.estimate;
     const total = Object.values(agg).reduce((a,b) => a+b, 0);
     const catCount = Object.keys(agg).length;
     const review = (uploads || []).flatMap(u => {
@@ -1546,6 +1580,13 @@ const Dashboard = {
       Verzekeringen: 'De Goudse: maandpremie uit de polis van 2026 × 12, inclusief assurantiebelasting. Dit is een jaarindicatie, geen uitgave over 2025.',
       Telecom: 'Odido: voorlopige start 15-04-2026 op basis van de besteldatum. Het eerste contractjaar (t/m 14-04-2027) telt mee. Het tweede (15-04-2027 t/m 14-04-2028) staat apart en telt niet dubbel mee. De echte activatiedatum kan dit wijzigen.'
     };
+    if(wasteEstimate){
+      notice.style.display = 'block';
+      const note = document.createElement('p');
+      note.style.margin = '0 0 8px';
+      note.textContent = 'Afval & milieu: in Bekende kosten is een indicatie van de jaarkosten opgenomen op basis van '+wasteEstimate.coveredDays+' dagen aan facturen uit 2025 (€ '+wasteEstimate.actual.toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2})+' werkelijk). Dit is geen vastgesteld jaartotaal.';
+      notice.append(note);
+    }
     temporaryReferences.forEach(category => {
       const reference = document.createElement('p');
       reference.style.margin = '0 0 8px';
