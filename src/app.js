@@ -858,11 +858,13 @@ const Dashboard = {
         .eq('email', CURRENT_USER.email).maybeSingle();
       if (data) {
         if (data.company_name)   STATE.account.companyName   = data.company_name;
-        if (data.contact_person) STATE.account.contactPerson = data.contact_person;
+        STATE.account.contactPerson = data.contact_person || '';
         if (data.phone)          STATE.account.phone         = data.phone;
         if (data.business_type)  STATE.profile.businessType  = data.business_type;
         if (data.city)           STATE.profile.city          = data.city;
       }
+      const nameEl = document.getElementById('docUploadName');
+      if (nameEl) nameEl.value = STATE.account.contactPerson;
     }
     this.render();
     Router.go("dashboard");
@@ -885,16 +887,21 @@ const Dashboard = {
     const rows = buildSubgroupRows(uploadedSubgroups, spendBySubgroup);
     document.getElementById("dashCompanyName").textContent =
       CURRENT_USER ? (STATE.account.companyName || CURRENT_USER.email) : (STATE.account.companyName || "Voorbeeld Horecazaak");
-    const pct = STATE.result ? STATE.result.profilePct : Engine.profileCompletion();
-    document.getElementById("dashProfilePct2").textContent = pct + "% voltooid";
-    document.getElementById("dashProfileBar").style.width = pct + "%";
+    const pct = CURRENT_USER ? null : (STATE.result ? STATE.result.profilePct : Engine.profileCompletion());
+    const progressLabel = pct == null ? '—' : `${pct}%`;
+    document.getElementById("dashProfilePct2").textContent = pct == null ? 'Documenten laden…' : `${pct}% voltooid`;
+    document.getElementById("dashProfileBar").style.width = pct == null ? '0%' : `${pct}%`;
+    for (const id of ['dashProfilePct', 'dashProfilePctSummary', 'dashProfilePctDemo']) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = progressLabel;
+    }
     // demo summary shown when no real transactions
     document.getElementById("dashRealSummary").style.display = "none";
     document.getElementById("dashDemoSummary").style.display = "block";
     const potDemo = document.getElementById("dashPotentialDemo");
     const pctDemo = document.getElementById("dashProfilePctDemo");
     if (potDemo) potDemo.textContent = STATE.result ? `${euro(STATE.result.low)} – ${euro(STATE.result.high)}` : "—";
-    if (pctDemo) pctDemo.textContent = pct + "%";
+    if (pctDemo) pctDemo.textContent = progressLabel;
 
     // Demo banner
     document.getElementById("dashDemoBanner").style.display = CURRENT_USER ? "none" : "block";
@@ -923,8 +930,8 @@ const Dashboard = {
 
     const next = STATE.selectedSubgroups.filter(id=>id!==primarySubgroupId())[0];
     document.getElementById("dashNextAction").textContent = next
-      ? `Upload je ${subgroupName(next).toLowerCase()}-document om je volgende analyse te starten. Je profiel is voor ${pct}% voltooid.`
-      : `Open extra subgroepen om je volledige benchmark te ontgrendelen. Je profiel is voor ${pct}% voltooid.`;
+      ? `Upload je ${subgroupName(next).toLowerCase()}-document om je volgende analyse te starten.${pct == null ? '' : ` Je profiel is voor ${pct}% voltooid.`}`
+      : `Open extra subgroepen om je volledige benchmark te ontgrendelen.${pct == null ? '' : ` Je profiel is voor ${pct}% voltooid.`}`;
 
     // contracts tab renders lazily via showTab('contracten')
 
@@ -971,6 +978,7 @@ const Dashboard = {
         return;
       }
       if (docsCountEl) docsCountEl.textContent = uploads.length;
+      this.updateDocumentProgress(uploads.length);
       if (!uploads.length) {
         el.innerHTML = `<div class="empty-state">Nog geen documenten geüpload. <a onclick="Dashboard.showTab('documenten')" style="cursor:pointer;text-decoration:underline;color:var(--brand2)">Upload je eerste document</a>.</div>`;
         return;
@@ -1008,6 +1016,23 @@ const Dashboard = {
     }
   },
 
+  updateDocumentProgress(documentCount){
+    const pct = Math.min(100, documentCount * 10);
+    for (const id of ['dashProfilePct', 'dashProfilePctSummary', 'dashProfilePctDemo']) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = `${pct}%`;
+    }
+    document.getElementById('dashProfilePct2').textContent = `${pct}% voltooid`;
+    document.getElementById('dashProfileBar').style.width = `${pct}%`;
+    const actionEl = document.getElementById('dashNextAction');
+    if (actionEl) {
+      const next = STATE.selectedSubgroups.find(id => id !== primarySubgroupId());
+      actionEl.textContent = next
+        ? `Upload je ${subgroupName(next).toLowerCase()}-document om je volgende analyse te starten. Je profiel is voor ${pct}% voltooid.`
+        : `Upload je volgende document om je profiel aan te vullen. Je profiel is voor ${pct}% voltooid.`;
+    }
+  },
+
   async deleteUpload(uploadId, filePath){
     if (!CURRENT_USER) return;
     if (!confirm('Weet je zeker dat je dit document wilt verwijderen?')) return;
@@ -1016,7 +1041,7 @@ const Dashboard = {
     // Remove from database
     const { error } = await sb.from('uploads').delete().eq('id', uploadId);
     if (error) { alert('Verwijderen mislukt: ' + error.message); return; }
-    this.renderDocuments();
+    this.render();
   },
   showTab(tab){
     document.querySelectorAll(".dash-tab").forEach(el=>el.style.display="none");
@@ -1281,8 +1306,6 @@ const Dashboard = {
     // Savings estimate: 8-14% of total spend
     document.getElementById('dashPotential').textContent =
       `${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(total*0.08)} – ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(total*0.14)}`;
-    const pct = Math.min(100, 30 + catCount * 10);
-    document.getElementById('dashProfilePct').textContent = pct + '%';
 
     // Benchmark chart — fetch from Supabase
     const { data: benchRows } = await sb.from('benchmark_data').select('category_name, avg_amount, sample_size');
@@ -1513,6 +1536,8 @@ const Dashboard = {
     const p = prof || {};
     const sp = STATE.profile || {};
     const acc = STATE.account || {};
+    const uploadName = document.getElementById('docUploadName');
+    if (uploadName && p.contact_person && !uploadName.value.trim()) uploadName.value = p.contact_person;
 
     if (kvEl) kvEl.innerHTML = `
       <div><span>Bedrijfsnaam</span>${p.company_name || acc.companyName || '—'}</div>
@@ -1608,6 +1633,8 @@ const Dashboard = {
     STATE.profile.businessType  = payload.business_type;
     STATE.profile.city          = payload.city;
     saveState();
+    const uploadName = document.getElementById('docUploadName');
+    if (uploadName) uploadName.value = payload.contact_person;
     this.closeProfileEdit();
     this.renderProfiel();
     // Update company name in header
@@ -1689,7 +1716,6 @@ const Dashboard = {
       this.clearStaging();
       saveState();
       this.render();
-      this.renderDocuments();
       sb.functions.invoke('send-upload-confirmation', { body: { email, name, fileNames: uploadedNames, fileCount: uploadedCount } });
     } catch(err) {
       statusEl.style.color = "var(--danger-ink)";
