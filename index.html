@@ -589,7 +589,7 @@ table.table tr.clickable:hover{background:#faf9f4}
         </div>
 
         <div id="methodRequest" class="method-panel" style="display:none">
-          <div class="note" style="margin-bottom:16px">Deze machtiging geldt uitsluitend voor de gekozen kostenposten en leverancier, alleen voor gegevens die nodig zijn voor de analyse, en totdat jij deze intrekt. Ze geeft <strong>geen</strong> toestemming om contracten op te zeggen, leveranciers te wijzigen, nieuwe contracten aan te gaan, betalingen uit te voeren of bestellingen te plaatsen.</div>
+          <div class="note" style="margin-bottom:16px">Je machtigt Horeca United om namens jouw onderneming bij de gekozen leverancier gegevens voor de geselecteerde kostenposten op te vragen, te ontvangen en te verwerken. Dit kan onder meer gaan om facturen, inkoop- en afnamegegevens, jaaroverzichten, prijs- en kortingsafspraken, lopende contracten, abonnementen, contractvoorwaarden, looptijden, einddata en opzegtermijnen, voor zover relevant voor de geselecteerde kostenposten. De gegevens worden gebruikt voor inkoopanalyses, inzicht in bestaande leveranciersrelaties en contract- en abonnementenbeheer. Je kunt de machtiging op ieder moment intrekken. Deze machtiging geeft <strong>geen</strong> toestemming om zonder afzonderlijke toestemming overeenkomsten aan te gaan, te wijzigen of op te zeggen, leveranciers te wijzigen, betalingen uit te voeren of bestellingen te plaatsen.</div>
           <div class="grid2">
             <div class="field"><label for="f_signName">Naam tekenbevoegde</label><input type="text" id="f_signName"></div>
             <div class="field"><label for="f_signRole">Functie</label><input type="text" id="f_signRole" placeholder="Bijv. eigenaar"></div>
@@ -599,7 +599,7 @@ table.table tr.clickable:hover{background:#faf9f4}
           <p style="font-size:13px;color:var(--muted);margin-bottom:12px">De machtiging blijft geldig totdat je deze zelf intrekt via je dashboard of schriftelijk opzegt bij Horeca United. Je kunt dit op ieder moment doen.</p>
           <div class="consent-row">
             <input type="checkbox" id="f_authConsent">
-            <label for="f_authConsent">Ik machtig Horeca United om namens mijn onderneming gegevens op te vragen bij de hierboven genoemde leverancier, uitsluitend voor de geselecteerde kostenposten. De machtiging geldt totdat ik deze intrek. <span class="req">verplicht</span></label>
+            <label for="f_authConsent">Ik verklaar tekenbevoegd te zijn en machtig Horeca United om namens mijn onderneming de hierboven omschreven gegevens bij de genoemde leverancier op te vragen, te ontvangen en te verwerken voor de geselecteerde kostenposten. Ik kan deze machtiging op ieder moment intrekken. <span class="req">verplicht</span></label>
           </div>
         </div>
 
@@ -1880,7 +1880,7 @@ const QuickScan = {
       permissions: source?.permissions || [],
       purpose: source?.purpose || null,
       status: 'active',
-      document_version: 'v1.0',
+      document_version: 'v1.1',
       validity_days: validityDays
     });
 
@@ -3235,7 +3235,7 @@ const AuthModule = {
       <div class="note" style="margin-bottom:18px;font-size:13px">
         <strong>Wat wordt opgehaald:</strong> ${source.permissions.join(', ')}<br>
         <strong>Doel:</strong> ${source.purpose}<br>
-        <strong>Geldigheid:</strong> 365 dagen · op elk moment intrekbaar
+        <strong>Reikwijdte:</strong> facturen, inkoop- en afnamegegevens, jaaroverzichten, prijs- en kortingsafspraken, lopende contracten, abonnementen, contractvoorwaarden, looptijden, einddata en opzegtermijnen, voor zover deze binnen de hierboven genoemde gegevens en het doel van deze specifieke machtiging vallen.<br><strong>Bevoegdheid:</strong> alleen gegevens opvragen, ontvangen en verwerken; geen overeenkomsten aangaan, wijzigen of opzeggen, leveranciers wijzigen, betalingen uitvoeren of bestellingen plaatsen zonder afzonderlijke toestemming.<br><strong>Geldigheid:</strong> maximaal 365 dagen · op elk moment intrekbaar
       </div>
       <div class="grid2">
         <div class="field"><label for="grantName">Naam tekenbevoegde</label><input type="text" id="grantName" placeholder="Bijv. Jan de Vries" value="${STATE.account.contactPerson||''}"></div>
@@ -3245,7 +3245,7 @@ const AuthModule = {
       </div>
       <div class="consent-row" style="margin-top:8px">
         <input type="checkbox" id="grantConsent">
-        <label for="grantConsent">Ik verklaar tekenbevoegd te zijn en machtig Horeca United B.V. om namens mijn onderneming gegevens op te vragen bij <strong>${source.name}</strong>, uitsluitend voor bovenstaand doel. De machtiging geldt totdat ik deze intrek. <span class="req">verplicht</span></label>
+        <label for="grantConsent">Ik verklaar tekenbevoegd te zijn en machtig Horeca United B.V. om namens mijn onderneming gegevens op te vragen bij <strong>${source.name}</strong>, uitsluitend voor de hierboven omschreven gegevens en het doel van deze specifieke machtiging. Ik kan deze machtiging op elk moment intrekken; zij eindigt uiterlijk na 365 dagen. <span class="req">verplicht</span></label>
       </div>
       <div class="error-text" id="grantError" style="display:none;margin-top:8px"></div>
       <div class="actions" style="margin-top:16px">
