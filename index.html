@@ -2394,9 +2394,7 @@ const Dashboard = {
       const el = document.getElementById(id);
       if (el) el.textContent = `${pct}%`;
     }
-    document.getElementById('dashProfilePct2').textContent = `${pct}% voltooid`;
-    document.getElementById('dashProfileBar').style.width = `${pct}%`;
-    const actionEl = document.getElementById('dashNextAction');
+     const actionEl = document.getElementById('dashNextAction');
     if (actionEl) {
       const next = STATE.selectedSubgroups.find(id => id !== primarySubgroupId());
       actionEl.textContent = next
@@ -2706,8 +2704,7 @@ const Dashboard = {
     });
     // Show real summary tiles
     document.getElementById('dashRealSummary').style.display = 'block';
-    document.getElementById('dashDemoSummary').style.display = 'none';
-    document.getElementById('dashTotalSpend').textContent = new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(total);
+     document.getElementById('dashTotalSpend').textContent = new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(total);
     document.getElementById('dashCatCount').textContent = catCount;
     // Voorlopige mogelijke besparing beweegt mee met uitsluitend de geselecteerde,
     // onderbouwde kostenbasis. Dit wijzigt geen financiële brondata.
