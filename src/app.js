@@ -1037,19 +1037,10 @@ const Dashboard = {
       CURRENT_USER ? (STATE.account.companyName || CURRENT_USER.email) : (STATE.account.companyName || "Voorbeeld Horecazaak");
     const pct = CURRENT_USER ? Math.min(100, Math.round(Object.keys(spendBySubgroup).length / Math.max(1,SUBGROUPS.length) * 100)) : Engine.profileCompletion();
     const progressLabel = `${pct}%`;
-    document.getElementById("dashProfilePct2").textContent = `${pct}% voltooid`;
-    document.getElementById("dashProfileBar").style.width = `${pct}%`;
-    for (const id of ['dashProfilePct', 'dashProfilePctSummary', 'dashProfilePctDemo']) {
-      const el = document.getElementById(id);
-      if (el) el.textContent = progressLabel;
-    }
-    // demo summary shown when no real transactions
-    document.getElementById("dashRealSummary").style.display = "none";
-    document.getElementById("dashDemoSummary").style.display = "block";
-    const potDemo = document.getElementById("dashPotentialDemo");
-    const pctDemo = document.getElementById("dashProfilePctDemo");
-    if (potDemo) potDemo.textContent = STATE.result ? `${euro(STATE.result.low)} – ${euro(STATE.result.high)}` : "—";
-    if (pctDemo) pctDemo.textContent = progressLabel;
+    const profilePctTop = document.getElementById('dashProfilePct');
+    if(profilePctTop) profilePctTop.textContent = progressLabel;
+    const realSummary = document.getElementById("dashRealSummary");
+    if(realSummary) realSummary.style.display = "none";
 
     // Demo banner
     document.getElementById("dashDemoBanner").style.display = CURRENT_USER ? "none" : "block";
@@ -1064,11 +1055,6 @@ const Dashboard = {
       const pctEl = document.getElementById("dashProfilePct");
       if (pctEl) pctEl.textContent = pct + "%";
     }
-
-    const shortBody = rows.slice(0,5).map(r=>`
-      <tr><td><strong>${r.name}</strong></td><td><span class="badge ${r.badge}">${r.status}</span></td>
-      <td>${r.kans}</td><td><button class="btn btn-ghost btn-sm" onclick="Dashboard.showTab('subgroepen')">Bekijk</button></td></tr>`).join("");
-    document.getElementById("dashSubgroupTableShort").innerHTML = shortBody || `<tr><td colspan="4" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
     const nlDate = date => date ? date.split('-').reverse().join('-') : 'onbekend';
     const safe = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1130,10 +1116,13 @@ const Dashboard = {
     document.getElementById('wineSupplierRows').innerHTML = wineSuppliers.length
       ? wineSuppliers.map(item => '<tr><td><strong>'+safe(item.name)+'</strong></td><td>'+wineCurrency(item.amount)+'</td><td>'+(wineTotal ? new Intl.NumberFormat('nl-NL',{maximumFractionDigits:1}).format(item.amount/wineTotal*100)+'%' : '—')+'</td></tr>').join('')
       : '<tr><td colspan="3">Nog geen verwerkte wijninkoop per leverancier beschikbaar.</td></tr>';
-    const next = STATE.selectedSubgroups.filter(id=>id!==primarySubgroupId())[0];
-    document.getElementById("dashNextAction").textContent = next
-      ? `Upload je ${subgroupName(next).toLowerCase()}-document om je volgende analyse te starten.${pct == null ? '' : ` Je profiel is voor ${pct}% voltooid.`}`
-      : `Open extra subgroepen om je volledige benchmark te ontgrendelen.${pct == null ? '' : ` Je profiel is voor ${pct}% voltooid.`}`;
+    const missingRow = rows.find(r => r.cost == null);
+    const nextActionEl = document.getElementById("dashNextAction");
+    if(nextActionEl){
+      nextActionEl.textContent = missingRow
+        ? `Voeg een document toe voor ${missingRow.name.toLowerCase()} om deze subgroep te kunnen analyseren en vergelijken.`
+        : 'Je bekende subgroepen hebben kostengegevens. Bekijk Subgroepen voor ontbrekende contract- of benchmarkinformatie.';
+    }
 
     // contracts tab renders lazily via showTab('contracten')
 
@@ -1529,16 +1518,11 @@ const Dashboard = {
 
   async renderOverzicht(){
     if (!CURRENT_USER) return; // demo summary already shown by render()
-    const [{ data, error }, { data: uploads }] = await Promise.all([
-      sb.from('transactions')
-        .select('id, amount, monthly_amount, renewal_date, transaction_date, period_start, period_end, is_contract, raw_data, categories(name)')
-        .eq('email', CURRENT_USER.email),
-      sb.from('uploads').select('file_name, file_path').eq('email', CURRENT_USER.email)
-    ]);
-    const notice = document.getElementById('dashBookYearNotice');
+    const { data, error } = await sb.from('transactions')
+      .select('id, amount, monthly_amount, renewal_date, transaction_date, period_start, period_end, is_contract, raw_data, categories(name)')
+      .eq('email', CURRENT_USER.email);
     if (error || !data) {
-      notice.style.display = 'block';
-      notice.textContent = 'Uitgaven voor 2025 konden niet worden geladen. Probeer het later opnieuw.';
+      console.error('Overzicht: kosten konden niet worden geladen', error);
       return;
     }
 
@@ -1578,40 +1562,6 @@ const Dashboard = {
       if(!processedPaths.has(u.file_path)) return [`${u.file_name}: verwerking of boekjaar nog niet bevestigd`];
       return [];
     });
-    notice.replaceChildren();
-    notice.style.display = review.length || temporaryReferences.size ? 'block' : 'none';
-    const referenceDescriptions = {
-      Muzieklicentie: 'Buma/Sena: 2026 telt tijdelijk mee als referentie totdat een bedrag uit 2025 beschikbaar is.',
-      Verzekeringen: 'De Goudse: maandpremie uit de polis van 2026 × 12, inclusief assurantiebelasting. Dit is een jaarindicatie, geen uitgave over 2025.',
-      Telecom: 'Odido: voorlopige start 15-04-2026 op basis van de besteldatum. Het eerste contractjaar (t/m 14-04-2027) telt mee. Het tweede (15-04-2027 t/m 14-04-2028) staat apart en telt niet dubbel mee. De echte activatiedatum kan dit wijzigen.'
-    };
-    if(wasteEstimate){
-      notice.style.display = 'block';
-      const note = document.createElement('p');
-      note.style.margin = '0 0 8px';
-      note.textContent = 'Afval & milieu: in Bekende kosten is een indicatie van de jaarkosten opgenomen op basis van '+wasteEstimate.coveredDays+' dagen aan facturen uit 2025 (€ '+wasteEstimate.actual.toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2})+' werkelijk). Dit is geen vastgesteld jaartotaal.';
-      notice.append(note);
-    }
-    temporaryReferences.forEach(category => {
-      const reference = document.createElement('p');
-      reference.style.margin = '0 0 8px';
-      reference.textContent = referenceDescriptions[category] || `${category}: 2026 wordt tijdelijk gebruikt totdat 2025 beschikbaar is.`;
-      notice.append(reference);
-    });
-    if(review.length){
-      const title = document.createElement('strong');
-      title.textContent = 'Overige documenten niet meegenomen in dit totaal:';
-      notice.append(title);
-      const list = document.createElement('ul');
-      list.style.margin = '6px 0 0';
-      review.forEach(message => {
-        const item = document.createElement('li');
-        item.textContent = message;
-        list.append(item);
-      });
-      notice.append(list);
-    }
-
     // Show real summary tiles
     document.getElementById('dashRealSummary').style.display = 'block';
     document.getElementById('dashDemoSummary').style.display = 'none';
@@ -1621,29 +1571,7 @@ const Dashboard = {
     // onderbouwde kostenbasis. Dit wijzigt geen financiële brondata.
     const potentialText = `${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(total*0.08)} – ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(total*0.14)}`;
     const potentialTop = document.getElementById('dashPotential');
-    const potentialSummary = document.getElementById('dashPotentialSummary');
     if(potentialTop) potentialTop.textContent = potentialText;
-    if(potentialSummary) potentialSummary.textContent = potentialText;
-    const realizedTop = document.getElementById('dashRealized');
-    const realizedSummary = document.getElementById('dashRealizedSummary');
-    if(realizedSummary && realizedTop) realizedSummary.textContent = realizedTop.textContent || '€0';
-
-    // Compacte herkomst van de kostenbasis. 2025 blijft leidend; tijdelijke
-    // 2026-referenties worden zichtbaar gemarkeerd en nooit stilzwijgend als 2025 getoond.
-    const costBasis = document.getElementById('dashCostBasis');
-    if(costBasis){
-      const labels = Object.keys(agg).sort((x,y)=>x.localeCompare(y,'nl'));
-      costBasis.innerHTML = labels.map(cat => {
-        const isTemp = temporaryReferences.has(cat);
-        const year = isTemp ? '2026 · tijdelijk' : '2025';
-        const amount = new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:2}).format(agg[cat]);
-        const qualifier = cat === 'Afval & milieu' && wasteEstimate ? ' · jaarindicatie' : '';
-        return '<div style="display:grid;grid-template-columns:minmax(130px,1fr) auto auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)">'+
-          '<strong style="font-size:13px">'+safeBenchmark(cat)+'</strong>'+
-          '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px">'+amount+qualifier+'</span>'+
-          '<span class="badge '+(isTemp?'b-yellow':'b-green')+'">'+year+'</span></div>';
-      }).join('');
-    }
 
     // Benchmark chart — fetch from Supabase
     const { data: benchRows } = await sb.from('benchmark_data').select('category_name, avg_amount, sample_size');
