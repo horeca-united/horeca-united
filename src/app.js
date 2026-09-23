@@ -820,7 +820,7 @@ const CATEGORY_TO_SUBGROUP = {
   "Inkoop (overig)": "foodgroothandel"
 };
 
-function buildSubgroupRows(uploadedSubgroups = new Set(), spendBySubgroup = {}, yearBySubgroup = {}){
+function buildSubgroupRows(uploadedSubgroups = new Set(), spendBySubgroup = {}, yearBySubgroup = {}, detailBySubgroup = {}){
   const subgroupIds = [...new Set([...STATE.selectedSubgroups, ...uploadedSubgroups, ...Object.keys(spendBySubgroup)])];
   return subgroupIds.map(id=>{
     const isPrimary = id === primarySubgroupId();
@@ -836,10 +836,11 @@ function buildSubgroupRows(uploadedSubgroups = new Set(), spendBySubgroup = {}, 
     const realSpend = spendBySubgroup[id];
     const cost = CURRENT_USER ? (realSpend ?? null)
       : (isPrimary ? (STATE.primary.annualSpend || realSpend || 0) : (realSpend || 0));
-    const supplier = isPrimary ? (STATE.primary.supplier || "Onbekende leverancier") : "—";
+    const supplier = detailBySubgroup[id]?.supplier || (isPrimary ? (STATE.primary.supplier || "Onbekende leverancier") : "—");
     const contractEnd = isPrimary ? (STATE.primary.contractEnd || "Onbekend") : "Onbekend";
     const missing = isPrimary && STATE.method==="later" ? "Factuur of contract" : "—";
-    return {id, name: subgroupName(id), status, badge, kans, cost, sourceYear:yearBySubgroup[id] || null, supplier, contractEnd, missing, isPrimary};
+    return {id, name: subgroupName(id), status, badge, kans, cost, sourceYear:yearBySubgroup[id] || null,
+      nextYearAmount:detailBySubgroup[id]?.nextYearAmount || null, supplier, contractEnd, missing, isPrimary};
   });
 }
 
@@ -865,19 +866,44 @@ function bookYearTransaction(row, year = DASHBOARD_BOOK_YEAR){
   return { included:false, reason:'boekjaar niet bevestigd' };
 }
 
-// Music licensing is the only agreed 2026 reference for now. As soon as a
-// confirmed 2025 music document exists, the entire 2026 reference is replaced.
+function dashboardCategory(row){
+  return row.categories?.name === 'Muziekrechten' ? 'Muzieklicentie' : (row.categories?.name || 'Overig');
+}
+function policyYear(row){
+  if(dashboardCategory(row) !== 'Verzekeringen' || !row.is_contract || !(Number(row.monthly_amount) > 0)) return null;
+  const year = (row.renewal_date || row.transaction_date || '').slice(0, 4);
+  return year === '2025' || year === '2026' ? Number(year) : null;
+}
+function firstTelecomYear(row){
+  const summary = row.raw_data?.contract_summary;
+  if(dashboardCategory(row) !== 'Telecom' || !row.is_contract || summary?.verified_from_source !== true || !(Number(summary.annual_amount) > 0)) return null;
+  const year = (row.transaction_date || '').slice(0, 4);
+  return year === '2025' || year === '2026' ? Number(year) : null;
+}
+function dashboardAmount(row){
+  const summary = row.raw_data?.contract_summary;
+  if(firstTelecomYear(row)) return Number(summary.annual_amount); // Only months 1–12; never add months 13–24.
+  if(policyYear(row) && !row.period_end) return Math.round(Number(row.monthly_amount) * 1200) / 100;
+  return Number(row.amount);
+}
+
+// 2025 sources win per subgroup. Verified 2026 music, policy and first-contract-
+// year telecom amounts serve as temporary references only when 2025 is absent.
 function dashboardCostSelection(rows){
   const selected = new Map();
-  const musicCategory = row => ['Muzieklicentie', 'Muziekrechten'].includes(row.categories?.name);
-  const has2025Music = rows.some(row => musicCategory(row) && bookYearTransaction(row).included);
+  const source2025 = row => bookYearTransaction(row).included || policyYear(row) === 2025 || firstTelecomYear(row) === 2025;
+  const categoriesWith2025 = new Set(rows.filter(source2025).map(dashboardCategory));
   rows.forEach(row => {
-    if(bookYearTransaction(row).included) selected.set(row.id, 2025);
-    else if(!has2025Music && musicCategory(row) && row.period_start && row.period_end && bookYearTransaction(row, 2026).included){
+    const category = dashboardCategory(row);
+    if(source2025(row)) selected.set(row.id, 2025);
+    else if(categoriesWith2025.has(category)) return;
+    else if(category === 'Muzieklicentie' && row.period_start && row.period_end && bookYearTransaction(row, 2026).included){
+      selected.set(row.id, 2026);
+    } else if(policyYear(row) === 2026 || firstTelecomYear(row) === 2026){
       selected.set(row.id, 2026);
     }
   });
-  return { selected, has2025Music };
+  return { selected, categoriesWith2025 };
 }
 
 /* ---------------- Klantdashboard ---------------- */
@@ -914,11 +940,12 @@ const Dashboard = {
     let uploadedSubgroups = new Set();
     let spendBySubgroup = {};
     let yearBySubgroup = {};
+    let detailBySubgroup = {};
     if(CURRENT_USER){
       const [{ data: uploads }, { data: txRows }] = await Promise.all([
         sb.from('uploads').select('subgroup').eq('email', CURRENT_USER.email),
         sb.from('transactions')
-          .select('id, amount, transaction_date, period_start, period_end, is_contract, categories(name)')
+          .select('id, amount, monthly_amount, renewal_date, raw_data, transaction_date, period_start, period_end, is_contract, categories(name), suppliers(name)')
           .eq('email', CURRENT_USER.email)
       ]);
       if(uploads) uploads.forEach(u => { if(u.subgroup) uploadedSubgroups.add(u.subgroup); });
@@ -926,13 +953,21 @@ const Dashboard = {
       if(txRows) txRows.filter(t => selected.has(t.id)).forEach(t => {
         const catName = t.categories?.name;
         const sgId = CATEGORY_TO_SUBGROUP[catName];
-        if(sgId && Number.isFinite(Number(t.amount))) {
-          spendBySubgroup[sgId] = (spendBySubgroup[sgId] || 0) + Number(t.amount);
+        const amount = dashboardAmount(t);
+        if(sgId && Number.isFinite(amount)) {
+          spendBySubgroup[sgId] = (spendBySubgroup[sgId] || 0) + amount;
           yearBySubgroup[sgId] = selected.get(t.id);
+          const details = detailBySubgroup[sgId] || {};
+          details.supplier = t.suppliers?.name || (sgId === 'muzieklicentie' ? 'Buma/Sena' : details.supplier);
+          const secondYearMonthly = Number(t.raw_data?.contract_summary?.standard_monthly_total);
+          if(sgId === 'internet' && firstTelecomYear(t) && secondYearMonthly > 0){
+            details.nextYearAmount = Math.round(secondYearMonthly * 1200) / 100;
+          }
+          detailBySubgroup[sgId] = details;
         }
       });
     }
-    const rows = buildSubgroupRows(uploadedSubgroups, spendBySubgroup, yearBySubgroup);
+    const rows = buildSubgroupRows(uploadedSubgroups, spendBySubgroup, yearBySubgroup, detailBySubgroup);
     document.getElementById("dashCompanyName").textContent =
       CURRENT_USER ? (STATE.account.companyName || CURRENT_USER.email) : (STATE.account.companyName || "Voorbeeld Horecazaak");
     const pct = CURRENT_USER ? null : (STATE.result ? STATE.result.profilePct : Engine.profileCompletion());
@@ -971,7 +1006,7 @@ const Dashboard = {
     document.getElementById("dashSubgroupTableShort").innerHTML = shortBody || `<tr><td colspan="4" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
     const fullBody = rows.map(r=>`
-      <tr><td><strong>${r.name}</strong></td><td>${r.supplier}</td><td>${r.cost == null ? '—' : euro(r.cost)}</td><td>${r.sourceYear || '—'}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
+      <tr><td><strong>${r.name}</strong></td><td>${String(r.supplier).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td>${r.cost == null ? '—' : new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.cost)}${r.nextYearAmount != null ? `<br><small>1e contractjaar vanaf activatie · 2e contractjaar indicatief ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.nextYearAmount)}</small>` : ''}</td><td>${r.sourceYear || '—'}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
       <td><span class="badge ${r.badge}">${r.status}</span></td><td>${r.kans}</td><td>${r.contractEnd}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="alert('In deze demo start dit de analyse-flow voor ${r.name}.')">${r.status==="Nog niet ingevuld"?"Start analyse":"Bekijk"}</button></td></tr>`).join("");
     document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="8" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
@@ -1023,7 +1058,7 @@ const Dashboard = {
           .eq('email', CURRENT_USER.email)
           .order('uploaded_at', { ascending: false }),
         sb.from('transactions')
-          .select('id, raw_data, period_start, period_end, transaction_date, is_contract, categories(name)')
+          .select('id, raw_data, monthly_amount, renewal_date, period_start, period_end, transaction_date, is_contract, categories(name)')
           .eq('email', CURRENT_USER.email)
       ]);
       if (error) {
@@ -1353,7 +1388,7 @@ const Dashboard = {
     if (!CURRENT_USER) return; // demo summary already shown by render()
     const [{ data, error }, { data: uploads }] = await Promise.all([
       sb.from('transactions')
-        .select('id, amount, transaction_date, period_start, period_end, is_contract, raw_data, categories(name)')
+        .select('id, amount, monthly_amount, renewal_date, transaction_date, period_start, period_end, is_contract, raw_data, categories(name)')
         .eq('email', CURRENT_USER.email),
       sb.from('uploads').select('file_name, file_path').eq('email', CURRENT_USER.email)
     ]);
@@ -1364,45 +1399,53 @@ const Dashboard = {
       return;
     }
 
-    // Use confirmed 2025 costs, plus the temporary 2026 music reference only
-    // while a confirmed 2025 music amount is unavailable.
+    // Prefer 2025 sources; use selected 2026 references for missing subgroups.
     const agg = {};
     const reviewByPath = new Map();
     const processedPaths = new Set();
-    const { selected, has2025Music } = dashboardCostSelection(data);
-    let hasMusicReference = false;
+    const includedPaths = new Set();
+    const { selected, categoriesWith2025 } = dashboardCostSelection(data);
+    const temporaryReferences = new Set();
     data.forEach(r => {
       const path = r.raw_data?.file_path;
       if(path) processedPaths.add(path);
       const sourceYear = selected.get(r.id);
+      const cat = dashboardCategory(r);
       if(!sourceYear){
-        const isMusic = ['Muzieklicentie', 'Muziekrechten'].includes(r.categories?.name);
-        const reason = has2025Music && isMusic && bookYearTransaction(r, 2026).included
+        const is2026Reference = (cat === 'Muzieklicentie' && bookYearTransaction(r, 2026).included)
+          || policyYear(r) === 2026 || firstTelecomYear(r) === 2026;
+        const reason = categoriesWith2025.has(cat) && is2026Reference
           ? '2025 beschikbaar; 2026 niet dubbel meegeteld'
           : bookYearTransaction(r).reason;
         if(path && !reviewByPath.has(path)) reviewByPath.set(path, reason);
         return;
       }
-      if(sourceYear === 2026) hasMusicReference = true;
-      const cat = r.categories?.name === 'Muziekrechten' ? 'Muzieklicentie' : (r.categories?.name || 'Overig');
-      const amount = Number(r.amount);
+      if(path) includedPaths.add(path);
+      if(sourceYear === 2026) temporaryReferences.add(cat);
+      const amount = dashboardAmount(r);
       if(Number.isFinite(amount)) agg[cat] = (agg[cat] || 0) + amount;
     });
     const total = Object.values(agg).reduce((a,b) => a+b, 0);
     const catCount = Object.keys(agg).length;
     const review = (uploads || []).flatMap(u => {
+      if(includedPaths.has(u.file_path)) return [];
       if(reviewByPath.has(u.file_path)) return [`${u.file_name}: ${reviewByPath.get(u.file_path)}`];
       if(!processedPaths.has(u.file_path)) return [`${u.file_name}: verwerking of boekjaar nog niet bevestigd`];
       return [];
     });
     notice.replaceChildren();
-    notice.style.display = review.length || hasMusicReference ? 'block' : 'none';
-    if(hasMusicReference){
+    notice.style.display = review.length || temporaryReferences.size ? 'block' : 'none';
+    const referenceDescriptions = {
+      Muzieklicentie: 'Buma/Sena: 2026 telt tijdelijk mee als referentie totdat een bedrag uit 2025 beschikbaar is.',
+      Verzekeringen: 'De Goudse: maandpremie uit de polis van 2026 × 12, inclusief assurantiebelasting. Dit is een jaarindicatie, geen uitgave over 2025.',
+      Telecom: 'Odido: alleen de eerste 12 maanden vanaf activatie zijn opgenomen. Maanden 13–24 staan apart bij Subgroepen en tellen niet dubbel mee; de activatiedatum is nog niet bevestigd.'
+    };
+    temporaryReferences.forEach(category => {
       const reference = document.createElement('p');
       reference.style.margin = '0 0 8px';
-      reference.textContent = 'Muzieklicentie: het bedrag uit 2026 telt tijdelijk mee als referentie. Dit is geen vastgesteld uitgavenbedrag over 2025. Een document over 2025 vervangt dit bedrag automatisch.';
+      reference.textContent = referenceDescriptions[category] || `${category}: 2026 wordt tijdelijk gebruikt totdat 2025 beschikbaar is.`;
       notice.append(reference);
-    }
+    });
     if(review.length){
       const title = document.createElement('strong');
       title.textContent = 'Overige documenten niet meegenomen in dit totaal:';
