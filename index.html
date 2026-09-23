@@ -2348,7 +2348,19 @@ const Dashboard = {
           const date = u.uploaded_at ? new Date(u.uploaded_at).toLocaleDateString('nl-NL') : 'Datum onbekend';
           return '<tr><td>'+fileCell(u.file_name)+'</td><td>'+safeDoc(subgroup)+'</td><td>'+safeDoc(statusFor(records))+'</td><td>Geüpload · '+safeDoc(date)+'</td><td><button class="btn btn-ghost btn-sm" style="color:var(--danger-ink);border-color:var(--danger-ink)" onclick="Dashboard.deleteUpload(\''+u.id+'\',\''+u.file_path.replace(/'/g,"\\'")+'\')">Verwijderen</button></td></tr>';
         }).join('')+
-        sourceEntries.map(([fileName,records]) => '<tr><td>'+fileCell(fileName)+'</td><td>'+safeDoc(records[0]?.category ? subgroupName(records[0].category) : 'Nog niet gekoppeld')+'</td><td>'+safeDoc(statusFor(records))+'</td><td>Brongegevens verwerkt · origineel niet opgeslagen</td><td>—</td></tr>').join('')+
+        sourceEntries.map(([fileName,records]) => {
+          const first = records[0] || {};
+          const category = first.category;
+          const isWaste2025 = category === 'afval' && records.some(x => x.period === '2025 Q4');
+          const isWaste2026 = category === 'afval' && records.some(x => x.role === 'benchmark');
+          const usage = isWaste2025 ? 'Kostenbasis · Q4 2025' : isWaste2026 ? 'Prijsbenchmark · Q2 2026 (niet opgeteld)' : category === 'energie' ? 'Kostenbasis · 2025' : category === 'wijn' ? 'Wijninkoop · 2025' : statusFor(records);
+          const action = category === 'wijn'
+            ? '<button class="btn btn-ghost btn-sm" onclick="Dashboard.openWineDetail()">Bekijk wijnanalyse</button>'
+            : category === 'afval' || category === 'energie'
+            ? '<button class="btn btn-ghost btn-sm" onclick="Dashboard.showTab(\'subgroepen\')">Bekijk subgroepen</button>'
+            : '—';
+          return '<tr><td>'+fileCell(fileName)+'</td><td>'+safeDoc(category ? subgroupName(category) : 'Nog niet gekoppeld')+'</td><td>'+safeDoc(usage)+'</td><td>Brongegevens verwerkt; origineel niet opgeslagen</td><td>'+action+'</td></tr>';
+        }).join('')+
         '</tbody></table></div>';
     } else {
       // Not logged in: show demo names from localStorage + login nudge
