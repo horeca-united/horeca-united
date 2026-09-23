@@ -1030,12 +1030,15 @@ const Dashboard = {
       detailBySubgroup.afval = {...(detailBySubgroup.afval || {}), wasteEstimate};
     }
     const rows = buildSubgroupRows(uploadedSubgroups, spendBySubgroup, yearBySubgroup, detailBySubgroup);
+    const existingIds = new Set(rows.map(r=>r.id));
+    SUBGROUPS.forEach(sg => {if(!existingIds.has(sg.id)) rows.push({id:sg.id,name:sg.name,supplier:'Nog geen gegevens',cost:null,sourceYear:null,badge:'b-grey',status:'Nog niet ingevuld',kans:'Nog te bepalen',contractEnd:'Onbekend'});});
+    rows.sort((a,b)=>(b.cost != null)-(a.cost != null));
     document.getElementById("dashCompanyName").textContent =
       CURRENT_USER ? (STATE.account.companyName || CURRENT_USER.email) : (STATE.account.companyName || "Voorbeeld Horecazaak");
-    const pct = CURRENT_USER ? null : (STATE.result ? STATE.result.profilePct : Engine.profileCompletion());
-    const progressLabel = pct == null ? '—' : `${pct}%`;
-    document.getElementById("dashProfilePct2").textContent = pct == null ? 'Documenten laden…' : `${pct}% voltooid`;
-    document.getElementById("dashProfileBar").style.width = pct == null ? '0%' : `${pct}%`;
+    const pct = CURRENT_USER ? Math.min(100, Math.round(Object.keys(spendBySubgroup).length / Math.max(1,SUBGROUPS.length) * 100)) : Engine.profileCompletion();
+    const progressLabel = `${pct}%`;
+    document.getElementById("dashProfilePct2").textContent = `${pct}% voltooid`;
+    document.getElementById("dashProfileBar").style.width = `${pct}%`;
     for (const id of ['dashProfilePct', 'dashProfilePctSummary', 'dashProfilePctDemo']) {
       const el = document.getElementById(id);
       if (el) el.textContent = progressLabel;
@@ -1072,7 +1075,7 @@ const Dashboard = {
     const fullBody = rows.map(r=>`
       <tr><td><strong>${r.name}</strong></td><td>${safe(r.supplier)}${r.id === 'afval' && r.cost != null ? `<br><details style="margin-top:7px"><summary class="btn btn-ghost btn-sm" style="display:inline-block;cursor:pointer">Prijsontwikkeling ↗</summary><div style="margin-top:12px;max-width:330px;min-width:220px;font-size:12px;line-height:1.45"><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:5px"><strong>Q4 2025</strong><span>€ 428,16</span></div><div role="img" aria-label="Q4 2025: 428 euro en 16 cent exclusief btw" style="height:13px;background:var(--border,#e7e9e7);border-radius:8px;overflow:hidden"><div style="width:87.43%;height:100%;background:#659c87;border-radius:8px"></div></div><div style="display:flex;justify-content:space-between;gap:8px;margin:12px 0 5px"><strong>Q2 2026</strong><span>€ 489,75</span></div><div role="img" aria-label="Q2 2026: 489 euro en 75 cent exclusief btw, waarvan 61 euro en 59 cent meer dan in Q4 2025" style="display:flex;height:13px;background:var(--border,#e7e9e7);border-radius:8px;overflow:hidden"><div style="width:87.43%;height:100%;background:#659c87"></div><div style="width:12.57%;height:100%;background:#d79543"></div></div><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:9px"><span style="color:var(--muted)">Extra kosten <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#d79543"></span></span><strong style="color:#a96618">+ € 61,59 · 14,39%</strong></div><p style="margin:9px 0 0;color:var(--muted)">Per kwartaal · excl. btw. 2026 is een benchmark en telt niet mee in het kostentotaal van 2025.</p><details style="margin-top:7px"><summary style="cursor:pointer;color:var(--muted)">Opbouw prijsstijging</summary><p style="margin:6px 0 0;color:var(--muted)">Abonnement per maand: € 142,72 → € 152,57 (+6,90%). In Q2 2026 is daarnaast € 32,04 CO₂- en brandstofheffing berekend. Beide facturen betreffen een 1.100L-restafvalcontainer met wekelijkse lediging.</p></details></div></details>` : ''}</td><td>${r.cost == null ? '—' : new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.cost)}${r.id === 'afval' && wasteEstimate ? '<br><small style="color:var(--muted)">Indicatie per jaar · '+new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(wasteEstimate.actual)+' werkelijk over '+wasteEstimate.coveredDays+' dagen</small>' : ''}${r.id === 'wijn' ? `<br><button class="btn btn-ghost btn-sm" style="margin-top:7px" onclick="Dashboard.openWineDetail()">Bekijk inkoop per leverancier →</button>` : ''}</td><td>${r.sourceYear || '—'}${r.id === 'afval' && r.sourceYear === 2025 ? ' · Q4' : ''}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
       <td><span class="badge ${r.badge}">${r.status}</span></td><td>${r.kans}</td><td>${r.contractEnd}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="alert('In deze demo start dit de analyse-flow voor ${r.name}.')">${r.status==="Nog niet ingevuld"?"Start analyse":"Bekijk"}</button></td></tr>`).join("");
+      <td><button class="btn btn-ghost btn-sm" onclick="Dashboard.showTab('documenten')">${r.cost == null ? 'Upload één factuur →' : 'Voeg factuur toe →'}</button></td></tr>`).join("");
     document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="8" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
     // De wijnartikelregels blijven gekoppeld aan hun brontransactie; totalen niet opnieuw optellen.
@@ -1206,7 +1209,7 @@ const Dashboard = {
       };
       const sourceEntries = [...bySourceName.entries()].filter(([fileName]) => !uploads.some(u => u.file_name === fileName));
       if(docsCountEl) docsCountEl.textContent = uploads.length + sourceEntries.length;
-      this.updateDocumentProgress(uploads.length + sourceEntries.length);
+      this.updateDocumentProgress(new Set([...(transactions || []).map(t => CATEGORY_TO_SUBGROUP[t.categories?.name]), ...uploads.map(u => u.subgroup)].filter(Boolean)).size);
       if(!uploads.length && !sourceEntries.length){
         el.innerHTML = '<div class="empty-state">Nog geen documenten of verwerkte brongegevens beschikbaar.</div>';
         return;
@@ -1255,7 +1258,7 @@ const Dashboard = {
   },
 
   updateDocumentProgress(documentCount){
-    const pct = Math.min(100, documentCount * 10);
+    const pct = Math.min(100, Math.round(documentCount / Math.max(1, SUBGROUPS.length) * 100));
     for (const id of ['dashProfilePct', 'dashProfilePctSummary', 'dashProfilePctDemo']) {
       const el = document.getElementById(id);
       if (el) el.textContent = `${pct}%`;
@@ -1342,7 +1345,7 @@ const Dashboard = {
       }
     }
 
-    const isDemo = rows.length === 0;
+    const isDemo = !CURRENT_USER && rows.length === 0;
     if (isDemo) rows = DEMO_SPEND;
 
     const max = rows[0]?.total || 1;
@@ -1675,7 +1678,6 @@ const Dashboard = {
       {category:'Muziekrechten', supplier:'Buma/Sena', period_start:'2026-01-01', period_end:'2026-12-31', amount:1122, notes:'Buma + Sena licentie 2026', has_contract:true},
       {category:'Afval & milieu', supplier:'Milieu Service NL', period_start:'2026-07-01', period_end:'2026-09-30', amount:604, notes:'Afvalcontract kwartaal Q3', has_contract:true},
       {category:'Telecom', supplier:'Odido', period_start:'2026-04-15', period_end:'2028-04-15', date_confidence:'estimated', cancel_by_date:'2028-03-15', amount:417.50, amount_note:'eerste 12 maanden; daarna € 498,00 per jaar', notes:'Internet 100/30 Mbit/s: € 30,00 p/m in de eerste 12 maanden, daarna € 36,50 p/m. Vast Bellen Start: € 2,50 p/m. Thuis Veilig Online: alleen de eerste maand gratis, daarna € 2,50 p/m.', notice_period_months:1, notice_period_text:'1 maand', has_contract:true},
-      {category:'Inkoop (overig)', supplier:'—', period_start:null, period_end:null, amount:null, notes:'', has_contract:false},
     ];
 
     const fmt = v => v != null ? new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v) : '—';
@@ -1760,8 +1762,8 @@ const Dashboard = {
 
       // Wijn is vaak een inkooprelatie zonder getekend contract. Toon de
       // leverancier toch, maar geef een jaarstatistiek nooit een contracteinddatum.
-      const categories = (cats || []).filter(cat => cat.name !== 'Wijn' ||
-        (allTx || []).some(t => t.category_id === cat.id));
+      const categories = (cats || []).filter(cat => cat.name !== 'Inkoop (overig)' && (cat.name !== 'Wijn' ||
+        (allTx || []).some(t => t.category_id === cat.id)));
       if (categories.length) {
         rows = categories.flatMap(cat => {
           const c = contractByCat[cat.id];
