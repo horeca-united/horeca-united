@@ -1196,6 +1196,11 @@ const Dashboard = {
     if (error) { alert('Verwijderen mislukt: ' + error.message); return; }
     this.render();
   },
+  openWineDetail(){
+    this.showTab('wijn-detail');
+    const heading = document.querySelector('#dashTab-wijn-detail h2');
+    if (heading) heading.scrollIntoView({block:'start'});
+  },
   showTab(tab){
     document.querySelectorAll(".dash-tab").forEach(el=>el.style.display="none");
     document.getElementById("dashTab-"+tab).style.display="block";
