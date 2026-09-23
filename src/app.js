@@ -1039,6 +1039,49 @@ const Dashboard = {
       <td><button class="btn btn-ghost btn-sm" onclick="alert('In deze demo start dit de analyse-flow voor ${r.name}.')">${r.status==="Nog niet ingevuld"?"Start analyse":"Bekijk"}</button></td></tr>`).join("");
     document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="8" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
+    // De wijnartikelregels blijven gekoppeld aan hun brontransactie; totalen niet opnieuw optellen.
+    const wineSourceRows = CURRENT_USER ? (txRows || []).filter(t =>
+      CATEGORY_TO_SUBGROUP[t.categories?.name] === 'wijn' &&
+      selected.has(t.id) && Array.isArray(t.raw_data?.wine_article_statistics?.lines)
+    ) : [];
+    const wineArticleGroups = new Map();
+    wineSourceRows.forEach(t => {
+      const stats = t.raw_data.wine_article_statistics;
+      const supplier = t.suppliers?.name || t.raw_data?.supplier || 'Leverancier onbekend';
+      stats.lines.forEach(line => {
+        const key = supplier + '|' + line.sku;
+        const item = wineArticleGroups.get(key) || {...line, supplier, quantity:0, net:0, source:stats.source, period:stats.period_start+' t/m '+stats.period_end, priceDate:stats.current_price_as_of};
+        item.quantity += Number(line.quantity)||0;
+        item.net += Number(line.net)||0;
+        wineArticleGroups.set(key,item);
+      });
+    });
+    const wineArticles = [...wineArticleGroups.values()];
+    const wineProductBox = document.getElementById('wineProductAnalysis');
+    if (wineArticles.length) {
+      const money = n => new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(n);
+      const itemRow = item => '<tr><td>'+safe(item.name)+'<br><small>'+safe(item.supplier)+' · '+safe(item.sku)+'</small></td><td>'+item.quantity+'</td><td>'+money(item.net)+'</td></tr>';
+      const ranked = wineArticles.filter(item => item.quantity > 0);
+      const top = [...ranked].sort((a,b)=>b.quantity-a.quantity).slice(0,3);
+      const bottom = [...ranked].sort((a,b)=>a.quantity-b.quantity).slice(0,3);
+      const table = items => '<div class="table-wrap"><table class="table"><thead><tr><th>Wijn</th><th>Flessen</th><th>Netto inkoop</th></tr></thead><tbody>'+items.map(itemRow).join('')+'</tbody></table></div>';
+      const articleTotal = wineArticles.reduce((sum,item)=>sum+item.net,0);
+      const bottles = wineArticles.reduce((sum,item)=>sum+item.quantity,0);
+      const sources = [...new Set(wineArticles.map(item=>item.source))];
+      wineProductBox.classList.remove('note');
+      wineProductBox.innerHTML =
+        '<p><strong>'+wineArticles.length+' artikelregels · '+bottles+' stuks · '+money(articleTotal)+'</strong><br><small>Bron: '+sources.map(safe).join(', ')+' · inkoopperiode 2025. Het artikeloverzicht is een uitsplitsing van het bestaande leverancierstotaal, geen extra inkoop.</small></p>'+
+        '<h4>Top 3 ingekochte wijnen</h4>'+table(top)+
+        '<h4>Bottom 3 ingekochte wijnen</h4>'+table(bottom)+
+        '<h4>Alle wijnen van Bart en andere verwerkte leveranciers</h4>'+
+        '<div class="table-wrap" style="max-height:380px;overflow:auto"><table class="table"><thead><tr><th>Wijn / leverancier</th><th>Flessen</th><th>Inkoop netto</th><th>Actuele stukprijs*</th></tr></thead><tbody>'+
+        [...wineArticles].sort((a,b)=>b.quantity-a.quantity).map(item=>'<tr><td>'+safe(item.name)+'<br><small>'+safe(item.supplier)+' · '+safe(item.sku)+'</small></td><td>'+item.quantity+'</td><td>'+money(item.net)+'</td><td>'+money(item.current_price)+'</td></tr>').join('')+
+        '</tbody></table></div><p style="font-size:12px;color:var(--muted)">* Actuele stukprijs zoals vermeld in de bron (Bart: rapport van 1 september 2026); dit is niet noodzakelijk de betaalde prijs in 2025. Een betrouwbare prijsontwikkeling per periode vereist meerdere gedateerde facturen of prijslijsten van hetzelfde product. Artikelen met € 0 netto kunnen bijvoorbeeld gratis verstrekte flessen bevatten.</p>';
+    } else {
+      wineProductBox.classList.add('note');
+      wineProductBox.textContent = 'Voor deze selectie zijn nog geen verwerkte wijnartikelregels beschikbaar. Voeg een gespecificeerde leveranciersfactuur of artikelstatistiek toe om aantallen en productprijzen te kunnen analyseren.';
+    }
+
     // Volledige wijnpagina: gebruik exact dezelfde geselecteerde transacties als het subgroepoverzicht.
     this._wineDetail = detailBySubgroup.wijn || {suppliers:[]};
     this._wineYear = yearBySubgroup.wijn;
