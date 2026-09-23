@@ -1061,7 +1061,7 @@ const Dashboard = {
       const itemRow = item => '<tr><td>'+safe(item.name)+'<br><small>'+safe(item.supplier)+' · '+safe(item.sku)+'</small></td><td>'+item.quantity+'</td><td>'+money(item.net)+'</td></tr>';
       const ranked = wineArticles.filter(item => item.quantity > 0);
       const top = [...ranked].sort((a,b)=>b.quantity-a.quantity).slice(0,3);
-      const bottom = [...ranked].sort((a,b)=>a.quantity-b.quantity).slice(0,3);
+      const bottom = ranked.filter(item => item.net > 0).sort((a,b)=>a.quantity-b.quantity || a.net-b.net || String(a.sku).localeCompare(String(b.sku))).slice(0,3);
       const table = items => '<div class="table-wrap"><table class="table"><thead><tr><th>Wijn</th><th>Flessen</th><th>Netto inkoop</th></tr></thead><tbody>'+items.map(itemRow).join('')+'</tbody></table></div>';
       const articleTotal = wineArticles.reduce((sum,item)=>sum+item.net,0);
       const bottles = wineArticles.reduce((sum,item)=>sum+item.quantity,0);
@@ -1070,7 +1070,7 @@ const Dashboard = {
       wineProductBox.innerHTML =
         '<p><strong>'+wineArticles.length+' artikelregels · '+bottles+' stuks · '+money(articleTotal)+'</strong><br><small>Bron: '+sources.map(safe).join(', ')+' · inkoopperiode 2025. Het artikeloverzicht is een uitsplitsing van het bestaande leverancierstotaal, geen extra inkoop.</small></p>'+
         '<h4>Top 3 ingekochte wijnen</h4>'+table(top)+
-        '<h4>Bottom 3 ingekochte wijnen</h4>'+table(bottom)+
+        '<h4>Bottom 3 betaalde wijnen</h4><p style="font-size:12px;color:var(--muted)">Gratis verstrekte flessen en artikelregels met € 0 netto inkoop tellen niet mee. Bij gelijke aantallen staan de laagste netto inkoopbedragen eerst.</p>'+table(bottom)+
         '<h4>Alle wijnen van Bart en andere verwerkte leveranciers</h4>'+
         '<div class="table-wrap" style="max-height:380px;overflow:auto"><table class="table"><thead><tr><th>Wijn / leverancier</th><th>Flessen</th><th>Inkoop netto</th><th>Actuele stukprijs*</th></tr></thead><tbody>'+
         [...wineArticles].sort((a,b)=>b.quantity-a.quantity).map(item=>'<tr><td>'+safe(item.name)+'<br><small>'+safe(item.supplier)+' · '+safe(item.sku)+'</small></td><td>'+item.quantity+'</td><td>'+money(item.net)+'</td><td>'+money(item.current_price)+'</td></tr>').join('')+
