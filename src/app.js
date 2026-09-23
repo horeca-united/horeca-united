@@ -1626,44 +1626,39 @@ const Dashboard = {
     const BENCHMARK = {};
     (benchRows || []).forEach(r => { BENCHMARK[r.category_name] = { avg: parseFloat(r.avg_amount), n: r.sample_size }; });
 
-    const benchCats = Object.keys(agg).filter(c => BENCHMARK[c]);
-    if (!benchCats.length) return;
-
-    const fmt = v => new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
-    const maxVal = Math.max(...benchCats.flatMap(c => [agg[c], BENCHMARK[c]?.avg || 0]));
-
+    // Show every category with known costs, including those without a benchmark.
+    // Never imply that an unverified benchmark is a comparable peer average.
+    const benchCats = Object.keys(agg).filter(c => Number.isFinite(agg[c]) && agg[c] >= 0);
     const card = document.getElementById('dashBenchmarkCard');
     const chartEl = document.getElementById('dashBenchmarkChart');
+    if (!benchCats.length) {
+      card.style.display = 'none';
+      return;
+    }
+    const fmt = v => new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
+    const maxVal = Math.max(1,...benchCats.flatMap(c => [agg[c], Number(BENCHMARK[c]?.avg) || 0]));
+    const safeBenchmark = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     card.style.display = 'block';
-    chartEl.innerHTML = `
-      <div style="display:flex;gap:16px;font-size:12px;margin-bottom:12px">
-        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:2px;background:var(--brand);display:inline-block"></span>Jouw uitgave</span>
-        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:2px;background:#c8d8c0;display:inline-block"></span>Groepsgemiddelde</span>
-      </div>` +
+    chartEl.innerHTML = '<p style="font-size:12px;color:var(--muted);margin:0 0 12px">Alle subgroepen met bekende kosten zijn zichtbaar. Een vergelijking verschijnt alleen als er een groepsgemiddelde beschikbaar is. Jaarindicaties en tijdelijke referenties zijn niet zonder meer vergelijkbaar met werkelijke jaaruitgaven.</p>'+
+      '<div style="display:flex;gap:16px;font-size:12px;margin-bottom:12px"><span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:2px;background:var(--brand);display:inline-block"></span>Jouw kosten</span><span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:2px;background:#c8d8c0;display:inline-block"></span>Groepsgemiddelde (indien beschikbaar)</span></div>'+
       benchCats.map(cat => {
         const mine = agg[cat];
-        const avg = BENCHMARK[cat].avg;
-        const n = BENCHMARK[cat].n;
-        const diff = mine - avg;
-        const diffPct = Math.round((diff / avg) * 100);
-        const diffColor = diff > 0 ? 'var(--danger-ink)' : 'var(--positive-ink)';
-        const diffLabel = diff > 0 ? `+${diffPct}% boven gemiddelde` : `${diffPct}% onder gemiddelde`;
-        return `
-          <div style="margin-bottom:14px">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:4px">
-              <span style="color:var(--ink);font-weight:500">${cat}</span>
-              <span style="font-size:11px;color:${diffColor}">${diffLabel}${n ? ` (n=${n})` : ''}</span>
-            </div>
-            <div style="position:relative;height:20px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:3px">
-              <div style="height:100%;width:${Math.round(mine/maxVal*100)}%;background:var(--brand);border-radius:4px"></div>
-            </div>
-            <div style="position:relative;height:14px;background:var(--line);border-radius:4px;overflow:hidden">
-              <div style="height:100%;width:${Math.round(avg/maxVal*100)}%;background:#c8d8c0;border-radius:4px"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:3px">
-              <span>${fmt(mine)}</span><span>gem. ${fmt(avg)}</span>
-            </div>
-          </div>`;
+        const avg = Number(BENCHMARK[cat]?.avg);
+        const n = Number(BENCHMARK[cat]?.n);
+        const hasBenchmark = Number.isFinite(avg) && avg > 0;
+        const comparable = hasBenchmark && cat !== 'Afval & milieu' && !temporaryReferences.has(cat);
+        const diffPct = comparable ? Math.round((mine - avg) / avg * 100) : null;
+        const diffLabel = !hasBenchmark ? 'Nog geen groepsgemiddelde beschikbaar'
+          : !comparable ? 'Indicatie of referentie · geen directe vergelijking'
+          : diffPct > 0 ? '+'+diffPct+'% boven gemiddelde'
+          : diffPct < 0 ? Math.abs(diffPct)+'% onder gemiddelde'
+          : 'Gelijk aan gemiddelde';
+        const note = cat === 'Afval & milieu' ? 'Indicatie jaarkosten op basis van beschikbare facturen'
+          : temporaryReferences.has(cat) ? 'Tijdelijke referentie uit 2026' : '';
+        return '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;margin-bottom:4px"><span style="color:var(--ink);font-weight:500">'+safeBenchmark(cat)+'</span><span style="font-size:11px;color:var(--muted);text-align:right">'+safeBenchmark(diffLabel)+(comparable && n > 0 ? ' (n='+n+')' : '')+'</span></div>'+
+          '<div style="height:20px;background:var(--line);border-radius:4px;overflow:hidden;margin-bottom:3px"><div style="height:100%;width:'+Math.round(mine/maxVal*100)+'%;background:var(--brand);border-radius:4px"></div></div>'+
+          (hasBenchmark ? '<div style="height:14px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+Math.round(avg/maxVal*100)+'%;background:#c8d8c0;border-radius:4px"></div></div>' : '')+
+          '<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-top:3px"><span>'+fmt(mine)+(note ? ' · '+safeBenchmark(note) : '')+'</span><span>'+(hasBenchmark ? 'gem. '+fmt(avg) : 'Geen vergelijkingsdata')+'</span></div></div>';
       }).join('');
   },
 
