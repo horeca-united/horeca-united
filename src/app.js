@@ -1722,7 +1722,7 @@ const Dashboard = {
       // Haal contractregels op
       const { data: contractRows } = await sb
         .from('transactions')
-        .select('category_id, amount, period_start, period_end, notes, notice_period_months, notice_period_text, auto_renews, raw_data, categories(name), suppliers(name)')
+        .select('category_id, amount, monthly_amount, period_start, period_end, notes, notice_period_months, notice_period_text, auto_renews, raw_data, categories(name), suppliers(name)')
         .eq('email', CURRENT_USER.email)
         .eq('is_contract', true);
 
@@ -1755,6 +1755,35 @@ const Dashboard = {
         }
       });
 
+      // Bedragen in contracten behouden hun eigen factuurperiode. Een
+      // maandpremie of kwartaalfactuur mag nooit als jaarbedrag worden getoond.
+      const periodAmounts = (cat, c, expenses, summary) => {
+        const txs = (allTx || []).filter(t => t.category_id === cat.id);
+        if (cat.name === 'Verzekeringen' && c?.monthly_amount != null) {
+          const month = Number(c.monthly_amount);
+          return {amount:month, amount_period:'maand', amount_note:'Inclusief assurantiebelasting · jaarindicatie '+fmt(month*12)};
+        }
+        if (cat.name === 'Afval & milieu') {
+          const latest = txs.filter(t=>t.raw_data?.source_verified && t.raw_data?.period_type === 'quarter')
+            .sort((a,b)=>String(b.period_start||'').localeCompare(String(a.period_start||'')))[0];
+          if(latest) return {amount:Number(latest.amount),amount_period:'kwartaal',amount_note:'Factuur '+safe(latest.raw_data.period_label || '')+' · excl. btw · jaarindicatie '+fmt(Number(latest.amount)*4)+' (bij gelijkblijvende kosten)'};
+        }
+        if (cat.name === 'Muzieklicentie') {
+          const lines = txs.filter(t=>t.raw_data?.gemini_output?.product_name && t.period_start === '2026-01-01' && t.period_end === '2026-12-31');
+          if(lines.length) return {amount:Math.round(lines.reduce((sum,t)=>sum+Number(t.amount||0),0)*100)/100,amount_period:'jaar',amount_note:lines.length+' factuurregels 2026 · inclusief toeslagen; controleer kortingsvoorwaarden'};
+        }
+        if (cat.name === 'Gas') {
+          const annual = txs.find(t=>t.raw_data?.gemini_output?.product_name?.toLowerCase().includes('jaarafrekening gas'));
+          if(annual) return {amount:Number(annual.amount),amount_period:'afrekening 2025',amount_note:'Excl. btw · nieuw termijnbedrag '+fmt(Number(annual.monthly_amount))+'/maand is geen afrekeningsbedrag'};
+        }
+        if (cat.name === 'Elektra') {
+          const annual = txs.find(t=>t.raw_data?.source_verified && t.raw_data?.book_year === 2025);
+          if(annual) return {amount:Number(annual.amount),amount_period:'afrekening 2025',amount_note:'Excl. btw · inclusief netbeheer en energiebelasting'};
+        }
+        if (cat.name === 'Telecom' && summary?.annual_amount != null) return {amount:Number(summary.annual_amount),amount_period:'eerste 12 maanden',amount_note:summary.amount_note || ''};
+        if (cat.name === 'Wijn') return {amount:expenses.reduce((sum,t)=>sum+dashboardAmount(t),0),amount_period:'inkoop 2025',amount_note:'Nettobedrag; btw niet vermeld in de bron'};
+        return {amount:summary?.annual_amount ?? (c ? Number(c.amount) : (totalByCat[cat.id] || null)),amount_period:'periode niet vastgesteld',amount_note:'Controleer factuurperiode'};
+      };
       // Wijn is vaak een inkooprelatie zonder getekend contract. Toon de
       // leverancier toch, maar geef een jaarstatistiek nooit een contracteinddatum.
       const categories = (cats || []).filter(cat => cat.name !== 'Inkoop (overig)' && (cat.name !== 'Wijn' ||
@@ -1798,8 +1827,7 @@ const Dashboard = {
             period_end: summary?.period_end || c?.period_end || null,
             period_text: supplierRelation ? 'Inkoop 2025 · contractperiode onbekend'
               : (!c && expenses.length ? 'Afrekening 2025 · contractperiode onbekend' : (summary?.period_text || '')),
-            amount: summary?.annual_amount ?? (c ? parseFloat(c.amount || 0) : (totalByCat[cat.id] || null)),
-            amount_note: supplierRelation ? 'Nettobedrag; btw niet vermeld in de bron' : (summary?.amount_note || ''),
+            ...periodAmounts(cat,c,expenses,summary),
             notes: supplierRelation ? `${supplierNames.length === 1 && supplierNames[0].includes('Beemster') ? 'J. Bart wijnen — ' : ''}Inkoopoverzicht 2025 van ${supplierNames.join(', ')}. Een contract en opzegtermijn zijn nog niet aangeleverd.` : (summary?.description || c?.notes || ''),
             notice_period_text: summary?.notice_period_text || c?.notice_period_text || '',
             notice_period_months: c?.notice_period_months || null,
@@ -1890,7 +1918,7 @@ const Dashboard = {
           <td><strong>${safe(r.category)}</strong>${r.notes ? `<br><span style="font-size:11px;color:var(--muted)">${safe(r.notes)}</span>` : ''}</td>
           <td>${safe(r.supplier)}</td>
           <td>${periodeHtml}</td>
-          <td style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">${fmt(r.amount)}${r.amount_note ? `<br><span style="font-family:inherit;font-size:10px;color:var(--muted)">${safe(r.amount_note)}</span>` : ''}</td>
+          <td style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">${fmt(r.amount)}${r.amount_period ? `<br><strong style="font-family:inherit;font-size:11px">${safe(r.amount_period)}</strong>` : ''}${r.amount_note ? `<br><span style="font-family:inherit;font-size:10px;color:var(--muted)">${safe(r.amount_note)}</span>` : ''}</td>
           <td>${cancellationHtml(r)}</td>
           <td style="white-space:nowrap">${contractBadge(r)}${onderhandelBtn}</td>
         </tr>`;
