@@ -1034,11 +1034,24 @@ const Dashboard = {
     const nlDate = date => date ? date.split('-').reverse().join('-') : 'onbekend';
     const safe = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const fullBody = rows.map(r=>`
-      <tr><td><strong>${r.name}</strong></td><td>${safe(r.supplier)}</td><td>${r.cost == null ? '—' : new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.cost)}${r.id === 'wijn' && r.suppliers.length ? `<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--brand2);font-size:12px">Bekijk inkoop per leverancier</summary>${r.suppliers.map(s=>`<div style="font-size:12px;margin-top:4px">${safe(s.name)}: ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(s.amount)}</div>`).join('')}<small style="color:var(--muted)">Btw-behandeling kan per bron verschillen.</small></details>` : ''}${r.nextYearAmount != null ? `<br><small>1e contractjaar: ${nlDate(r.contractYears?.firstStart)} t/m ${nlDate(r.contractYears?.firstEnd)}<br>2e contractjaar: ${nlDate(r.contractYears?.secondStart)} t/m ${nlDate(r.contractYears?.secondEnd)} · indicatief ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.nextYearAmount)}${r.contractYears?.estimated ? '<br>Start op basis van besteldatum; activatie nog te bevestigen' : ''}</small>` : ''}</td><td>${r.sourceYear || '—'}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
+      <tr><td><strong>${r.name}</strong></td><td>${safe(r.supplier)}</td><td>${r.cost == null ? '—' : new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.cost)}${r.id === 'wijn' ? `<br><button class="btn btn-ghost btn-sm" style="margin-top:7px" onclick="Dashboard.openWineDetail()">Bekijk inkoop per leverancier →</button>` : ''}${r.nextYearAmount != null ? `<br><small>1e contractjaar: ${nlDate(r.contractYears?.firstStart)} t/m ${nlDate(r.contractYears?.firstEnd)}<br>2e contractjaar: ${nlDate(r.contractYears?.secondStart)} t/m ${nlDate(r.contractYears?.secondEnd)} · indicatief ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.nextYearAmount)}${r.contractYears?.estimated ? '<br>Start op basis van besteldatum; activatie nog te bevestigen' : ''}</small>` : ''}</td><td>${r.sourceYear || '—'}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
       <td><span class="badge ${r.badge}">${r.status}</span></td><td>${r.kans}</td><td>${r.contractEnd}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="alert('In deze demo start dit de analyse-flow voor ${r.name}.')">${r.status==="Nog niet ingevuld"?"Start analyse":"Bekijk"}</button></td></tr>`).join("");
     document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="8" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
+    // Volledige wijnpagina: gebruik exact dezelfde geselecteerde transacties als het subgroepoverzicht.
+    this._wineDetail = detailBySubgroup.wijn || {suppliers:[]};
+    this._wineYear = yearBySubgroup.wijn;
+    const wine = this._wineDetail;
+    const wineSuppliers = [...(wine.suppliers || [])].sort((a,b)=>b.amount-a.amount);
+    const wineTotal = wineSuppliers.reduce((sum,item)=>sum+item.amount,0);
+    const wineCurrency = amount => new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(amount);
+    document.getElementById('wineTotal').textContent = wineSuppliers.length ? wineCurrency(wineTotal) : '—';
+    document.getElementById('wineSupplierCount').textContent = wineSuppliers.length;
+    document.getElementById('winePeriod').textContent = 'Bronjaar: ' + (this._wineYear || 'niet vastgesteld; controleer documenten');
+    document.getElementById('wineSupplierRows').innerHTML = wineSuppliers.length
+      ? wineSuppliers.map(item => '<tr><td><strong>'+safe(item.name)+'</strong></td><td>'+wineCurrency(item.amount)+'</td><td>'+(wineTotal ? new Intl.NumberFormat('nl-NL',{maximumFractionDigits:1}).format(item.amount/wineTotal*100)+'%' : '—')+'</td></tr>').join('')
+      : '<tr><td colspan="3">Nog geen verwerkte wijninkoop per leverancier beschikbaar.</td></tr>';
     const next = STATE.selectedSubgroups.filter(id=>id!==primarySubgroupId())[0];
     document.getElementById("dashNextAction").textContent = next
       ? `Upload je ${subgroupName(next).toLowerCase()}-document om je volgende analyse te starten.${pct == null ? '' : ` Je profiel is voor ${pct}% voltooid.`}`
