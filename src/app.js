@@ -958,6 +958,7 @@ const Dashboard = {
     let spendBySubgroup = {};
     let yearBySubgroup = {};
     let detailBySubgroup = {};
+    let wineSourceRows = [];
     if(CURRENT_USER){
       const [{ data: uploads }, { data: txRows }] = await Promise.all([
         sb.from('uploads').select('subgroup').eq('email', CURRENT_USER.email),
@@ -967,6 +968,7 @@ const Dashboard = {
       ]);
       if(uploads) uploads.forEach(u => { if(u.subgroup) uploadedSubgroups.add(u.subgroup); });
       const { selected } = dashboardCostSelection(txRows || []);
+      wineSourceRows = (txRows || []).filter(t => CATEGORY_TO_SUBGROUP[t.categories?.name] === 'wijn' && selected.has(t.id) && Array.isArray(t.raw_data?.wine_article_statistics?.lines));
       if(txRows) txRows.filter(t => selected.has(t.id)).forEach(t => {
         const catName = t.categories?.name;
         const sgId = CATEGORY_TO_SUBGROUP[catName];
@@ -1040,10 +1042,6 @@ const Dashboard = {
     document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="8" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
     // De wijnartikelregels blijven gekoppeld aan hun brontransactie; totalen niet opnieuw optellen.
-    const wineSourceRows = CURRENT_USER ? (txRows || []).filter(t =>
-      CATEGORY_TO_SUBGROUP[t.categories?.name] === 'wijn' &&
-      selected.has(t.id) && Array.isArray(t.raw_data?.wine_article_statistics?.lines)
-    ) : [];
     const wineArticleGroups = new Map();
     wineSourceRows.forEach(t => {
       const stats = t.raw_data.wine_article_statistics;
