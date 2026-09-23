@@ -986,13 +986,15 @@ const Dashboard = {
     let yearBySubgroup = {};
     let detailBySubgroup = {};
     let wineSourceRows = [];
+    let txRows = [];
     if(CURRENT_USER){
-      const [{ data: uploads }, { data: txRows }] = await Promise.all([
+      const [{ data: uploads }, { data: loadedTxRows }] = await Promise.all([
         sb.from('uploads').select('subgroup').eq('email', CURRENT_USER.email),
         sb.from('transactions')
           .select('id, amount, monthly_amount, renewal_date, raw_data, transaction_date, period_start, period_end, is_contract, categories(name), suppliers(name)')
           .eq('email', CURRENT_USER.email)
       ]);
+      txRows = loadedTxRows || [];
       if(uploads) uploads.forEach(u => { if(u.subgroup) uploadedSubgroups.add(u.subgroup); });
       const { selected } = dashboardCostSelection(txRows || []);
       wineSourceRows = (txRows || []).filter(t => CATEGORY_TO_SUBGROUP[t.categories?.name] === 'wijn' && selected.has(t.id) && Array.isArray(t.raw_data?.wine_article_statistics?.lines));
