@@ -1617,9 +1617,33 @@ const Dashboard = {
     document.getElementById('dashDemoSummary').style.display = 'none';
     document.getElementById('dashTotalSpend').textContent = new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(total);
     document.getElementById('dashCatCount').textContent = catCount;
-    // Savings estimate: 8-14% of total spend
-    document.getElementById('dashPotential').textContent =
-      `${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(total*0.08)} – ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(total*0.14)}`;
+    // Voorlopige mogelijke besparing beweegt mee met uitsluitend de geselecteerde,
+    // onderbouwde kostenbasis. Dit wijzigt geen financiële brondata.
+    const potentialText = `${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(total*0.08)} – ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(total*0.14)}`;
+    const potentialTop = document.getElementById('dashPotential');
+    const potentialSummary = document.getElementById('dashPotentialSummary');
+    if(potentialTop) potentialTop.textContent = potentialText;
+    if(potentialSummary) potentialSummary.textContent = potentialText;
+    const realizedTop = document.getElementById('dashRealized');
+    const realizedSummary = document.getElementById('dashRealizedSummary');
+    if(realizedSummary && realizedTop) realizedSummary.textContent = realizedTop.textContent || '€0';
+
+    // Compacte herkomst van de kostenbasis. 2025 blijft leidend; tijdelijke
+    // 2026-referenties worden zichtbaar gemarkeerd en nooit stilzwijgend als 2025 getoond.
+    const costBasis = document.getElementById('dashCostBasis');
+    if(costBasis){
+      const labels = Object.keys(agg).sort((x,y)=>x.localeCompare(y,'nl'));
+      costBasis.innerHTML = labels.map(cat => {
+        const isTemp = temporaryReferences.has(cat);
+        const year = isTemp ? '2026 · tijdelijk' : '2025';
+        const amount = new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:2}).format(agg[cat]);
+        const qualifier = cat === 'Afval & milieu' && wasteEstimate ? ' · jaarindicatie' : '';
+        return '<div style="display:grid;grid-template-columns:minmax(130px,1fr) auto auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)">'+
+          '<strong style="font-size:13px">'+safeBenchmark(cat)+'</strong>'+
+          '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px">'+amount+qualifier+'</span>'+
+          '<span class="badge '+(isTemp?'b-yellow':'b-green')+'">'+year+'</span></div>';
+      }).join('');
+    }
 
     // Benchmark chart — fetch from Supabase
     const { data: benchRows } = await sb.from('benchmark_data').select('category_name, avg_amount, sample_size');
