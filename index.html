@@ -2696,12 +2696,6 @@ const Dashboard = {
     if(wasteEstimate) agg['Afval & milieu'] = wasteEstimate.estimate;
     const total = Object.values(agg).reduce((a,b) => a+b, 0);
     const catCount = Object.keys(agg).length;
-    const review = (uploads || []).flatMap(u => {
-      if(includedPaths.has(u.file_path)) return [];
-      if(reviewByPath.has(u.file_path)) return [`${u.file_name}: ${reviewByPath.get(u.file_path)}`];
-      if(!processedPaths.has(u.file_path)) return [`${u.file_name}: verwerking of boekjaar nog niet bevestigd`];
-      return [];
-    });
     // Show real summary tiles
     document.getElementById('dashRealSummary').style.display = 'block';
      document.getElementById('dashTotalSpend').textContent = new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(total);
