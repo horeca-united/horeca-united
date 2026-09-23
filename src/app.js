@@ -840,7 +840,8 @@ function buildSubgroupRows(uploadedSubgroups = new Set(), spendBySubgroup = {}, 
     const contractEnd = isPrimary ? (STATE.primary.contractEnd || "Onbekend") : "Onbekend";
     const missing = isPrimary && STATE.method==="later" ? "Factuur of contract" : "—";
     return {id, name: subgroupName(id), status, badge, kans, cost, sourceYear:yearBySubgroup[id] || null,
-      nextYearAmount:detailBySubgroup[id]?.nextYearAmount || null, supplier, contractEnd, missing, isPrimary};
+      nextYearAmount:detailBySubgroup[id]?.nextYearAmount || null,
+      contractYears:detailBySubgroup[id]?.contractYears || null, supplier, contractEnd, missing, isPrimary};
   });
 }
 
@@ -879,6 +880,20 @@ function firstTelecomYear(row){
   if(dashboardCategory(row) !== 'Telecom' || !row.is_contract || summary?.verified_from_source !== true || !(Number(summary.annual_amount) > 0)) return null;
   const year = (row.transaction_date || '').slice(0, 4);
   return year === '2025' || year === '2026' ? Number(year) : null;
+}
+function telecomContractYears(row){
+  if(!firstTelecomYear(row)) return null;
+  // The order date is explicitly an estimate until the activation date is known.
+  const start = row.raw_data?.contract_summary?.period_start || row.period_start;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(start || '')) return null;
+  const date = new Date(`${start}T00:00:00Z`);
+  if(Number.isNaN(date.getTime()) || date.toISOString().slice(0,10) !== start) return null;
+  const boundary = n => new Date(Date.UTC(date.getUTCFullYear() + n, date.getUTCMonth(), date.getUTCDate()));
+  const dayBefore = d => new Date(d.getTime() - 86400000).toISOString().slice(0,10);
+  const secondStart = boundary(1);
+  return { firstStart:start, firstEnd:dayBefore(secondStart),
+    secondStart:secondStart.toISOString().slice(0,10), secondEnd:dayBefore(boundary(2)),
+    estimated:row.raw_data?.estimated_from === 'order_date' || row.raw_data?.date_confidence === 'estimated' };
 }
 function dashboardAmount(row){
   const summary = row.raw_data?.contract_summary;
@@ -962,6 +977,7 @@ const Dashboard = {
           const secondYearMonthly = Number(t.raw_data?.contract_summary?.standard_monthly_total);
           if(sgId === 'internet' && firstTelecomYear(t) && secondYearMonthly > 0){
             details.nextYearAmount = Math.round(secondYearMonthly * 1200) / 100;
+            details.contractYears = telecomContractYears(t);
           }
           detailBySubgroup[sgId] = details;
         }
@@ -1005,8 +1021,9 @@ const Dashboard = {
       <td>${r.kans}</td><td><button class="btn btn-ghost btn-sm" onclick="Dashboard.showTab('subgroepen')">Bekijk</button></td></tr>`).join("");
     document.getElementById("dashSubgroupTableShort").innerHTML = shortBody || `<tr><td colspan="4" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
+    const nlDate = date => date ? date.split('-').reverse().join('-') : 'onbekend';
     const fullBody = rows.map(r=>`
-      <tr><td><strong>${r.name}</strong></td><td>${String(r.supplier).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td>${r.cost == null ? '—' : new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.cost)}${r.nextYearAmount != null ? `<br><small>1e contractjaar vanaf activatie · 2e contractjaar indicatief ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.nextYearAmount)}</small>` : ''}</td><td>${r.sourceYear || '—'}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
+      <tr><td><strong>${r.name}</strong></td><td>${String(r.supplier).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td>${r.cost == null ? '—' : new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.cost)}${r.nextYearAmount != null ? `<br><small>1e contractjaar: ${nlDate(r.contractYears?.firstStart)} t/m ${nlDate(r.contractYears?.firstEnd)}<br>2e contractjaar: ${nlDate(r.contractYears?.secondStart)} t/m ${nlDate(r.contractYears?.secondEnd)} · indicatief ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.nextYearAmount)}${r.contractYears?.estimated ? '<br>Start op basis van besteldatum; activatie nog te bevestigen' : ''}</small>` : ''}</td><td>${r.sourceYear || '—'}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
       <td><span class="badge ${r.badge}">${r.status}</span></td><td>${r.kans}</td><td>${r.contractEnd}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="alert('In deze demo start dit de analyse-flow voor ${r.name}.')">${r.status==="Nog niet ingevuld"?"Start analyse":"Bekijk"}</button></td></tr>`).join("");
     document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="8" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
@@ -1438,7 +1455,7 @@ const Dashboard = {
     const referenceDescriptions = {
       Muzieklicentie: 'Buma/Sena: 2026 telt tijdelijk mee als referentie totdat een bedrag uit 2025 beschikbaar is.',
       Verzekeringen: 'De Goudse: maandpremie uit de polis van 2026 × 12, inclusief assurantiebelasting. Dit is een jaarindicatie, geen uitgave over 2025.',
-      Telecom: 'Odido: alleen de eerste 12 maanden vanaf activatie zijn opgenomen. Maanden 13–24 staan apart bij Subgroepen en tellen niet dubbel mee; de activatiedatum is nog niet bevestigd.'
+      Telecom: 'Odido: voorlopige start 15-04-2026 op basis van de besteldatum. Het eerste contractjaar (t/m 14-04-2027) telt mee. Het tweede (15-04-2027 t/m 14-04-2028) staat apart en telt niet dubbel mee. De echte activatiedatum kan dit wijzigen.'
     };
     temporaryReferences.forEach(category => {
       const reference = document.createElement('p');
@@ -1657,7 +1674,7 @@ const Dashboard = {
         const startStr = fmtDate(r.period_start);
         const endStr   = fmtDate(r.period_end);
         const periodeHtml = startStr || endStr
-          ? `<span style="font-size:12px">${startStr ? startStr + ' –<br>' : ''}${endStr || ''}${r.date_confidence === 'estimated' ? '<br><em style="color:var(--warn-ink)">geschat</em>' : ''}</span>`
+          ? `<span style="font-size:12px">${startStr ? startStr + ' –<br>' : ''}${endStr || ''}${r.date_confidence === 'estimated' ? `<br><em style="color:var(--warn-ink)">${r.category === 'Telecom' ? 'voorlopig: besteldatum als start' : 'geschat'}</em>` : ''}</span>`
           : r.period_text
             ? `<span style="font-size:12px">${r.period_text}</span>`
             : `<span style="color:var(--muted);font-size:12px">—</span>`;
