@@ -1845,8 +1845,30 @@ const Dashboard = {
         </div>`
       : '';
 
+    let gasDetails = '';
+    if(CURRENT_USER){
+      const { data: gasExtracted } = await sb.from('extracted_data').select('volume_gas_m3').eq('email', CURRENT_USER.email);
+      const gasVolume = (gasExtracted || []).reduce((sum,r)=>sum+(Number(r.volume_gas_m3)||0),0);
+      const gasContract = rows.find(r=>r.category === 'Gas');
+      if(gasVolume > 0 || gasContract){
+        const fmtGas = v => new Intl.NumberFormat('nl-NL',{maximumFractionDigits:0}).format(v);
+        const fmtEuro = v => new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(v);
+        const cell = (label,value) => '<div style="border:1px solid var(--line);border-radius:8px;padding:10px;min-width:0"><div style="font-size:11px;color:var(--muted);margin-bottom:5px">'+label+'</div><strong>'+value+'</strong></div>';
+        gasDetails = '<section style="border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px"><strong>Gas · contract en prijsopbouw</strong><span style="font-size:11px;color:var(--muted)">Beschikbare gegevens</span></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px">'+
+          cell('Gasverbruik',gasVolume>0 ? fmtGas(gasVolume)+' m³' : 'Nog onbekend')+
+          cell('Geregistreerde kosten',gasContract?.amount != null ? fmtEuro(Number(gasContract.amount)) : 'Nog onbekend')+
+          cell('Leveringstarief per m³','Nog onbekend')+
+          cell('Energiebelasting per m³','Nog onbekend')+
+          '</div><details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px">Volledige prijsopbouw</summary><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-top:9px">'+
+          cell('Vaste leveringskosten','Nog onbekend')+cell('Netbeheerkosten','Nog onbekend')+
+          cell('Overige heffingen','Nog onbekend')+cell('Btw','Nog onbekend')+
+          cell('Contractperiode',gasContract?.period_start || gasContract?.period_end ? safe((gasContract.period_start || '?')+' – '+(gasContract.period_end || '?')) : 'Nog onbekend')+
+          '</div><p style="font-size:11px;color:var(--muted);margin:9px 0 0">Vergelijk verbruik en kosten alleen over dezelfde periode. Tarieven en belastingen worden afzonderlijk ingevuld zodra ze uit een factuur zijn vastgesteld.</p></details><button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="Dashboard.showTab(&quot;documenten&quot;)">Voeg gasfactuur of contract toe →</button></section>';
+      }
+    }
     el.innerHTML = (isDemo ? `<p style="font-size:12px;color:var(--muted);font-style:italic;margin:0 0 12px">Voorbeelddata — log in en upload facturen om jouw eigen overzicht te zien.</p>` : '') +
       kansenBanner +
+      gasDetails +
       `<table class="table"><thead><tr><th>Categorie</th><th>Leverancier</th><th>Periode</th><th>Bedrag</th><th>Opzegging</th><th>Status</th></tr></thead><tbody>` +
       rows.map(r => {
         const startStr = fmtDate(r.period_start);
@@ -1923,7 +1945,6 @@ const Dashboard = {
           afval = sum('vuilnis_kosten');
     const dekking = exData.map(r => r.verzekering_dekking).filter(Boolean).join('; ') || null;
     const items = [
-      gas   ? `<div><span>Gasverbruik (m³)</span>${fmt(gas)} m³</div>` : '',
       kwh   ? `<div><span>Elektraverbruik (kWh)</span>${fmt(kwh)} kWh</div>` : '',
       bier  ? `<div><span>Biervolume (liter)</span>${fmt(bier)} L</div>` : '',
       fris  ? `<div><span>Frisdrankvolume (liter)</span>${fmt(fris)} L</div>` : '',
