@@ -1174,7 +1174,7 @@ const Dashboard = {
           .eq('email', CURRENT_USER.email)
           .order('uploaded_at', { ascending: false }),
         sb.from('transactions')
-          .select('id, raw_data, monthly_amount, renewal_date, period_start, period_end, transaction_date, is_contract, categories(name)')
+          .select('id, created_at, raw_data, monthly_amount, renewal_date, period_start, period_end, transaction_date, is_contract, categories(name)')
           .eq('email', CURRENT_USER.email)
       ]);
       if (error) {
@@ -1185,7 +1185,7 @@ const Dashboard = {
       const { selected } = dashboardCostSelection(transactions || []);
       const byPath = new Map(), bySourceName = new Map();
       (transactions || []).forEach(t => {
-        const record = { year: selected.get(t.id) || null, category: CATEGORY_TO_SUBGROUP[t.categories?.name], role: t.raw_data?.comparison_role, period: t.raw_data?.period_label };
+        const record = { year: selected.get(t.id) || null, category: CATEGORY_TO_SUBGROUP[t.categories?.name], role: t.raw_data?.comparison_role, period: t.raw_data?.period_label, processedAt: t.created_at };
         if(t.raw_data?.file_path){
           const entries = byPath.get(t.raw_data.file_path) || [];
           entries.push(record);
@@ -1212,7 +1212,7 @@ const Dashboard = {
         return;
       }
       const fileCell = name => '<span class="file-name" title="'+safeDoc(name)+'" style="display:block;max-width:300px;overflow-wrap:anywhere;line-height:1.4">'+safeDoc(name)+'</span>';
-      el.innerHTML = '<p style="font-size:12px;color:var(--muted);margin:0 0 12px">Ook brongegevens die rechtstreeks zijn verwerkt staan hieronder. “Brongegevens verwerkt” betekent niet dat het originele bestand in je documentenopslag is geüpload.</p><div class="table-wrap"><table class="table">'+
+      el.innerHTML = '<p style="font-size:12px;color:var(--muted);margin:0 0 12px">Bij geüploade bestanden staat de uploaddatum; bij rechtstreeks verwerkte brongegevens de datum waarop de gegevens in het dashboard zijn geregistreerd.</p><div class="table-wrap"><table class="table">'+
         '<thead><tr><th>Bestand</th><th>Subgroep</th><th>Gebruik</th><th>Beschikbaarheid</th><th>Actie</th></tr></thead><tbody>'+
         uploads.map(u => {
           const records = byPath.get(u.file_path) || bySourceName.get(u.file_name) || [];
@@ -1231,7 +1231,7 @@ const Dashboard = {
             : category === 'afval' || category === 'energie'
             ? '<button class="btn btn-ghost btn-sm" onclick="Dashboard.showTab(\'subgroepen\')">Bekijk subgroepen</button>'
             : '—';
-          return '<tr><td>'+fileCell(fileName)+'</td><td>'+safeDoc(category ? subgroupName(category) : 'Nog niet gekoppeld')+'</td><td>'+safeDoc(usage)+'</td><td>Brongegevens verwerkt; origineel niet opgeslagen</td><td>'+action+'</td></tr>';
+          return '<tr><td>'+fileCell(fileName)+'</td><td>'+safeDoc(category ? subgroupName(category) : 'Nog niet gekoppeld')+'</td><td>'+safeDoc(usage)+'</td><td>Verwerkt · '+safeDoc(first.processedAt ? new Date(first.processedAt).toLocaleDateString('nl-NL') : 'datum onbekend')+'</td><td>'+action+'</td></tr>';
         }).join('')+
         '</tbody></table></div>';
     } else {
