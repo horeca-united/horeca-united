@@ -742,7 +742,7 @@ const QuickScan = {
       permissions: source?.permissions || [],
       purpose: source?.purpose || null,
       status: 'active',
-      document_version: 'v1.0',
+      document_version: 'v1.1',
       validity_days: validityDays
     });
 
@@ -2097,7 +2097,7 @@ const AuthModule = {
       <div class="note" style="margin-bottom:18px;font-size:13px">
         <strong>Wat wordt opgehaald:</strong> ${source.permissions.join(', ')}<br>
         <strong>Doel:</strong> ${source.purpose}<br>
-        <strong>Geldigheid:</strong> 365 dagen · op elk moment intrekbaar
+        <strong>Reikwijdte:</strong> facturen, inkoop- en afnamegegevens, jaaroverzichten, prijs- en kortingsafspraken, lopende contracten, abonnementen, contractvoorwaarden, looptijden, einddata en opzegtermijnen, voor zover deze binnen de hierboven genoemde gegevens en het doel van deze specifieke machtiging vallen.<br><strong>Bevoegdheid:</strong> alleen gegevens opvragen, ontvangen en verwerken; geen overeenkomsten aangaan, wijzigen of opzeggen, leveranciers wijzigen, betalingen uitvoeren of bestellingen plaatsen zonder afzonderlijke toestemming.<br><strong>Geldigheid:</strong> maximaal 365 dagen · op elk moment intrekbaar
       </div>
       <div class="grid2">
         <div class="field"><label for="grantName">Naam tekenbevoegde</label><input type="text" id="grantName" placeholder="Bijv. Jan de Vries" value="${STATE.account.contactPerson||''}"></div>
@@ -2107,7 +2107,7 @@ const AuthModule = {
       </div>
       <div class="consent-row" style="margin-top:8px">
         <input type="checkbox" id="grantConsent">
-        <label for="grantConsent">Ik verklaar tekenbevoegd te zijn en machtig Horeca United B.V. om namens mijn onderneming gegevens op te vragen bij <strong>${source.name}</strong>, uitsluitend voor bovenstaand doel. De machtiging geldt totdat ik deze intrek. <span class="req">verplicht</span></label>
+        <label for="grantConsent">Ik verklaar tekenbevoegd te zijn en machtig Horeca United B.V. om namens mijn onderneming gegevens op te vragen bij <strong>${source.name}</strong>, uitsluitend voor de hierboven omschreven gegevens en het doel van deze specifieke machtiging. Ik kan deze machtiging op elk moment intrekken; zij eindigt uiterlijk na 365 dagen. <span class="req">verplicht</span></label>
       </div>
       <div class="error-text" id="grantError" style="display:none;margin-top:8px"></div>
       <div class="actions" style="margin-top:16px">
