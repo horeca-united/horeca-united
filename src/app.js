@@ -814,13 +814,15 @@ function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h = (h*31 + s.charCod
 // Maps Supabase category names to SUBGROUPS ids
 const CATEGORY_TO_SUBGROUP = {
   "Elektra": "energie", "Gas": "gas", "Verzekeringen": "verzekeringen",
-  "Afval & milieu": "afval", "Telecom": "internet", "Muziekrechten": "muzieklicentie",
+  "Afval & milieu": "afval", "Telecom": "internet", "Muzieklicentie": "muzieklicentie",
+  "Muziekrechten": "muzieklicentie",
   "Bier": "bier", "Wijn": "wijn", "Fris": "frisdrank", "Vlees": "vlees",
   "Inkoop (overig)": "foodgroothandel"
 };
 
-function buildSubgroupRows(uploadedSubgroups = new Set(), spendBySubgroup = {}){
-  return STATE.selectedSubgroups.map((id,i)=>{
+function buildSubgroupRows(uploadedSubgroups = new Set(), spendBySubgroup = {}, yearBySubgroup = {}){
+  const subgroupIds = [...new Set([...STATE.selectedSubgroups, ...uploadedSubgroups, ...Object.keys(spendBySubgroup)])];
+  return subgroupIds.map(id=>{
     const isPrimary = id === primarySubgroupId();
     let status, badge;
     if(isPrimary){
@@ -837,30 +839,45 @@ function buildSubgroupRows(uploadedSubgroups = new Set(), spendBySubgroup = {}){
     const supplier = isPrimary ? (STATE.primary.supplier || "Onbekende leverancier") : "—";
     const contractEnd = isPrimary ? (STATE.primary.contractEnd || "Onbekend") : "Onbekend";
     const missing = isPrimary && STATE.method==="later" ? "Factuur of contract" : "—";
-    return {id, name: subgroupName(id), status, badge, kans, cost, supplier, contractEnd, missing, isPrimary};
+    return {id, name: subgroupName(id), status, badge, kans, cost, sourceYear:yearBySubgroup[id] || null, supplier, contractEnd, missing, isPrimary};
   });
 }
 
 // Use the document's coverage period, never its upload date, for book year 2025.
 const DASHBOARD_BOOK_YEAR = 2025;
-function bookYearTransaction(row){
+function bookYearTransaction(row, year = DASHBOARD_BOOK_YEAR){
   const start = row.period_start;
   const end = row.period_end;
-  const firstDay = `${DASHBOARD_BOOK_YEAR}-01-01`;
-  const lastDay = `${DASHBOARD_BOOK_YEAR}-12-31`;
+  const firstDay = `${year}-01-01`;
+  const lastDay = `${year}-12-31`;
   if(start || end){
     if(!start || !end) return { included:false, reason:'periode niet volledig bekend' };
     // An annual statement ending January 1 uses an exclusive end date.
-    const effectiveEnd = end === `${DASHBOARD_BOOK_YEAR + 1}-01-01` ? lastDay : end;
+    const effectiveEnd = end === `${year + 1}-01-01` ? lastDay : end;
     return start >= firstDay && effectiveEnd <= lastDay && start <= effectiveEnd
       ? { included:true }
       : { included:false, reason:'valt buiten boekjaar 2025' };
   }
   // Itemized purchases can use their transaction date; policy dates cannot.
-  if(!row.is_contract && row.transaction_date?.slice(0,4) === String(DASHBOARD_BOOK_YEAR)){
+  if(!row.is_contract && row.transaction_date?.slice(0,4) === String(year)){
     return { included:true };
   }
   return { included:false, reason:'boekjaar niet bevestigd' };
+}
+
+// Music licensing is the only agreed 2026 reference for now. As soon as a
+// confirmed 2025 music document exists, the entire 2026 reference is replaced.
+function dashboardCostSelection(rows){
+  const selected = new Map();
+  const musicCategory = row => ['Muzieklicentie', 'Muziekrechten'].includes(row.categories?.name);
+  const has2025Music = rows.some(row => musicCategory(row) && bookYearTransaction(row).included);
+  rows.forEach(row => {
+    if(bookYearTransaction(row).included) selected.set(row.id, 2025);
+    else if(!has2025Music && musicCategory(row) && row.period_start && row.period_end && bookYearTransaction(row, 2026).included){
+      selected.set(row.id, 2026);
+    }
+  });
+  return { selected, has2025Music };
 }
 
 /* ---------------- Klantdashboard ---------------- */
@@ -896,23 +913,26 @@ const Dashboard = {
   async render(){
     let uploadedSubgroups = new Set();
     let spendBySubgroup = {};
+    let yearBySubgroup = {};
     if(CURRENT_USER){
       const [{ data: uploads }, { data: txRows }] = await Promise.all([
         sb.from('uploads').select('subgroup').eq('email', CURRENT_USER.email),
         sb.from('transactions')
-          .select('amount, transaction_date, period_start, period_end, is_contract, categories(name)')
+          .select('id, amount, transaction_date, period_start, period_end, is_contract, categories(name)')
           .eq('email', CURRENT_USER.email)
       ]);
       if(uploads) uploads.forEach(u => { if(u.subgroup) uploadedSubgroups.add(u.subgroup); });
-      if(txRows) txRows.filter(t => bookYearTransaction(t).included).forEach(t => {
+      const { selected } = dashboardCostSelection(txRows || []);
+      if(txRows) txRows.filter(t => selected.has(t.id)).forEach(t => {
         const catName = t.categories?.name;
         const sgId = CATEGORY_TO_SUBGROUP[catName];
         if(sgId && Number.isFinite(Number(t.amount))) {
           spendBySubgroup[sgId] = (spendBySubgroup[sgId] || 0) + Number(t.amount);
+          yearBySubgroup[sgId] = selected.get(t.id);
         }
       });
     }
-    const rows = buildSubgroupRows(uploadedSubgroups, spendBySubgroup);
+    const rows = buildSubgroupRows(uploadedSubgroups, spendBySubgroup, yearBySubgroup);
     document.getElementById("dashCompanyName").textContent =
       CURRENT_USER ? (STATE.account.companyName || CURRENT_USER.email) : (STATE.account.companyName || "Voorbeeld Horecazaak");
     const pct = CURRENT_USER ? null : (STATE.result ? STATE.result.profilePct : Engine.profileCompletion());
@@ -951,10 +971,10 @@ const Dashboard = {
     document.getElementById("dashSubgroupTableShort").innerHTML = shortBody || `<tr><td colspan="4" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
     const fullBody = rows.map(r=>`
-      <tr><td><strong>${r.name}</strong></td><td>${r.supplier}</td><td>${r.cost == null ? '—' : euro(r.cost)}</td>
+      <tr><td><strong>${r.name}</strong></td><td>${r.supplier}</td><td>${r.cost == null ? '—' : euro(r.cost)}</td><td>${r.sourceYear || '—'}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
       <td><span class="badge ${r.badge}">${r.status}</span></td><td>${r.kans}</td><td>${r.contractEnd}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="alert('In deze demo start dit de analyse-flow voor ${r.name}.')">${r.status==="Nog niet ingevuld"?"Start analyse":"Bekijk"}</button></td></tr>`).join("");
-    document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="7" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
+    document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="8" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
     const next = STATE.selectedSubgroups.filter(id=>id!==primarySubgroupId())[0];
     document.getElementById("dashNextAction").textContent = next
@@ -1003,7 +1023,7 @@ const Dashboard = {
           .eq('email', CURRENT_USER.email)
           .order('uploaded_at', { ascending: false }),
         sb.from('transactions')
-          .select('raw_data, period_start, period_end, transaction_date, is_contract')
+          .select('id, raw_data, period_start, period_end, transaction_date, is_contract, categories(name)')
           .eq('email', CURRENT_USER.email)
       ]);
       if (error) {
@@ -1017,21 +1037,23 @@ const Dashboard = {
         return;
       }
       const byPath = new Map();
+      const { selected } = dashboardCostSelection(transactions || []);
       (transactions || []).forEach(t => {
         const path = t.raw_data?.file_path;
         if(!path) return;
         const values = byPath.get(path) || [];
-        values.push(bookYearTransaction(t).included);
+        values.push(selected.get(t.id) || null);
         byPath.set(path, values);
       });
       el.innerHTML = `<table class="table">
-        <thead><tr><th>Bestand</th><th>Subgroep</th><th>Boekjaar 2025</th><th>Geüpload op</th><th></th></tr></thead>
+        <thead><tr><th>Bestand</th><th>Subgroep</th><th>Gebruikt als</th><th>Geüpload op</th><th></th></tr></thead>
         <tbody>${uploads.map(u => {
           const sg = u.subgroup ? subgroupName(u.subgroup) : '—';
           const date = new Date(u.uploaded_at).toLocaleDateString('nl-NL');
           const checks = byPath.get(u.file_path) || [];
           const yearStatus = !checks.length ? 'Nog te controleren'
-            : checks.every(Boolean) ? 'Meegenomen'
+            : checks.every(year => year === 2025) ? 'Kosten 2025'
+            : checks.every(year => year === 2026) ? 'Tijdelijke referentie 2026'
             : checks.some(Boolean) ? 'Deels meegenomen' : 'Niet meegenomen';
           return `<tr>
             <td><span class="file-name">${u.file_name}</span></td>
@@ -1331,7 +1353,7 @@ const Dashboard = {
     if (!CURRENT_USER) return; // demo summary already shown by render()
     const [{ data, error }, { data: uploads }] = await Promise.all([
       sb.from('transactions')
-        .select('amount, transaction_date, period_start, period_end, is_contract, raw_data, categories(name)')
+        .select('id, amount, transaction_date, period_start, period_end, is_contract, raw_data, categories(name)')
         .eq('email', CURRENT_USER.email),
       sb.from('uploads').select('file_name, file_path').eq('email', CURRENT_USER.email)
     ]);
@@ -1342,19 +1364,27 @@ const Dashboard = {
       return;
     }
 
-    // Count only confirmed 2025 costs. Keep excluded files visible and explain why.
+    // Use confirmed 2025 costs, plus the temporary 2026 music reference only
+    // while a confirmed 2025 music amount is unavailable.
     const agg = {};
     const reviewByPath = new Map();
     const processedPaths = new Set();
+    const { selected, has2025Music } = dashboardCostSelection(data);
+    let hasMusicReference = false;
     data.forEach(r => {
       const path = r.raw_data?.file_path;
       if(path) processedPaths.add(path);
-      const assessment = bookYearTransaction(r);
-      if(!assessment.included){
-        if(path && !reviewByPath.has(path)) reviewByPath.set(path, assessment.reason);
+      const sourceYear = selected.get(r.id);
+      if(!sourceYear){
+        const isMusic = ['Muzieklicentie', 'Muziekrechten'].includes(r.categories?.name);
+        const reason = has2025Music && isMusic && bookYearTransaction(r, 2026).included
+          ? '2025 beschikbaar; 2026 niet dubbel meegeteld'
+          : bookYearTransaction(r).reason;
+        if(path && !reviewByPath.has(path)) reviewByPath.set(path, reason);
         return;
       }
-      const cat = r.categories?.name || 'Overig';
+      if(sourceYear === 2026) hasMusicReference = true;
+      const cat = r.categories?.name === 'Muziekrechten' ? 'Muzieklicentie' : (r.categories?.name || 'Overig');
       const amount = Number(r.amount);
       if(Number.isFinite(amount)) agg[cat] = (agg[cat] || 0) + amount;
     });
@@ -1366,10 +1396,16 @@ const Dashboard = {
       return [];
     });
     notice.replaceChildren();
-    notice.style.display = review.length ? 'block' : 'none';
+    notice.style.display = review.length || hasMusicReference ? 'block' : 'none';
+    if(hasMusicReference){
+      const reference = document.createElement('p');
+      reference.style.margin = '0 0 8px';
+      reference.textContent = 'Muzieklicentie: het bedrag uit 2026 telt tijdelijk mee als referentie. Dit is geen vastgesteld uitgavenbedrag over 2025. Een document over 2025 vervangt dit bedrag automatisch.';
+      notice.append(reference);
+    }
     if(review.length){
       const title = document.createElement('strong');
-      title.textContent = 'Niet meegenomen in boekjaar 2025:';
+      title.textContent = 'Overige documenten niet meegenomen in dit totaal:';
       notice.append(title);
       const list = document.createElement('ul');
       list.style.margin = '6px 0 0';
