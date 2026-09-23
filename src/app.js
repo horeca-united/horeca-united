@@ -871,7 +871,7 @@ function dashboardCategory(row){
 }
 function policyYear(row){
   if(dashboardCategory(row) !== 'Verzekeringen' || !row.is_contract || !(Number(row.monthly_amount) > 0)) return null;
-  const year = (row.renewal_date || row.transaction_date || '').slice(0, 4);
+  const year = (row.transaction_date || row.renewal_date || '').slice(0, 4);
   return year === '2025' || year === '2026' ? Number(year) : null;
 }
 function firstTelecomYear(row){
