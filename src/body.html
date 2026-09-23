@@ -470,6 +470,27 @@
           </div>
         </div>
 
+        <!-- VOLLEDIGE DETAILPAGINA: WIJN -->
+        <div id="dashTab-wijn-detail" class="dash-tab" style="display:none">
+          <div class="panel card">
+            <button class="btn btn-ghost btn-sm" onclick="Dashboard.showTab('subgroepen')" style="margin-bottom:18px">← Terug naar subgroepen</button>
+            <h2>Wijn · Inkoopanalyse</h2>
+            <p style="color:var(--muted)">Alle beschikbare wijninkoopgegevens per leverancier op één pagina. Bedragen en perioden worden uitsluitend getoond voor zover ze uit de verwerkte documenten blijken.</p>
+            <div class="grid2" style="margin:18px 0">
+              <div class="panel card"><div style="color:var(--muted);font-size:13px">Geregistreerde inkoop</div><h2 id="wineTotal">—</h2><small id="wineTaxNote">Btw-behandeling per bron controleren.</small></div>
+              <div class="panel card"><div style="color:var(--muted);font-size:13px">Leveranciers</div><h2 id="wineSupplierCount">—</h2><small id="winePeriod">Periode: nog niet vastgesteld</small></div>
+            </div>
+            <h3>Inkoop per leverancier</h3>
+            <div class="table-wrap"><table class="table"><thead><tr><th>Leverancier</th><th>Geregistreerde inkoop</th><th>Aandeel</th></tr></thead><tbody id="wineSupplierRows"><tr><td colspan="3">Nog geen gegevens geladen.</td></tr></tbody></table></div>
+            <p style="font-size:12px;color:var(--muted)">De bedragen zijn afkomstig uit de bestaande transacties. Controleer bronperiode, eventuele dubbeltellingen en btw voordat je leveranciers rechtstreeks vergelijkt.</p>
+          </div>
+          <div class="panel card">
+            <h3>Producten en prijsontwikkeling</h3>
+            <div id="wineProductAnalysis" class="note">Top 3 en bottom 3 op flessen, prijsontwikkeling per wijn, inkoopontwikkeling en producten met weinig afname worden hier getoond zodra de onderliggende artikelregels, aantallen, prijzen en datums gestructureerd beschikbaar zijn. Er worden geen aantallen of ranglijsten geschat uit alleen factuurtotalen.</div>
+            <button class="btn btn-ghost btn-sm" onclick="Dashboard.showTab('documenten')" style="margin-top:14px">Documenten bekijken of toevoegen</button>
+          </div>
+        </div>
+
         <!-- TAB: documenten -->
         <div id="dashTab-documenten" class="dash-tab" style="display:none">
           <div class="panel card">
