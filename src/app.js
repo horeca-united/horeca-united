@@ -1147,49 +1147,47 @@ const Dashboard = {
         el.innerHTML = `<div class="empty-state" style="color:var(--danger-ink)">Fout bij laden: ${error.message}</div>`;
         return;
       }
-      if (docsCountEl) docsCountEl.textContent = uploads.length;
-      this.updateDocumentProgress(uploads.length);
-      if (!uploads.length) {
-        el.innerHTML = `<div class="empty-state">Nog geen documenten geüpload. <a onclick="Dashboard.showTab('documenten')" style="cursor:pointer;text-decoration:underline;color:var(--brand2)">Upload je eerste document</a>.</div>`;
-        return;
-      }
-      const byPath = new Map();
-      const bySourceName = new Map();
+      const safeDoc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
       const { selected } = dashboardCostSelection(transactions || []);
+      const byPath = new Map(), bySourceName = new Map();
       (transactions || []).forEach(t => {
-        const path = t.raw_data?.file_path;
-        const sourceName = t.raw_data?.source_file;
-        const year = selected.get(t.id) || null;
-        if(path){
-          const values = byPath.get(path) || [];
-          values.push(year);
-          byPath.set(path, values);
+        const record = { year: selected.get(t.id) || null, category: CATEGORY_TO_SUBGROUP[t.categories?.name], role: t.raw_data?.comparison_role, period: t.raw_data?.period_label };
+        if(t.raw_data?.file_path){
+          const entries = byPath.get(t.raw_data.file_path) || [];
+          entries.push(record);
+          byPath.set(t.raw_data.file_path, entries);
         }
-        if(sourceName && t.raw_data?.source_verified === true){
-          const values = bySourceName.get(sourceName) || [];
-          values.push(year);
-          bySourceName.set(sourceName, values);
+        if(t.raw_data?.source_file && t.raw_data?.source_verified === true){
+          const entries = bySourceName.get(t.raw_data.source_file) || [];
+          entries.push(record);
+          bySourceName.set(t.raw_data.source_file, entries);
         }
       });
-      el.innerHTML = `<table class="table">
-        <thead><tr><th>Bestand</th><th>Subgroep</th><th>Gebruikt als</th><th>Geüpload op</th><th></th></tr></thead>
-        <tbody>${uploads.map(u => {
-          const sg = u.subgroup ? subgroupName(u.subgroup) : '—';
-          const date = new Date(u.uploaded_at).toLocaleDateString('nl-NL');
-          const checks = byPath.get(u.file_path) || bySourceName.get(u.file_name) || [];
-          const yearStatus = !checks.length ? 'Nog te controleren'
-            : checks.every(year => year === 2025) ? 'Kosten 2025'
-            : checks.every(year => year === 2026) ? 'Tijdelijke referentie 2026'
-            : checks.some(Boolean) ? 'Deels meegenomen' : 'Niet meegenomen';
-          return `<tr>
-            <td><span class="file-name">${u.file_name}</span></td>
-            <td>${sg}</td>
-            <td>${yearStatus}</td>
-            <td style="color:var(--muted);font-size:12.5px">${date}</td>
-            <td><button class="btn btn-ghost btn-sm" style="color:var(--danger-ink);border-color:var(--danger-ink)" onclick="Dashboard.deleteUpload('${u.id}','${u.file_path.replace(/'/g,"\\'")}')">Verwijderen</button></td>
-          </tr>`;
-        }).join('')}${[...bySourceName.entries()].filter(([fileName]) => !uploads.some(u => u.file_name === fileName)).map(([fileName, years]) => `<tr><td><span class="file-name">${fileName.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</span></td><td>—</td><td>${years.some(Boolean) ? 'Gegevens verwerkt' : 'Nog te controleren'}</td><td>Bestand nog uploaden</td><td>—</td></tr>`).join('')}</tbody>
-      </table>`;
+      const statusFor = records => {
+        if(!records.length) return 'Nog niet verwerkt';
+        if(records.some(x => x.role === 'benchmark')) return 'Prijsbenchmark 2026 · niet opgeteld';
+        if(records.some(x => x.year === 2025)) return records.some(x => x.period === '2025 Q4') ? 'Kosten 2025 · Q4' : 'Kosten 2025';
+        if(records.some(x => x.year === 2026)) return 'Tijdelijke referentie 2026';
+        return 'Gegevens verwerkt · niet in kostentotaal';
+      };
+      const sourceEntries = [...bySourceName.entries()].filter(([fileName]) => !uploads.some(u => u.file_name === fileName));
+      if(docsCountEl) docsCountEl.textContent = uploads.length + sourceEntries.length;
+      this.updateDocumentProgress(uploads.length + sourceEntries.length);
+      if(!uploads.length && !sourceEntries.length){
+        el.innerHTML = '<div class="empty-state">Nog geen documenten of verwerkte brongegevens beschikbaar.</div>';
+        return;
+      }
+      const fileCell = name => '<span class="file-name" title="'+safeDoc(name)+'" style="display:block;max-width:300px;overflow-wrap:anywhere;line-height:1.4">'+safeDoc(name)+'</span>';
+      el.innerHTML = '<p style="font-size:12px;color:var(--muted);margin:0 0 12px">Ook brongegevens die rechtstreeks zijn verwerkt staan hieronder. “Brongegevens verwerkt” betekent niet dat het originele bestand in je documentenopslag is geüpload.</p><div class="table-wrap"><table class="table">'+
+        '<thead><tr><th>Bestand</th><th>Subgroep</th><th>Gebruik</th><th>Beschikbaarheid</th><th>Actie</th></tr></thead><tbody>'+
+        uploads.map(u => {
+          const records = byPath.get(u.file_path) || bySourceName.get(u.file_name) || [];
+          const subgroup = u.subgroup ? subgroupName(u.subgroup) : records[0]?.category ? subgroupName(records[0].category) : 'Nog niet gekoppeld';
+          const date = u.uploaded_at ? new Date(u.uploaded_at).toLocaleDateString('nl-NL') : 'Datum onbekend';
+          return '<tr><td>'+fileCell(u.file_name)+'</td><td>'+safeDoc(subgroup)+'</td><td>'+safeDoc(statusFor(records))+'</td><td>Geüpload · '+safeDoc(date)+'</td><td><button class="btn btn-ghost btn-sm" style="color:var(--danger-ink);border-color:var(--danger-ink)" onclick="Dashboard.deleteUpload(\''+u.id+'\',\''+u.file_path.replace(/'/g,"\\'")+'\')">Verwijderen</button></td></tr>';
+        }).join('')+
+        sourceEntries.map(([fileName,records]) => '<tr><td>'+fileCell(fileName)+'</td><td>'+safeDoc(records[0]?.category ? subgroupName(records[0].category) : 'Nog niet gekoppeld')+'</td><td>'+safeDoc(statusFor(records))+'</td><td>Brongegevens verwerkt · origineel niet opgeslagen</td><td>—</td></tr>').join('')+
+        '</tbody></table></div>';
     } else {
       // Not logged in: show demo names from localStorage + login nudge
       loginNote.style.display = "inline";
