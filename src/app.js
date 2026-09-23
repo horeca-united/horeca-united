@@ -836,12 +836,14 @@ function buildSubgroupRows(uploadedSubgroups = new Set(), spendBySubgroup = {}, 
     const realSpend = spendBySubgroup[id];
     const cost = CURRENT_USER ? (realSpend ?? null)
       : (isPrimary ? (STATE.primary.annualSpend || realSpend || 0) : (realSpend || 0));
-    const supplier = detailBySubgroup[id]?.supplier || (isPrimary ? (STATE.primary.supplier || "Onbekende leverancier") : "—");
+    const suppliers = detailBySubgroup[id]?.suppliers || [];
+    const supplier = suppliers.length > 1 ? `${suppliers.length} leveranciers`
+      : (suppliers[0]?.name || detailBySubgroup[id]?.supplier || (isPrimary ? (STATE.primary.supplier || "Onbekende leverancier") : "—"));
     const contractEnd = isPrimary ? (STATE.primary.contractEnd || "Onbekend") : "Onbekend";
     const missing = isPrimary && STATE.method==="later" ? "Factuur of contract" : "—";
     return {id, name: subgroupName(id), status, badge, kans, cost, sourceYear:yearBySubgroup[id] || null,
       nextYearAmount:detailBySubgroup[id]?.nextYearAmount || null,
-      contractYears:detailBySubgroup[id]?.contractYears || null, supplier, contractEnd, missing, isPrimary};
+      contractYears:detailBySubgroup[id]?.contractYears || null, supplier, suppliers, contractEnd, missing, isPrimary};
   });
 }
 
@@ -974,6 +976,14 @@ const Dashboard = {
           yearBySubgroup[sgId] = selected.get(t.id);
           const details = detailBySubgroup[sgId] || {};
           details.supplier = t.suppliers?.name || (sgId === 'muzieklicentie' ? 'Buma/Sena' : details.supplier);
+          if(sgId === 'wijn'){
+            const supplierName = t.suppliers?.name || t.raw_data?.supplier || 'Leverancier onbekend';
+            const suppliers = details.suppliers || [];
+            const existing = suppliers.find(s => s.name === supplierName);
+            if(existing) existing.amount += amount;
+            else suppliers.push({name:supplierName, amount});
+            details.suppliers = suppliers;
+          }
           const secondYearMonthly = Number(t.raw_data?.contract_summary?.standard_monthly_total);
           if(sgId === 'internet' && firstTelecomYear(t) && secondYearMonthly > 0){
             details.nextYearAmount = Math.round(secondYearMonthly * 1200) / 100;
@@ -1022,8 +1032,9 @@ const Dashboard = {
     document.getElementById("dashSubgroupTableShort").innerHTML = shortBody || `<tr><td colspan="4" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
     const nlDate = date => date ? date.split('-').reverse().join('-') : 'onbekend';
+    const safe = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const fullBody = rows.map(r=>`
-      <tr><td><strong>${r.name}</strong></td><td>${String(r.supplier).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</td><td>${r.cost == null ? '—' : new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.cost)}${r.nextYearAmount != null ? `<br><small>1e contractjaar: ${nlDate(r.contractYears?.firstStart)} t/m ${nlDate(r.contractYears?.firstEnd)}<br>2e contractjaar: ${nlDate(r.contractYears?.secondStart)} t/m ${nlDate(r.contractYears?.secondEnd)} · indicatief ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.nextYearAmount)}${r.contractYears?.estimated ? '<br>Start op basis van besteldatum; activatie nog te bevestigen' : ''}</small>` : ''}</td><td>${r.sourceYear || '—'}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
+      <tr><td><strong>${r.name}</strong></td><td>${safe(r.supplier)}</td><td>${r.cost == null ? '—' : new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.cost)}${r.id === 'wijn' && r.suppliers.length ? `<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--brand2);font-size:12px">Bekijk inkoop per leverancier</summary>${r.suppliers.map(s=>`<div style="font-size:12px;margin-top:4px">${safe(s.name)}: ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(s.amount)}</div>`).join('')}<small style="color:var(--muted)">Btw-behandeling kan per bron verschillen.</small></details>` : ''}${r.nextYearAmount != null ? `<br><small>1e contractjaar: ${nlDate(r.contractYears?.firstStart)} t/m ${nlDate(r.contractYears?.firstEnd)}<br>2e contractjaar: ${nlDate(r.contractYears?.secondStart)} t/m ${nlDate(r.contractYears?.secondEnd)} · indicatief ${new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(r.nextYearAmount)}${r.contractYears?.estimated ? '<br>Start op basis van besteldatum; activatie nog te bevestigen' : ''}</small>` : ''}</td><td>${r.sourceYear || '—'}${r.sourceYear === 2026 ? ' · tijdelijk' : ''}</td>
       <td><span class="badge ${r.badge}">${r.status}</span></td><td>${r.kans}</td><td>${r.contractEnd}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="alert('In deze demo start dit de analyse-flow voor ${r.name}.')">${r.status==="Nog niet ingevuld"?"Start analyse":"Bekijk"}</button></td></tr>`).join("");
     document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="8" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
@@ -1089,20 +1100,29 @@ const Dashboard = {
         return;
       }
       const byPath = new Map();
+      const bySourceName = new Map();
       const { selected } = dashboardCostSelection(transactions || []);
       (transactions || []).forEach(t => {
         const path = t.raw_data?.file_path;
-        if(!path) return;
-        const values = byPath.get(path) || [];
-        values.push(selected.get(t.id) || null);
-        byPath.set(path, values);
+        const sourceName = t.raw_data?.source_file;
+        const year = selected.get(t.id) || null;
+        if(path){
+          const values = byPath.get(path) || [];
+          values.push(year);
+          byPath.set(path, values);
+        }
+        if(sourceName && t.raw_data?.source_verified === true){
+          const values = bySourceName.get(sourceName) || [];
+          values.push(year);
+          bySourceName.set(sourceName, values);
+        }
       });
       el.innerHTML = `<table class="table">
         <thead><tr><th>Bestand</th><th>Subgroep</th><th>Gebruikt als</th><th>Geüpload op</th><th></th></tr></thead>
         <tbody>${uploads.map(u => {
           const sg = u.subgroup ? subgroupName(u.subgroup) : '—';
           const date = new Date(u.uploaded_at).toLocaleDateString('nl-NL');
-          const checks = byPath.get(u.file_path) || [];
+          const checks = byPath.get(u.file_path) || bySourceName.get(u.file_name) || [];
           const yearStatus = !checks.length ? 'Nog te controleren'
             : checks.every(year => year === 2025) ? 'Kosten 2025'
             : checks.every(year => year === 2026) ? 'Tijdelijke referentie 2026'
@@ -1114,7 +1134,7 @@ const Dashboard = {
             <td style="color:var(--muted);font-size:12.5px">${date}</td>
             <td><button class="btn btn-ghost btn-sm" style="color:var(--danger-ink);border-color:var(--danger-ink)" onclick="Dashboard.deleteUpload('${u.id}','${u.file_path.replace(/'/g,"\\'")}')">Verwijderen</button></td>
           </tr>`;
-        }).join('')}</tbody>
+        }).join('')}${[...bySourceName.entries()].filter(([fileName]) => !uploads.some(u => u.file_name === fileName)).map(([fileName, years]) => `<tr><td><span class="file-name">${fileName.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</span></td><td>—</td><td>${years.some(Boolean) ? 'Gegevens verwerkt' : 'Nog te controleren'}</td><td>Bestand nog uploaden</td><td>—</td></tr>`).join('')}</tbody>
       </table>`;
     } else {
       // Not logged in: show demo names from localStorage + login nudge
@@ -1548,8 +1568,13 @@ const Dashboard = {
 
     const fmt = v => v != null ? new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(v) : '—';
     const fmtDate = s => s ? new Date(s).toLocaleDateString('nl-NL',{year:'numeric',month:'short',day:'numeric'}) : null;
+    const safe = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const isFlexibleCancellation = r => /dagelijks|maandelijks/i.test(r.notice_period_text || '');
     const contractBadge = r => {
+      if (r.is_supplier_relation) return isFlexibleCancellation(r)
+        ? '<span class="badge b-green">Dagelijks opzegbaar</span>'
+        : '<span class="badge b-grey">Looptijd onbekend</span>';
+      if (!r.has_contract && r.has_expense) return '<span class="badge b-grey">Contract niet aangeleverd</span>';
       if (!r.has_contract) return '<span class="badge b-grey">Geen contract</span>';
       if (isFlexibleCancellation(r)) return '<span class="badge b-green">Opzegbaar</span>';
       if (!r.period_end) return '<span class="badge b-grey">Onbekend</span>';
@@ -1560,6 +1585,9 @@ const Dashboard = {
       return '<span class="badge b-green">Lopend</span>';
     };
     const cancellationHtml = r => {
+      if (r.is_supplier_relation) return r.notice_period_text
+        ? `<strong style="font-size:12px">${r.notice_period_text}</strong>`
+        : '<span style="color:var(--muted);font-size:12px">Niet bekend</span>';
       if (!r.has_contract) return '<span style="color:var(--muted);font-size:12px">—</span>';
       if (isFlexibleCancellation(r)) {
         return `<strong style="font-size:12px">${r.notice_period_text}</strong>`;
@@ -1579,8 +1607,8 @@ const Dashboard = {
       const { data: cats } = await sb
         .from('categories')
         .select('id, name')
-        .eq('is_contracteerbaar', true)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .or('is_contracteerbaar.eq.true,name.eq.Wijn');
 
       // Haal contractregels op
       const { data: contractRows } = await sb
@@ -1592,12 +1620,17 @@ const Dashboard = {
       // Haal alle transacties op voor bedrag-totaal per categorie (ook zonder contract)
       const { data: allTx } = await sb
         .from('transactions')
-        .select('category_id, amount')
+        .select('id, category_id, amount, monthly_amount, transaction_date, period_start, period_end, is_contract, raw_data, categories(name), suppliers(name)')
         .eq('email', CURRENT_USER.email);
 
       const totalByCat = {};
-      (allTx || []).forEach(r => {
-        totalByCat[r.category_id] = (totalByCat[r.category_id] || 0) + parseFloat(r.amount || 0);
+      const { selected: selectedCosts } = dashboardCostSelection(allTx || []);
+      const selectedByCat = {};
+      (allTx || []).filter(r => selectedCosts.has(r.id)).forEach(r => {
+        const amount = dashboardAmount(r);
+        if (!Number.isFinite(amount)) return;
+        totalByCat[r.category_id] = (totalByCat[r.category_id] || 0) + amount;
+        (selectedByCat[r.category_id] ||= []).push(r);
       });
 
       const contractByCat = {};
@@ -1613,26 +1646,61 @@ const Dashboard = {
         }
       });
 
-      if (cats && cats.length) {
-        rows = cats.map(cat => {
+      // Wijn is vaak een inkooprelatie zonder getekend contract. Toon de
+      // leverancier toch, maar geef een jaarstatistiek nooit een contracteinddatum.
+      const categories = (cats || []).filter(cat => cat.name !== 'Wijn' ||
+        (allTx || []).some(t => t.category_id === cat.id));
+      if (categories.length) {
+        rows = categories.flatMap(cat => {
           const c = contractByCat[cat.id];
           const summary = c?.raw_data?.contract_summary;
-          return {
+          const expenses = selectedByCat[cat.id] || [];
+          const supplierNames = [...new Set(expenses.map(t => t.suppliers?.name || t.raw_data?.supplier).filter(Boolean))];
+          if(cat.name === 'Wijn' && expenses.length){
+            // Een wijnsubgroep heeft één totaal, maar elke leverancier heeft
+            // zijn eigen afspraken en mag dus geen gezamenlijke opzegstatus krijgen.
+            const bySupplier = new Map();
+            expenses.forEach(t => {
+              const supplier = t.suppliers?.name || t.raw_data?.supplier || 'Leverancier onbekend';
+              if(!bySupplier.has(supplier)) bySupplier.set(supplier, []);
+              bySupplier.get(supplier).push(t);
+            });
+            return [...bySupplier].map(([supplier, entries]) => {
+              const contract = (contractRows || []).find(t => t.category_id === cat.id && t.suppliers?.name === supplier);
+              const notice = contract?.notice_period_text || entries.find(t => t.raw_data?.notice_period_text)?.raw_data.notice_period_text || '';
+              const isBart = supplier.includes('Beemster');
+              return {
+                category: 'Wijn', supplier, period_start:contract?.period_start || null,
+                period_end:contract?.period_end || null,
+                period_text: contract ? '' : 'Inkoop 2025 · geen contracteinddatum',
+                amount: entries.reduce((sum, t) => sum + dashboardAmount(t), 0),
+                amount_note: isBart ? 'Nettobedrag; btw niet vermeld in de bron' : '',
+                notes: `${isBart ? 'J. Bart wijnen — ' : ''}Inkoop bij ${supplier}. ${contract ? 'Overeenkomst geregistreerd.' : 'Geen lopend contract aangeleverd.'}`,
+                notice_period_text: notice, has_contract:!!contract, has_expense:true,
+                is_supplier_relation:!contract, auto_renews:contract?.auto_renews ?? null,
+              };
+            });
+          }
+          const supplierRelation = cat.name === 'Wijn' && !c && expenses.length > 0;
+          return [{
             category: cat.name,
-            supplier: c?.suppliers?.name || '—',
+            supplier: c?.suppliers?.name || (supplierNames.length === 1 ? supplierNames[0] : supplierNames.length ? `${supplierNames.length} leveranciers` : '—'),
             period_start: summary?.period_start || c?.period_start || null,
             period_end: summary?.period_end || c?.period_end || null,
-            period_text: summary?.period_text || '',
+            period_text: supplierRelation ? 'Inkoop 2025 · contractperiode onbekend'
+              : (!c && expenses.length ? 'Afrekening 2025 · contractperiode onbekend' : (summary?.period_text || '')),
             amount: summary?.annual_amount ?? (c ? parseFloat(c.amount || 0) : (totalByCat[cat.id] || null)),
-            amount_note: summary?.amount_note || '',
-            notes: summary?.description || c?.notes || '',
+            amount_note: supplierRelation ? 'Nettobedrag; btw niet vermeld in de bron' : (summary?.amount_note || ''),
+            notes: supplierRelation ? `${supplierNames.length === 1 && supplierNames[0].includes('Beemster') ? 'J. Bart wijnen — ' : ''}Inkoopoverzicht 2025 van ${supplierNames.join(', ')}. Een contract en opzegtermijn zijn nog niet aangeleverd.` : (summary?.description || c?.notes || ''),
             notice_period_text: summary?.notice_period_text || c?.notice_period_text || '',
             notice_period_months: c?.notice_period_months || null,
             auto_renews: c?.auto_renews ?? null,
             date_confidence: c?.raw_data?.date_confidence || '',
             cancel_by_date: summary?.cancel_by_date || c?.raw_data?.cancel_by_date || null,
             has_contract: !!c,
-          };
+            has_expense: expenses.length > 0,
+            is_supplier_relation: supplierRelation,
+          }];
         }).sort((a, b) => {
           // Contracten met naderende einddatum bovenaan, daarna geen contract
           if (a.has_contract && !b.has_contract) return -1;
@@ -1649,6 +1717,7 @@ const Dashboard = {
 
     // Bepaal of er heronderhandelkansen zijn (contract aflopend of geen contract)
     const kansen = rows.filter(r => {
+      if (r.is_supplier_relation) return false;
       if (!r.has_contract) return true;
       if (isFlexibleCancellation(r)) return true;
       const actionDate = r.cancel_by_date || r.period_end;
@@ -1676,21 +1745,21 @@ const Dashboard = {
         const periodeHtml = startStr || endStr
           ? `<span style="font-size:12px">${startStr ? startStr + ' –<br>' : ''}${endStr || ''}${r.date_confidence === 'estimated' ? `<br><em style="color:var(--warn-ink)">${r.category === 'Telecom' ? 'voorlopig: besteldatum als start' : 'geschat'}</em>` : ''}</span>`
           : r.period_text
-            ? `<span style="font-size:12px">${r.period_text}</span>`
+            ? `<span style="font-size:12px">${safe(r.period_text)}</span>`
             : `<span style="color:var(--muted);font-size:12px">—</span>`;
         const actionDate = r.cancel_by_date || r.period_end;
         const days = actionDate ? (new Date(actionDate) - new Date()) / 86400000 : null;
-        const isKans = !r.has_contract || isFlexibleCancellation(r) || (days !== null && days < 120);
+        const isKans = !r.is_supplier_relation && (!r.has_contract || isFlexibleCancellation(r) || (days !== null && days < 120));
         const onderhandelBtn = !isDemo && isKans
           ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px;margin-left:6px"
                data-category="${r.category}"
                onclick="Proposals.registerInterestContracts(['${r.category}'], this)">Voorstel</button>`
           : '';
         return `<tr${isKans ? ' style="background:rgba(var(--warn-rgb,251,191,36),0.07)"' : ''}>
-          <td><strong>${r.category}</strong>${r.notes ? `<br><span style="font-size:11px;color:var(--muted)">${r.notes}</span>` : ''}</td>
-          <td>${r.supplier}</td>
+          <td><strong>${safe(r.category)}</strong>${r.notes ? `<br><span style="font-size:11px;color:var(--muted)">${safe(r.notes)}</span>` : ''}</td>
+          <td>${safe(r.supplier)}</td>
           <td>${periodeHtml}</td>
-          <td style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">${fmt(r.amount)}${r.amount_note ? `<br><span style="font-family:inherit;font-size:10px;color:var(--muted)">${r.amount_note}</span>` : ''}</td>
+          <td style="font-family:'IBM Plex Mono',monospace;font-size:12.5px">${fmt(r.amount)}${r.amount_note ? `<br><span style="font-family:inherit;font-size:10px;color:var(--muted)">${safe(r.amount_note)}</span>` : ''}</td>
           <td>${cancellationHtml(r)}</td>
           <td style="white-space:nowrap">${contractBadge(r)}${onderhandelBtn}</td>
         </tr>`;
@@ -1875,6 +1944,11 @@ const Dashboard = {
     try {
       let totalTransactions = 0;
       let processingIssues = 0;
+      const { data: verifiedRows } = await sb.from('transactions')
+        .select('raw_data').eq('email', email);
+      const verifiedNames = new Set((verifiedRows || [])
+        .filter(row => row.raw_data?.source_verified === true && row.raw_data?.source_file)
+        .map(row => row.raw_data.source_file));
       for(let i = 0; i < this._stagedFiles.length; i++){
         const file = this._stagedFiles[i];
         const subgroup = document.getElementById(`docStagingSg_${i}`).value || null;
@@ -1883,7 +1957,7 @@ const Dashboard = {
         if (/\.xlsx?$/i.test(file.name)) {
           const result = await parseAndSaveExcel(file, email, name);
           totalTransactions += result.aantal;
-        } else if (/\.pdf$/i.test(file.name)) {
+        } else if (/\.pdf$/i.test(file.name) && !verifiedNames.has(file.name)) {
           try {
             const { error } = await sb.functions.invoke('extract-pdf', { body: { file_path: filePath, email, name: name || null } });
             if(error) processingIssues++;
