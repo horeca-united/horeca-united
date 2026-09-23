@@ -427,7 +427,7 @@
         <div id="dashTab-overzicht" class="dash-tab">
           <div id="dashRealSummary" style="display:none">
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">
-              <div class="panel stat"><span>Totale uitgaven</span><strong class="pos" id="dashTotalSpend">—</strong></div>
+              <div class="panel stat"><span>Uitgaven boekjaar 2025</span><strong class="pos" id="dashTotalSpend">—</strong></div>
               <div class="panel stat"><span>Categorieën geanalyseerd</span><strong id="dashCatCount">—</strong></div>
               <div class="panel stat"><span>Potentiële besparing</span><strong class="pos" id="dashPotential">—</strong></div>
               <div class="panel stat"><span>Profiel voltooid</span><strong id="dashProfilePctSummary">—</strong></div>
@@ -439,6 +439,7 @@
               <div class="panel stat"><span>Profiel voltooid</span><strong id="dashProfilePctDemo">—</strong></div>
             </div>
           </div>
+          <div id="dashBookYearNotice" class="note" style="display:none;margin-bottom:16px" role="status" aria-live="polite"></div>
           <div class="panel card">
             <div class="page-head" style="margin-bottom:10px"><h3 style="margin:0">Voortgang van je profiel</h3><span id="dashProfilePct2" class="step-count">—</span></div>
             <div class="progress-mini"><div id="dashProfileBar" style="width:20%"></div></div>
@@ -465,7 +466,7 @@
         <div id="dashTab-subgroepen" class="dash-tab" style="display:none">
           <div class="panel card">
             <h3>Alle subgroepen</h3>
-            <div class="table-wrap"><table class="table"><thead><tr><th>Naam</th><th>Leverancier</th><th>Jaarkosten</th><th>Status</th><th>Kans</th><th>Contracteinde</th><th>Actie</th></tr></thead><tbody id="dashSubgroupTableFull"></tbody></table></div>
+            <div class="table-wrap"><table class="table"><thead><tr><th>Naam</th><th>Leverancier</th><th>Kosten 2025</th><th>Status</th><th>Kans</th><th>Contracteinde</th><th>Actie</th></tr></thead><tbody id="dashSubgroupTableFull"></tbody></table></div>
           </div>
         </div>
 

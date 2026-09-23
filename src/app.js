@@ -668,11 +668,14 @@ const QuickScan = {
           await saveExtractedData(email, name, uploadedPaths, this._excelExtraction);
         }catch(err){ console.warn("Excel kon niet worden verwerkt:", err); }
       }
-      // PDF-bestanden verwerken via Gemini (fire-and-forget)
+      // Finish extraction before showing the dashboard so the year check can run.
       const pdfFiles = this._stagedFiles.filter(f => /\.pdf$/i.test(f.name));
       for(let i = 0; i < pdfFiles.length; i++){
         const pdfPath = uploadedPaths[this._stagedFiles.indexOf(pdfFiles[i])];
-        if(pdfPath) sb.functions.invoke('extract-pdf', { body: { file_path: pdfPath, email, name } });
+        if(pdfPath){
+          const { error } = await sb.functions.invoke('extract-pdf', { body: { file_path: pdfPath, email, name } });
+          if(error) console.warn('Documentverwerking vraagt controle:', error);
+        }
       }
     }
     this._stagedFiles = [];
@@ -829,14 +832,35 @@ function buildSubgroupRows(uploadedSubgroups = new Set(), spendBySubgroup = {}){
     }
     const kans = isPrimary ? "Hoog" : "Onbekend";
     const realSpend = spendBySubgroup[id];
-    const cost = isPrimary
-      ? (STATE.primary.annualSpend || realSpend || 0)
-      : (realSpend || 0);
+    const cost = CURRENT_USER ? (realSpend ?? null)
+      : (isPrimary ? (STATE.primary.annualSpend || realSpend || 0) : (realSpend || 0));
     const supplier = isPrimary ? (STATE.primary.supplier || "Onbekende leverancier") : "—";
     const contractEnd = isPrimary ? (STATE.primary.contractEnd || "Onbekend") : "Onbekend";
     const missing = isPrimary && STATE.method==="later" ? "Factuur of contract" : "—";
     return {id, name: subgroupName(id), status, badge, kans, cost, supplier, contractEnd, missing, isPrimary};
   });
+}
+
+// Use the document's coverage period, never its upload date, for book year 2025.
+const DASHBOARD_BOOK_YEAR = 2025;
+function bookYearTransaction(row){
+  const start = row.period_start;
+  const end = row.period_end;
+  const firstDay = `${DASHBOARD_BOOK_YEAR}-01-01`;
+  const lastDay = `${DASHBOARD_BOOK_YEAR}-12-31`;
+  if(start || end){
+    if(!start || !end) return { included:false, reason:'periode niet volledig bekend' };
+    // An annual statement ending January 1 uses an exclusive end date.
+    const effectiveEnd = end === `${DASHBOARD_BOOK_YEAR + 1}-01-01` ? lastDay : end;
+    return start >= firstDay && effectiveEnd <= lastDay && start <= effectiveEnd
+      ? { included:true }
+      : { included:false, reason:'valt buiten boekjaar 2025' };
+  }
+  // Itemized purchases can use their transaction date; policy dates cannot.
+  if(!row.is_contract && row.transaction_date?.slice(0,4) === String(DASHBOARD_BOOK_YEAR)){
+    return { included:true };
+  }
+  return { included:false, reason:'boekjaar niet bevestigd' };
 }
 
 /* ---------------- Klantdashboard ---------------- */
@@ -875,13 +899,17 @@ const Dashboard = {
     if(CURRENT_USER){
       const [{ data: uploads }, { data: txRows }] = await Promise.all([
         sb.from('uploads').select('subgroup').eq('email', CURRENT_USER.email),
-        sb.from('transactions').select('amount, categories(name)').eq('email', CURRENT_USER.email)
+        sb.from('transactions')
+          .select('amount, transaction_date, period_start, period_end, is_contract, categories(name)')
+          .eq('email', CURRENT_USER.email)
       ]);
       if(uploads) uploads.forEach(u => { if(u.subgroup) uploadedSubgroups.add(u.subgroup); });
-      if(txRows) txRows.forEach(t => {
+      if(txRows) txRows.filter(t => bookYearTransaction(t).included).forEach(t => {
         const catName = t.categories?.name;
         const sgId = CATEGORY_TO_SUBGROUP[catName];
-        if(sgId) spendBySubgroup[sgId] = (spendBySubgroup[sgId] || 0) + (t.amount || 0);
+        if(sgId && Number.isFinite(Number(t.amount))) {
+          spendBySubgroup[sgId] = (spendBySubgroup[sgId] || 0) + Number(t.amount);
+        }
       });
     }
     const rows = buildSubgroupRows(uploadedSubgroups, spendBySubgroup);
@@ -923,7 +951,7 @@ const Dashboard = {
     document.getElementById("dashSubgroupTableShort").innerHTML = shortBody || `<tr><td colspan="4" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
 
     const fullBody = rows.map(r=>`
-      <tr><td><strong>${r.name}</strong></td><td>${r.supplier}</td><td>${euro(r.cost)}</td>
+      <tr><td><strong>${r.name}</strong></td><td>${r.supplier}</td><td>${r.cost == null ? '—' : euro(r.cost)}</td>
       <td><span class="badge ${r.badge}">${r.status}</span></td><td>${r.kans}</td><td>${r.contractEnd}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="alert('In deze demo start dit de analyse-flow voor ${r.name}.')">${r.status==="Nog niet ingevuld"?"Start analyse":"Bekijk"}</button></td></tr>`).join("");
     document.getElementById("dashSubgroupTableFull").innerHTML = fullBody || `<tr><td colspan="7" class="empty-state">Nog geen subgroepen geselecteerd.</td></tr>`;
@@ -969,10 +997,15 @@ const Dashboard = {
     if (CURRENT_USER) {
       loginNote.style.display = "none";
       el.innerHTML = `<div class="empty-state" style="padding:20px">Documenten laden…</div>`;
-      const { data: uploads, error } = await sb.from('uploads')
-        .select('id, file_name, subgroup, uploaded_at, file_path')
-        .eq('email', CURRENT_USER.email)
-        .order('uploaded_at', { ascending: false });
+      const [{ data: uploads, error }, { data: transactions }] = await Promise.all([
+        sb.from('uploads')
+          .select('id, file_name, subgroup, uploaded_at, file_path')
+          .eq('email', CURRENT_USER.email)
+          .order('uploaded_at', { ascending: false }),
+        sb.from('transactions')
+          .select('raw_data, period_start, period_end, transaction_date, is_contract')
+          .eq('email', CURRENT_USER.email)
+      ]);
       if (error) {
         el.innerHTML = `<div class="empty-state" style="color:var(--danger-ink)">Fout bij laden: ${error.message}</div>`;
         return;
@@ -983,14 +1016,27 @@ const Dashboard = {
         el.innerHTML = `<div class="empty-state">Nog geen documenten geüpload. <a onclick="Dashboard.showTab('documenten')" style="cursor:pointer;text-decoration:underline;color:var(--brand2)">Upload je eerste document</a>.</div>`;
         return;
       }
+      const byPath = new Map();
+      (transactions || []).forEach(t => {
+        const path = t.raw_data?.file_path;
+        if(!path) return;
+        const values = byPath.get(path) || [];
+        values.push(bookYearTransaction(t).included);
+        byPath.set(path, values);
+      });
       el.innerHTML = `<table class="table">
-        <thead><tr><th>Bestand</th><th>Subgroep</th><th>Geüpload op</th><th></th></tr></thead>
+        <thead><tr><th>Bestand</th><th>Subgroep</th><th>Boekjaar 2025</th><th>Geüpload op</th><th></th></tr></thead>
         <tbody>${uploads.map(u => {
           const sg = u.subgroup ? subgroupName(u.subgroup) : '—';
           const date = new Date(u.uploaded_at).toLocaleDateString('nl-NL');
+          const checks = byPath.get(u.file_path) || [];
+          const yearStatus = !checks.length ? 'Nog te controleren'
+            : checks.every(Boolean) ? 'Meegenomen'
+            : checks.some(Boolean) ? 'Deels meegenomen' : 'Niet meegenomen';
           return `<tr>
             <td><span class="file-name">${u.file_name}</span></td>
             <td>${sg}</td>
+            <td>${yearStatus}</td>
             <td style="color:var(--muted);font-size:12.5px">${date}</td>
             <td><button class="btn btn-ghost btn-sm" style="color:var(--danger-ink);border-color:var(--danger-ink)" onclick="Dashboard.deleteUpload('${u.id}','${u.file_path.replace(/'/g,"\\'")}')">Verwijderen</button></td>
           </tr>`;
@@ -1283,25 +1329,62 @@ const Dashboard = {
 
   async renderOverzicht(){
     if (!CURRENT_USER) return; // demo summary already shown by render()
-    const { data, error } = await sb
-      .from('transactions')
-      .select('amount, categories(name)')
-      .eq('email', CURRENT_USER.email);
-    if (error || !data || !data.length) return;
+    const [{ data, error }, { data: uploads }] = await Promise.all([
+      sb.from('transactions')
+        .select('amount, transaction_date, period_start, period_end, is_contract, raw_data, categories(name)')
+        .eq('email', CURRENT_USER.email),
+      sb.from('uploads').select('file_name, file_path').eq('email', CURRENT_USER.email)
+    ]);
+    const notice = document.getElementById('dashBookYearNotice');
+    if (error || !data) {
+      notice.style.display = 'block';
+      notice.textContent = 'Uitgaven voor 2025 konden niet worden geladen. Probeer het later opnieuw.';
+      return;
+    }
 
-    // Aggregate by category
+    // Count only confirmed 2025 costs. Keep excluded files visible and explain why.
     const agg = {};
+    const reviewByPath = new Map();
+    const processedPaths = new Set();
     data.forEach(r => {
+      const path = r.raw_data?.file_path;
+      if(path) processedPaths.add(path);
+      const assessment = bookYearTransaction(r);
+      if(!assessment.included){
+        if(path && !reviewByPath.has(path)) reviewByPath.set(path, assessment.reason);
+        return;
+      }
       const cat = r.categories?.name || 'Overig';
-      agg[cat] = (agg[cat] || 0) + parseFloat(r.amount || 0);
+      const amount = Number(r.amount);
+      if(Number.isFinite(amount)) agg[cat] = (agg[cat] || 0) + amount;
     });
     const total = Object.values(agg).reduce((a,b) => a+b, 0);
     const catCount = Object.keys(agg).length;
+    const review = (uploads || []).flatMap(u => {
+      if(reviewByPath.has(u.file_path)) return [`${u.file_name}: ${reviewByPath.get(u.file_path)}`];
+      if(!processedPaths.has(u.file_path)) return [`${u.file_name}: verwerking of boekjaar nog niet bevestigd`];
+      return [];
+    });
+    notice.replaceChildren();
+    notice.style.display = review.length ? 'block' : 'none';
+    if(review.length){
+      const title = document.createElement('strong');
+      title.textContent = 'Niet meegenomen in boekjaar 2025:';
+      notice.append(title);
+      const list = document.createElement('ul');
+      list.style.margin = '6px 0 0';
+      review.forEach(message => {
+        const item = document.createElement('li');
+        item.textContent = message;
+        list.append(item);
+      });
+      notice.append(list);
+    }
 
     // Show real summary tiles
     document.getElementById('dashRealSummary').style.display = 'block';
     document.getElementById('dashDemoSummary').style.display = 'none';
-    document.getElementById('dashTotalSpend').textContent = new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(total);
+    document.getElementById('dashTotalSpend').textContent = new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(total);
     document.getElementById('dashCatCount').textContent = catCount;
     // Savings estimate: 8-14% of total spend
     document.getElementById('dashPotential').textContent =
@@ -1695,6 +1778,7 @@ const Dashboard = {
 
     try {
       let totalTransactions = 0;
+      let processingIssues = 0;
       for(let i = 0; i < this._stagedFiles.length; i++){
         const file = this._stagedFiles[i];
         const subgroup = document.getElementById(`docStagingSg_${i}`).value || null;
@@ -1704,7 +1788,10 @@ const Dashboard = {
           const result = await parseAndSaveExcel(file, email, name);
           totalTransactions += result.aantal;
         } else if (/\.pdf$/i.test(file.name)) {
-          sb.functions.invoke('extract-pdf', { body: { file_path: filePath, email, name: name || null } });
+          try {
+            const { error } = await sb.functions.invoke('extract-pdf', { body: { file_path: filePath, email, name: name || null } });
+            if(error) processingIssues++;
+          } catch (_) { processingIssues++; }
         }
       }
       const txMsg = totalTransactions > 0 ? ` ${totalTransactions} transactieregels opgeslagen.` : '';
@@ -1712,10 +1799,10 @@ const Dashboard = {
       const uploadedNames = this._stagedFiles.map(f => f.name);
       const uploadedCount = this._stagedFiles.length;
       statusEl.style.color = "var(--positive-ink)";
-      statusEl.textContent = `${uploadedCount} bestand(en) succesvol geüpload.${txMsg}`;
+      statusEl.textContent = `${uploadedCount} bestand(en) succesvol geüpload.${txMsg}${processingIssues ? ' Bij enkele documenten moet de verwerking nog worden gecontroleerd.' : ' Bekijk het overzicht voor de controle op boekjaar 2025.'}`;
       this.clearStaging();
       saveState();
-      this.render();
+      await this.render();
       sb.functions.invoke('send-upload-confirmation', { body: { email, name, fileNames: uploadedNames, fileCount: uploadedCount } });
     } catch(err) {
       statusEl.style.color = "var(--danger-ink)";
