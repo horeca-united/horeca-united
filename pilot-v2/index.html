@@ -85,7 +85,7 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
 .beer-public-done p{margin:0;color:#577b60}
 @media(max-width:600px){.beer-public{padding:25px 0 60px}.beer-public-card{padding:24px}.beer-public-buttons{flex-direction:column-reverse}.beer-public-buttons button{width:100%}}
 .beer-extra-fields{margin-top:12px}.beer-extra-field{display:flex;flex-direction:column;gap:7px;font-size:12px;color:#4e745a;font-weight:600}.beer-extra-field input{width:100%;padding:13px;border:1px solid #cbdccf;border-radius:10px;background:#fff;margin:0}.beer-public-question select{cursor:pointer}.beer-public-question select option{font-size:14px}
-</style></head><body>
+.beer-privacy-check{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.6;color:#516a56;margin-top:17px}.beer-privacy-check input{width:18px;flex:0 0 18px;height:18px;margin:2px 0 0}.beer-honeypot{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important}</style></head><body>
 <header class="top"><div class="wrap top-inner"><a class="brand" onclick="showLanding()"><span class="brand-mark">HU.</span><span><strong>Horeca United</strong><small>Jouw digitale horecamanager</small></span></a><div class="nav-actions"><button class="btn ghost" id="navHome" onclick="showLanding()">Home</button><button class="btn" id="navLogin" onclick="showLogin()">Inloggen</button><button class="btn hide" id="navWorkspace" onclick="openWorkspace()">Mijn HUOS</button><button class="btn ghost hide" id="navLogout" onclick="logout()">Uitloggen</button></div></div></header>
 <!-- ============ HUOS V2 LANDING ============ -->
 <section id="landing" class="v2-landing">
@@ -105,14 +105,14 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
 </section>
 <section id="beerPublicView" class="hide beer-public">
  <div class="wrap"><div class="beer-public-inner">
-  <div class="beer-public-head"><span class="eyebrow">HORECA UNITED / BIER QUICK SCAN</span><h1>Hoe zit jouw bierinkoop in elkaar?</h1><p>Deze scan kun je als ondernemer of bedrijfsleider invullen. Heb je geen inzage in contracten, kortingen of inkoopcijfers? Kies dan ‘Weet ik niet’ of sla die vraag over. Je hoeft niets te gokken. Pas aan het einde vragen we je e-mailadres om de antwoorden veilig te bewaren.</p></div>
+  <div class="beer-public-head"><span class="eyebrow">HORECA UNITED / BIER QUICK SCAN</span><h1>Hoe zit jouw bierinkoop in elkaar?</h1><p>Deze scan kun je als ondernemer of bedrijfsleider invullen. Heb je geen inzage in contracten, kortingen of inkoopcijfers? Kies dan ‘Weet ik niet’ of sla de vraag over. Je hoeft niets te gokken. Pas aan het einde vragen we naar je contactgegevens, zodat Horeca United de aanvraag intern kan beoordelen.</p></div>
   <div class="beer-public-card">
    <div class="beer-public-progress"><i id="beerPublicBar" style="width:0%"></i></div>
    <div class="beer-public-meta"><span id="beerPublicStep">Vraag 1</span><span id="beerPublicSection">Bierinkoop</span></div>
    <div id="beerPublicQuestion" class="beer-public-question"></div>
    <div id="beerPublicNotice" role="status" aria-live="polite"></div>
    <div id="beerPublicButtons" class="beer-public-buttons"><button id="beerPublicBack" class="btn ghost" onclick="beerStepBack()">← Vorige</button><button id="beerPublicNext" class="btn" onclick="beerStepNext()">Volgende vraag →</button></div>
-   <p class="beer-public-caption">Geen voorbeeldcijfers of automatische besparingsberekeningen. Antwoorden worden pas na bevestiging van het e-mailadres aan je HUOS-bedrijfsprofiel gekoppeld.</p>
+   <p class="beer-public-caption">Geen voorbeeldcijfers, geen automatische besparingsberekening en geen account nodig. Horeca United beoordeelt de aanvraag intern voordat er eventueel een voorstel volgt.</p>
   </div>
  </div></div>
 </section>
@@ -241,13 +241,13 @@ function renderPublicBeer(){
  el('beerPublicSection').textContent=isEmail?'Afronden':'Bier Quick Scan';
  el('beerPublicBack').disabled=publicBeerIndex===0||publicBeerSent;
  el('beerPublicNext').disabled=publicBeerSent;
- el('beerPublicNext').textContent=isEmail?'Stuur mijn bevestigingslink →':publicBeerIndex===questions.length-1?'Naar de laatste stap →':'Volgende vraag →';
+ el('beerPublicNext').textContent=isEmail?'Verstuur aanvraag naar Horeca United →':publicBeerIndex===questions.length-1?'Naar de laatste stap →':'Volgende vraag →';
  el('beerPublicButtons').classList.toggle('hide',publicBeerSent);
  el('beerPublicNotice').innerHTML='';
- if(publicBeerSent){el('beerPublicQuestion').innerHTML='<div class="beer-public-done"><strong>Controleer je e-mail</strong><p>Open de nieuwste e-mail op hetzelfde apparaat om je antwoorden aan je nieuwe HUOS-profiel te koppelen. Zodra je bent ingelogd, kun je verdergaan.</p></div>';return}
+ if(publicBeerSent){el('beerPublicQuestion').innerHTML='<div class="beer-public-done"><strong>Bedankt voor je aanvraag!</strong><p>Horeca United heeft de gegevens ontvangen en zal deze eerst intern bekijken. Als we meer informatie nodig hebben, nemen we contact met je op. Er is geen automatische offerte opgesteld.</p></div>';return}
  if(isEmail){
    const email=user?.email||'';
-   el('beerPublicQuestion').innerHTML='<span class="eyebrow">JE HEBT DE VRAGEN DOORLOPEN</span><h2>Waar mogen we de bevestigingslink naartoe sturen?</h2><p>Je hoeft vooraf geen account aan te maken. We gebruiken je e-mailadres voor een eenmalige veilige inloglink, niet voor marketing. Na bevestiging kun je een bedrijfsprofiel aanmaken en je scan opslaan.</p><label class="field"><span>E-mailadres</span><input id="beerPublicEmail" type="email" autocomplete="email" placeholder="jij@jouwzaak.nl" value="'+safe(email)+'"></label>';
+   el('beerPublicQuestion').innerHTML='<span class="eyebrow">LAATSTE STAP · AANVRAAG INSTUREN</span><h2>Waar kunnen we je bereiken?</h2><p>Horeca United beoordeelt de antwoorden eerst intern. Als meer informatie nodig is, nemen we contact op. Je hoeft geen account aan te maken; je ontvangt geen automatische offerte.</p><div class="field"><label for="beerPublicCompany">Naam horecazaak *</label><input id="beerPublicCompany" maxlength="160" autocomplete="organization" placeholder="Naam van het horecabedrijf"></div><div class="field"><label for="beerPublicContact">Jouw naam *</label><input id="beerPublicContact" maxlength="120" autocomplete="name" placeholder="Voor- en achternaam"></div><div class="field"><label for="beerPublicEmail">Zakelijk e-mailadres *</label><input id="beerPublicEmail" type="email" autocomplete="email" maxlength="250" placeholder="jij@jouwzaak.nl" value="'+safe(email)+'"></div><div class="field"><label for="beerPublicPhone">Telefoonnummer (optioneel)</label><input id="beerPublicPhone" autocomplete="tel" maxlength="50" type="tel" placeholder="Telefoonnummer"></div><label class="beer-privacy-check"><input id="beerPublicPrivacy" type="checkbox"><span>Ik ga ermee akkoord dat Horeca United mijn ingevulde gegevens gebruikt om deze Bier Quick Scan-aanvraag te beoordelen en zo nodig contact met mij op te nemen. <strong>Geen marketinginschrijving.</strong></span></label><input class="beer-honeypot" type="text" id="beerPublicWebsite" autocomplete="off" tabindex="-1" aria-hidden="true">';
    return;
  }
  const v=publicBeerAnswers[q.id]??'';
@@ -289,25 +289,29 @@ async function beerStepNext(){
    if(!capturePublicBeer())return;
    publicBeerIndex++;renderPublicBeer();return;
  }
+
  const email=String(el('beerPublicEmail')?.value||'').trim().toLowerCase();
- if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){el('beerPublicNotice').innerHTML='<div class="error">Vul een geldig e-mailadres in.</div>';return}
+ const company_name=String(el('beerPublicCompany')?.value||'').trim();
+ const contact_name=String(el('beerPublicContact')?.value||'').trim();
+ const phone=String(el('beerPublicPhone')?.value||'').trim();
+ const website=String(el('beerPublicWebsite')?.value||'').trim();
+ const privacy_accepted=el('beerPublicPrivacy')?.checked===true;
+ const emailOK=/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);
+ if(!emailOK||email.length>250||company_name.length<2||company_name.length>160||contact_name.length<2||contact_name.length>120){
+  el('beerPublicNotice').innerHTML='<div class="error">Vul de bedrijfsnaam, je naam en een geldig e-mailadres in.</div>';return;
+ }
+ if(!privacy_accepted){el('beerPublicNotice').innerHTML='<div class="error">Geef eerst toestemming om je aanvraag te beoordelen.</div>';return}
  if(Object.keys(publicBeerAnswers).length===0){el('beerPublicNotice').innerHTML='<div class="error">Vul minstens één antwoord in voordat je verdergaat.</div>';return}
  const button=el('beerPublicNext');button.disabled=true;
  try{
-   // Pending data remains only in this browser, up to 24 hours, until email
-   // ownership is confirmed. Never write anonymous data into another account.
-   const draft={email,answers:publicBeerAnswers,expires:Date.now()+86400000};
-   if(user && user.email?.toLowerCase()===email){
-     localStorage.setItem(BEER_PENDING_KEY,JSON.stringify(draft));
-     publicBeerSent=true;renderPublicBeer();
-     await openWorkspace();
-     return;
-   }
-   const response=await client.auth.signInWithOtp({email,options:{emailRedirectTo:AUTH_REDIRECT}});
-   if(response.error)throw response.error;
-   localStorage.setItem(BEER_PENDING_KEY,JSON.stringify(draft));
-   publicBeerSent=true;renderPublicBeer();
- }catch(e){el('beerPublicNotice').innerHTML='<div class="error">'+safe('De bevestigingslink kon niet worden verstuurd: '+e.message)+'</div>'}
+  const response=await fetch(URL_SUPABASE+'/functions/v1/huos-beer-intake',{
+   method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({company_name,contact_name,email,phone,website,privacy_accepted,answers:publicBeerAnswers})
+  });
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok||body.ok!==true)throw new Error(body.error||'De aanvraag kon niet worden verstuurd.');
+  publicBeerSent=true;renderPublicBeer();
+ }catch(e){el('beerPublicNotice').innerHTML='<div class="error">'+safe(e.message||'Versturen niet mogelijk.')+'</div>'}
  finally{button.disabled=false}
 }
 function readPendingBeer(){
