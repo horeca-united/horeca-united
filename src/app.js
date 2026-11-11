@@ -417,7 +417,7 @@ function saveState(){
 }
 
 /* ---------------- Router ---------------- */
-const SCREENS = ["landing","scan","result","dashboard","admin","privacy"];
+const SCREENS = ["landing","scan","result","dashboard","manager","admin","privacy"];
 const Router = {
   go(id){
     SCREENS.forEach(s=>document.getElementById("screen-"+s).classList.remove("active"));
@@ -2595,6 +2595,80 @@ const DemoData = {
     localStorage.removeItem(STORAGE_KEY);
     STATE = defaultState();
     Router.go("landing");
+  }
+};
+
+
+/* =========================================================
+   HUOS 2.0 – Digitale manager, auth + RLS-backed read-only MVP
+   ========================================================= */
+const ManagerV2 = {
+  tab:'overview',
+  state:null,
+  safe(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));},
+  set(id,value){const el=document.getElementById(id);if(el)el.textContent=String(value);},
+  open(){Router.go('manager');this.show(this.tab);this.refresh();},
+  show(tab){
+    this.tab=tab;
+    document.querySelectorAll('[data-manager-tab]').forEach(el=>el.classList.toggle('active',el.dataset.managerTab===tab));
+    document.querySelectorAll('[data-manager-page]').forEach(el=>el.style.display=el.dataset.managerPage===tab?'':'none');
+  },
+  item(title,desc){return '<div class="manager-list-item"><strong>'+this.safe(title)+'</strong><small>'+this.safe(desc)+'</small></div>';},
+  async refresh(){
+    const logged=Boolean(CURRENT_USER);
+    document.getElementById('managerSignedOut').style.display=logged?'none':'block';
+    document.getElementById('managerSignedIn').style.display=logged?'block':'none';
+    if(!logged)return;
+    const userId=CURRENT_USER.id,email=CURRENT_USER.email;
+    const status=document.getElementById('managerStatus');
+    status.innerHTML='';
+    ['managerDocs','managerTransactions','managerContracts','managerActions'].forEach(id=>this.set(id,'…'));
+    try {
+      // Each query relies on existing Supabase RLS; email filtering is additional scoping,
+      // not a substitute for access-control policies.
+      const [profiles,uploads,transactions,reminders]=await Promise.all([
+        sb.from('profiles').select('company_name,business_type,city').eq('email',email).limit(1),
+        sb.from('uploads').select('id,subgroup,uploaded_at').eq('email',email).limit(1000),
+        sb.from('transactions').select('id,product_name,is_contract,renewal_date,action_deadline,category_id,amount,transaction_date').eq('email',email).limit(1000),
+        sb.from('contract_reminders').select('title,message,remind_on,dismissed_at').eq('user_id',userId).order('remind_on',{ascending:true}).limit(200)
+      ]);
+      const errors=[profiles,uploads,transactions,reminders].filter(r=>r.error).map(r=>r.error.message);
+      if(errors.length){status.innerHTML='<div class="manager-alert">Sommige gegevens konden niet worden geladen. Controleer de verbinding en toegangsrechten. '+this.safe(errors.join('; '))+'</div>';}
+      const p=profiles.data?.[0]||{},u=uploads.data||[],t=transactions.data||[],r=reminders.data||[];
+      const c=t.filter(x=>x.is_contract===true),open=r.filter(x=>!x.dismissed_at);
+      this.set('managerCompany',p.company_name||'Mijn onderneming');
+      this.set('managerDocs',uploads.error?'—':u.length+(u.length===1000?'+':''));
+      this.set('managerTransactions',transactions.error?'—':t.length+(t.length===1000?'+':''));
+      this.set('managerContracts',transactions.error?'—':c.length+(t.length===1000?'+':''));
+      this.set('managerActions',reminders.error?'—':open.length+(r.length===200?'+':''));
+      const coverage=[
+        ['Bedrijfsprofiel',Boolean(p.company_name)],
+        ['Documenten',u.length>0],
+        ['Inkoopregels',t.length>0],
+        ['Contracten',c.length>0],
+        ['Actiemeldingen',r.length>0]
+      ];
+      document.getElementById('managerCoverage').innerHTML=coverage.map(x=>'<div class="manager-coverage-row"><span>'+x[0]+'</span><span>'+(x[1]?'Aanwezig':'Aanvullen')+'</span></div>').join('');
+      const steps=[];
+      if(!p.company_name)steps.push(['Bedrijfsprofiel aanvullen','Controleer bedrijfsnaam en contactgegevens in je klantdashboard.']);
+      if(!u.length)steps.push(['Eerste documenten toevoegen','Facturen of contracten geven HUOS meer inzicht in je bedrijfsvoering.']);
+      if(!c.length)steps.push(['Contracten in kaart brengen','Een contract kan pas worden bewaakt als de juiste afspraken zijn geregistreerd.']);
+      if(open.length)steps.push(['Openstaande acties bekijken',open.length+' geregistreerde contractmeldingen vragen aandacht.']);
+      if(!steps.length)steps.push(['Controleer je bedrijfsinzichten','Je hebt al meerdere gegevensbronnen. Controleer of alles actueel en juist is.']);
+      document.getElementById('managerNext').innerHTML=steps.map(x=>this.item(...x)).join('');
+      const breakdown={};u.forEach(x=>{const key=x.subgroup||'Niet ingedeeld';breakdown[key]=(breakdown[key]||0)+1});
+      document.getElementById('managerDataTypes').innerHTML=Object.keys(breakdown).length?Object.entries(breakdown).map(([k,v])=>this.item(k,v+' geregistreerde uploads')).join(''):this.item('Nog geen uploads','Voeg een factuur of contract toe via het klantdashboard.');
+      document.getElementById('managerReminderList').innerHTML=open.length?open.slice(0,20).map(x=>this.item(x.title||'Contractherinnering',(x.remind_on||'Datum onbekend')+' · '+(x.message||''))).join(''):this.item('Geen openstaande meldingen','Dit is geen garantie dat er geen contractdeadlines zijn: niet-ingelezen contracten ontbreken.');
+      document.getElementById('managerContractList').innerHTML=c.length?c.slice(0,20).map(x=>this.item(x.product_name||'Contractregel','Actiedatum: '+(x.action_deadline||'Niet geregistreerd')+' · verlenging: '+(x.renewal_date||'Niet geregistreerd'))).join(''):this.item('Geen contractregels gevonden','Upload contracten en controleer of HUOS ze juist heeft ingedeeld.');
+      const categories=new Set(t.map(x=>x.category_id).filter(Boolean));
+      document.getElementById('managerInsightList').innerHTML=[
+        this.item('Geregistreerde inkoopcategorieën',transactions.error?'Niet beschikbaar':categories.size+' unieke categorie-ID’s in de uitgelezen transacties.'),
+        this.item('Datadekking',coverage.filter(x=>x[1]).length+' van '+coverage.length+' gegevensgroepen zijn vertegenwoordigd; geen kwaliteits- of gezondheidsscore.'),
+        this.item('Prijs- en besparingsvergelijkingen','Nog niet getoond: hiervoor moeten eenheden, perioden, btw, kortingen en bronstukken worden geverifieerd.')
+      ].join('');
+    } catch(e){
+      status.innerHTML='<div class="manager-alert">Het overzicht kon niet worden geladen: '+this.safe(e.message)+'</div>';
+    }
   }
 };
 
