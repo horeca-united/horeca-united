@@ -185,7 +185,8 @@ const BEER_QUESTIONS=[
  {id:'purchase_obligation',label:'10. Heb je een afnameverplichting voor bier?',options:[...CHOOSE,['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
  {id:'installation_status',label:'11. Van wie is de tapinstallatie?',options:[...CHOOSE,['owned','Van mij / eigen zaak'],['brewery','Van brouwerij / leverancier'],['leased','Gehuurd / lease'],['unknown','Weet ik niet']]},
  {id:'brewery_loan_status',label:'12. Staat er nog een lening of financiering bij de brouwerij open?',options:[...CHOOSE,['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
- {id:'proposal_interest',label:'13. Wil je dat Horeca United voor jouw horecazaak onderzoekt of je kunt besparen op bierinkoop?',options:[...CHOOSE,['yes','Ja, ik ontvang graag een vrijblijvend voorstel'],['maybe','Misschien, ik wil eerst weten wat het voordeel kan zijn'],['insight_only','Nee, ik wil voorlopig alleen inzicht in mijn bierinkoop']]}
+ {id:'proposal_interest',label:'13. Wil je dat Horeca United voor jouw horecazaak onderzoekt of je kunt besparen op bierinkoop?',options:[...CHOOSE,['yes','Ja, ik ontvang graag een vrijblijvend voorstel'],['maybe','Misschien, ik wil eerst weten wat het voordeel kan zijn'],['insight_only','Nee, ik wil voorlopig alleen inzicht in mijn bierinkoop']]},
+ {id:'willingness_to_switch',label:'14. Sta je open voor een andere brouwerij als je daarmee aanzienlijk kunt besparen of betere voorwaarden krijgt?',options:[...CHOOSE,['yes','Ja, ik sta open voor een andere brouwerij'],['maybe','Misschien, afhankelijk van het aanbod'],['no','Nee, ik wil mijn huidige biermerk behouden']]}
 ];
 function beerChoices(question,answers){
  if(question.dynamic==='brands'){
