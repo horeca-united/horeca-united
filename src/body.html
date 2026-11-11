@@ -1,156 +1,18 @@
 </head>
 <body>
 
-<div class="shell">
-  <div class="topbar">
-    <div class="logo"><span class="mark">HU</span> Horeca United</div>
-    <div class="topbar-links">
-      <a onclick="Router.go('landing')">Home</a>
-      <a onclick="ManagerV2.open()">Mijn digitale manager</a>
-      <a onclick="Router.go('dashboard')">Klantdashboard</a>
-      <a onclick="Router.go('admin')">Horeca United beheer</a>
-      <span class="pill">Founding Pilot · demo</span>
-      <span id="topbarAuth" style="display:flex;align-items:center;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="AuthUI.openLogin()">Inloggen</button>
-      </span>
-    </div>
-    <div class="topbar-right">
-      <span id="topbarAuthMobile" style="display:none;align-items:center;gap:8px"></span>
-      <button class="hamburger" onclick="MobileNav.open()" aria-label="Menu openen">
-        <span></span><span></span><span></span>
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ============ MOBILE NAV ============ -->
-<div class="mobile-nav-overlay" id="mobileNavOverlay" onclick="MobileNav.close()"></div>
-<nav class="mobile-nav" id="mobileNav">
-  <button class="mobile-nav-close" onclick="MobileNav.close()">&times;</button>
-  <a onclick="Router.go('landing');MobileNav.close()">Home</a>
-  <a onclick="ManagerV2.open();MobileNav.close()">Mijn digitale manager</a>
-  <a onclick="Router.go('dashboard');MobileNav.close()">Klantdashboard</a>
-  <a onclick="Router.go('admin');MobileNav.close()">Horeca United beheer</a>
-  <div class="divider"></div>
-  <span id="mobileNavAuth">
-    <button class="mobile-nav-link" onclick="AuthUI.openLogin();MobileNav.close()">Inloggen</button>
-  </span>
-</nav>
-
-<!-- ============ LANDING ============ -->
-<section id="screen-landing" class="screen active">
-  <div class="shell">
-    <div class="hero">
-      <div class="panel hero-main">
-        <span class="pill">Het digitale besturingssysteem voor de horeca ondernemer</span>
-        <h1 style="margin-top:14px">Van collectief inkopen naar een platform dat continu voor de ondernemer werkt.</h1>
-        <p>Start met één kostenpost. Upload zelf een factuur of machtig Horeca United om de benodigde gegevens namens jouw onderneming op te vragen — jij houdt altijd zelf de controle.</p>
-        <div class="actions">
-          <button class="btn btn-primary" onclick="QuickScan.start()">Start gratis Quick Scan</button>
-          <button class="btn btn-ghost" onclick="Dashboard.open()">Bekijk voorbeeld-dashboard</button>
-        </div>
-      </div>
-      <div class="panel hero-side">
-        <div class="today-head">
-          <h3 style="margin:0;font-size:16px">Vandaag</h3>
-          <span class="today-badge">2 acties</span>
-        </div>
-        <div class="today-card today-card--green">
-          <strong>Nieuw biervoorstel</strong>
-          <span>Geschatte besparing: €6.400 per jaar</span>
-        </div>
-        <div class="today-card today-card--yellow">
-          <strong>Contract loopt af</strong>
-          <span>Telefonie: nog 63 dagen tot actie</span>
-        </div>
-        <div class="today-card today-card--brand">
-          <strong>Totaal bespaard</strong>
-          <span>€11.280 sinds aansluiting</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="shell">
-      <div class="section-head">
-        <span class="eyebrow">Hoe het werkt</span>
-        <h2>Van eerste scan naar volledig kostenoverzicht</h2>
-      </div>
-      <div class="steps3">
-        <div class="panel step-card"><div class="step-num">01 — Scan</div><h3>Vertel ons over je zaak</h3><p>Beantwoord een paar vragen over je onderneming en selecteer de kostenposten die voor jou relevant zijn.</p></div>
-        <div class="panel step-card"><div class="step-num">02 — Analyse</div><h3>Kies je eerste kostenpost</h3><p>Upload zelf een document, of machtig Horeca United om gegevens bij je leverancier op te vragen. Jij bepaalt het tempo.</p></div>
-        <div class="panel step-card"><div class="step-num">03 — Overzicht</div><h3>Bekijk je besparingskansen</h3><p>Je krijgt een indicatieve inschatting en een persoonlijk dashboard dat meegroeit met elke subgroep die je opent.</p></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section" style="padding-top:0">
-    <div class="shell">
-      <div class="section-head">
-        <span class="eyebrow">Waarom Horeca United</span>
-        <h2>Eén operating system, niet nog een losse besparingstool</h2>
-      </div>
-      <div class="benefits">
-        <div class="panel benefit"><div class="dot"></div><div><strong>Alle kostencategorieën, één omgeving</strong><p>Van drank en food tot afval en verzekeringen — je belangrijkste kostenposten overzichtelijk op één plek.</p></div></div>
-        <div class="panel benefit"><div class="dot"></div><div><strong>Al je contracten in beeld</strong><p>Zie in één overzicht welke contracten lopen, bij welke leverancier en wanneer ze aflopen. Zo weet je precies wanneer het tijd is om opnieuw te vergelijken of te onderhandelen.</p></div></div>
-        <div class="panel benefit"><div class="dot"></div><div><strong>Start licht, groei op eigen tempo</strong><p>Begin met één categorie. Voeg later andere kostengroepen toe wanneer het jou uitkomt — zonder verplichtingen.</p></div></div>
-        <div class="panel benefit"><div class="dot"></div><div><strong>Gebouwd voor de horeca</strong><p>Herkenbare kostenposten, realistische besparingen en een aanpak die aansluit hoe horecaondernemers werken.</p></div></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section" style="padding-top:0">
-    <div class="shell">
-      <div class="section-head">
-        <span class="eyebrow">Subgroepen</span>
-        <h2>Wat Horeca United voor je in kaart kan brengen</h2>
-      </div>
-      <div class="subgroup-groups" id="subgroupOverview"></div>
-    </div>
-  </div>
-
-  <div class="section" style="padding-top:0">
-    <div class="shell">
-      <div class="pilot-banner">
-        <div>
-          <h2>Founding Pilot</h2>
-          <p>We werken de eerste versie van Horeca United uit samen met 50 tot 100 horecazaken. Als Founding Pilot-deelnemer denk je mee over de richting en profiteer je als eerste van collectieve inkoopvoordelen.</p>
-        </div>
-        <button class="btn btn-secondary" style="background:#fff" onclick="QuickScan.start()">Doe mee als pilotdeelnemer</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="section" style="padding-top:0">
-    <div class="shell">
-      <div class="section-head">
-        <span class="eyebrow">Privacy &amp; vertrouwen</span>
-        <h2>Wat we wel — en nadrukkelijk niet — doen</h2>
-      </div>
-      <div class="trust-row">
-        <div class="panel trust-item"><strong>Eerste scan binnen 5 minuten</strong><p>Zonder verplichtingen, zonder verborgen kosten.</p></div>
-        <div class="panel trust-item"><strong>Start met één document</strong><p>Je hoeft niet meteen je hele administratie te delen.</p></div>
-        <div class="panel trust-item"><strong>Beperkte, intrekbare machtigingen</strong><p>Gekoppeld aan jouw kostenposten, altijd opzegbaar via je dashboard.</p></div>
-        <div class="panel trust-item"><strong>Geen verplichting om over te stappen</strong><p>Een besparingskans is een advies, geen verplichting.</p></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="cta-final shell">
-    <h2>Klaar om je eerste besparingskans te vinden?</h2>
-    <p style="max-width:44ch;margin:8px auto 0">Het kost je vijf minuten. Je kiest zelf hoe je begint.</p>
-    <div class="actions" style="justify-content:center">
-      <button class="btn btn-primary" onclick="QuickScan.start()">Start gratis Quick Scan</button>
-    </div>
-  </div>
-
-  <div class="shell footer">
-    <div>Horeca United — Horeca United Operating System. Conceptdemo, geen productieomgeving.</div>
-    <div>Indicatieve berekeningen · geen financieel advies · <a onclick="Router.go('privacy')" style="text-decoration:underline;cursor:pointer">Privacyverklaring</a> · <a onclick="AdminApp.open()" style="text-decoration:underline;cursor:pointer">Horeca United beheer</a></div>
-  </div>
+<header class="v2-header"><div class="shell v2-header-inner"><a class="v2-logo" onclick="Router.go('landing')"><b>HU<span>.</span></b><span>Horeca United<small>Jouw digitale horecamanager</small></span></a><nav class="v2-links"><a onclick="Router.go('landing')">Home</a><a onclick="Router.go('landing');setTimeout(()=>document.getElementById('v2-how')?.scrollIntoView({behavior:'smooth'}),80)">Hoe het werkt</a><a onclick="ManagerV2.open()">Mijn HUOS</a><span id="topbarAuth"><button class="btn btn-primary btn-sm" onclick="AuthUI.openLogin()">Inloggen</button></span></nav><div class="v2-mobile"><span id="topbarAuthMobile"></span><button class="hamburger" aria-label="Menu openen" onclick="MobileNav.open()"><span></span><span></span><span></span></button></div></div></header><div class="mobile-nav-overlay" id="mobileNavOverlay" onclick="MobileNav.close()"></div><nav class="mobile-nav" id="mobileNav"><button class="mobile-nav-close" onclick="MobileNav.close()">&times;</button><a onclick="Router.go('landing');MobileNav.close()">Home</a><a onclick="Router.go('landing');MobileNav.close();setTimeout(()=>document.getElementById('v2-how')?.scrollIntoView({behavior:'smooth'}),80)">Hoe het werkt</a><a onclick="ManagerV2.open();MobileNav.close()">Mijn HUOS</a><div class="divider"></div><span id="mobileNavAuth"><button class="mobile-nav-link" onclick="AuthUI.openLogin();MobileNav.close()">Inloggen</button></span></nav>
+<!-- ============ HUOS V2 LANDING ============ -->
+<section id="screen-landing" class="screen active v2-landing">
+<div class="shell"><div class="v2-hero"><div class="v2-hero-text"><span class="v2-eyebrow">● JOUW DIGITALE HORECAMANAGER</span><h1>Meer inzicht.<br>Meer controle.<br><em>Een sterker bedrijf.</em></h1><p>Eén plek waar je jouw bedrijfsgegevens samenbrengt. HUOS helpt je kosten begrijpen, contracten bewaken, kansen ontdekken en betere beslissingen nemen.</p><div class="v2-buttons"><button class="v2-button v2-button-pale" onclick="ManagerV2.open()">Start jouw bedrijfsprofiel <span>↗</span></button><button class="v2-button v2-button-outline" onclick="document.getElementById('v2-how').scrollIntoView({behavior:'smooth'})">Bekijk hoe HUOS werkt <span>↓</span></button></div><small>✓ Jij bepaalt wat je deelt &nbsp; &nbsp; ✓ Begin met een leeg profiel</small></div>
+<div class="v2-mock"><div class="v2-mock-top"><b>HU.</b><span>BEDRIJFSOVERZICHT</span><span>•••</span></div><div class="v2-mock-welcome">Goedemorgen, ondernemer</div><h3>Dit speelt er in jouw zaak.</h3><div class="v2-mock-disclaimer">Voorbeeldweergave — geen echte klantgegevens</div><div class="v2-mock-cards"><div><small>MIJN DOCUMENTEN</small><strong>Facturen & contracten</strong><div class="v2-bars"><i></i><i></i><i></i><i></i><i></i></div><p>Alles overzichtelijk op één plek</p></div><div><small>MIJN BEDRIJFSPROFIEL</small><strong>HUOS leert je zaak kennen</strong><div class="v2-progress"><i></i></div><p>Vul gegevens aan voor meer inzicht</p></div></div><div class="v2-mock-alert"><b>↗</b><span><strong>Wat vraagt aandacht?</strong><small>Contracten · Kosten · Kansen</small></span><span>→</span></div><div class="v2-mock-footer">● &nbsp; Jouw bedrijf. Jouw overzicht.</div></div></div></div>
+<div class="shell v2-trustline">Gebouwd voor de dagelijkse praktijk in de horeca <span>·</span> Van losse gegevens naar waardevolle inzichten</div>
+<section class="v2-section" id="v2-how"><div class="shell"><div class="v2-section-head"><span class="v2-eyebrow">WAT HUOS VOOR JOU DOET</span><h2>Een digitale manager die<br>met jouw onderneming meegroeit.</h2><p>Niet weer een losse inkooptool. Eén omgeving die overzicht brengt, meedenkt en helpt bij de volgende stap.</p></div><div class="v2-pillars"><article><div class="v2-symbol">◫</div><span>01 / INZICHT</span><h3>Leer je bedrijf écht kennen.</h3><p>HUOS brengt je bedrijfsgegevens, facturen, leveranciers en contracten samen. Zo zie je wat bekend is en waar informatie ontbreekt.</p><footer>Meer overzicht &nbsp; ↗</footer></article><article><div class="v2-symbol">✳</div><span>02 / BEGELEIDING</span><h3>Weet wat aandacht verdient.</h3><p>Van contractmomenten tot kostenontwikkelingen. HUOS helpt je signalen te begrijpen zodra betrouwbare gegevens beschikbaar zijn.</p><footer>Meer grip &nbsp; ↗</footer></article><article><div class="v2-symbol">↗</div><span>03 / VOORDEEL</span><h3>Maak betere keuzes.</h3><p>Gebruik inzichten om slimmer te ondernemen. Waar passend helpt Horeca United met betere voorwaarden en gezamenlijke inkoopkracht.</p><footer>Meer mogelijkheden &nbsp; ↗</footer></article></div></div></section>
+<section class="v2-section v2-section-soft"><div class="shell v2-split"><div><span class="v2-eyebrow">JOUW BEDRIJF, STEEDS BETER IN BEELD</span><h2>Hoe beter HUOS je bedrijf kent, hoe meer het voor je kan betekenen.</h2><p>Begin eenvoudig met je bedrijfsprofiel. Voeg daarna op jouw tempo relevante documenten en gegevens toe. Jij houdt de regie.</p><div class="v2-steps"><div><b>01</b> Start met je bedrijfsprofiel</div><div><b>02</b> Voeg je eerste documenten toe</div><div><b>03</b> Krijg steeds meer inzicht</div></div><button class="v2-button v2-button-dark" onclick="ManagerV2.open()">Begin met jouw bedrijf <span>↗</span></button></div><div class="v2-profile-art"><small>HUOS / BEDRIJFSPROFIEL</small><h3>Hoe goed kent HUOS jouw bedrijf?</h3><p>De kennis van jouw onderneming groeit met betrouwbare gegevens.</p><label>Bedrijfsgegevens <span>Basis</span></label><div class="v2-meter"><i style="width:35%"></i></div><label>Inkoopfacturen <span>Uit te breiden</span></label><div class="v2-meter"><i style="width:60%"></i></div><label>Contracten <span>Uit te breiden</span></label><div class="v2-meter"><i style="width:20%"></i></div><small>Illustratief groeipad — geen echte bedrijfsscore.</small></div></div></section>
+<section class="v2-section"><div class="shell"><div class="v2-section-head"><span class="v2-eyebrow">ÉÉN CENTRALE OMGEVING</span><h2>Van bedrijfsgegevens<br>naar betere beslissingen.</h2></div><div class="v2-features"><div><b>◈</b><h3>Mijn bedrijf</h3><p>Een centraal bedrijfsprofiel.</p></div><div><b>▤</b><h3>Mijn gegevens</h3><p>Documenten veilig bij elkaar.</p></div><div><b>◷</b><h3>Mijn contracten</h3><p>Belangrijke afspraken in beeld.</p></div><div><b>✧</b><h3>Mijn inzichten</h3><p>Informatie met bronvermelding.</p></div></div></div></section>
+<div class="shell"><section class="v2-end"><div><span class="v2-eyebrow">ZET DE EERSTE STAP</span><h2>Jij kent je zaak. HUOS helpt je verder.</h2><p>Start jouw bedrijfsprofiel. Je hoeft niet meteen je volledige administratie te delen.</p></div><button class="v2-button v2-button-pale" onclick="ManagerV2.open()">Start jouw bedrijfsprofiel <span>↗</span></button></section></div>
+<footer class="shell v2-footer"><div><strong>HU. Horeca United</strong><small>Jouw digitale horecamanager</small></div><p>HUOS 2.0 · Privé pilot · Stapsgewijze ontwikkeling</p></footer>
 </section>
-
 <!-- ============ QUICK SCAN ============ -->
 <section id="screen-scan" class="screen">
   <div class="shell">
@@ -721,34 +583,18 @@
 <!-- ===== HUOS V2: DIGITALE MANAGER (ontwikkelbranch) ===== -->
 <section id="screen-manager" class="screen">
  <div class="shell manager-shell">
-  <div class="manager-heading"><div><div class="eyebrow">HORECA UNITED · JOUW DIGITALE MANAGER</div><h1>Jouw bedrijf, helder in beeld.</h1><p>Breng bedrijfsgegevens samen. HUOS helpt je zien wat bekend is, wat nog ontbreekt en wat aandacht vraagt.</p></div><span class="pill">HUOS 2.0 · pilot</span></div>
-  <div class="manager-layout">
-   <nav class="manager-nav" aria-label="Navigatie digitale manager">
-    <button class="manager-tab active" data-manager-tab="overview" onclick="ManagerV2.show('overview')">⌂ &nbsp; Mijn overzicht</button>
-    <button class="manager-tab" data-manager-tab="data" onclick="ManagerV2.show('data')">▤ &nbsp; Mijn gegevens</button>
-    <button class="manager-tab" data-manager-tab="contracts" onclick="ManagerV2.show('contracts')">◷ &nbsp; Contracten & acties</button>
-    <button class="manager-tab" data-manager-tab="insights" onclick="ManagerV2.show('insights')">✦ &nbsp; Mijn inzichten</button>
-    <button class="manager-tab" data-manager-tab="opportunities" onclick="ManagerV2.show('opportunities')">↗ &nbsp; Kansen & inkoop</button>
-    <div class="manager-nav-caption">Dit is de eerste werkende opzet. Er verschijnen alleen gegevens die HUOS daadwerkelijk kan ophalen.</div>
-   </nav>
+  <div class="manager-heading"><div><span class="v2-eyebrow">JOUW DIGITALE HORECAMANAGER</span><h1>Jouw bedrijf. Jouw overzicht.</h1><p>HUOS groeit met de bedrijfsinformatie die je bewust toevoegt.</p></div><span class="v2-pilot-badge">HUOS 2.0 · PRIVÉ PILOT</span></div>
+ <div class="manager-layout">
+   <nav class="manager-nav" aria-label="Navigatie digitale manager"><div class="v2-navtitle">MIJN HUOS</div><button class="manager-tab active" data-manager-tab="overview" onclick="ManagerV2.show('overview')">◈ &nbsp; Mijn bedrijf</button><button class="manager-tab" data-manager-tab="data" onclick="ManagerV2.show('data')">▤ &nbsp; Mijn gegevens</button><button class="manager-tab" data-manager-tab="contracts" onclick="ManagerV2.show('contracts')">◷ &nbsp; Mijn contracten</button><button class="manager-tab" data-manager-tab="insights" onclick="ManagerV2.show('insights')">✳ &nbsp; Mijn inzichten</button><button class="manager-tab" data-manager-tab="opportunities" onclick="ManagerV2.show('opportunities')">↗ &nbsp; Mijn kansen</button><div class="manager-nav-caption">Vul stap voor stap je bedrijfsgegevens aan.</div></nav>
    <div class="manager-content">
     <div id="managerSignedOut" class="panel manager-empty" style="display:none"><h2>Log in op jouw persoonlijke omgeving</h2><p>Je bedrijfsgegevens zijn alleen zichtbaar nadat je bent ingelogd.</p><button class="btn btn-primary" onclick="AuthUI.openLogin()">Inloggen met e-mail</button></div>
     <div id="managerSignedIn" style="display:none">
       <div id="managerStatus" role="status" aria-live="polite"></div>
-      <div id="pilotSetup" class="panel manager-panel" style="display:none">
-        <div class="eyebrow">JOUW NIEUWE START · PILOT 1</div>
-        <h2>Maak jouw schone HUOS-bedrijfsprofiel aan</h2>
-        <p>We beginnen opnieuw met een lege bedrijfsomgeving. Oude uploads, transacties en demo-besparingen worden hier niet geïmporteerd. Je bestaande gegevens blijven wel bewaard in het oude systeem.</p>
-        <div class="field"><label for="pilotCompanyName">Naam horecazaak</label><input id="pilotCompanyName" maxlength="160" placeholder="Bijvoorbeeld Restaurant ’t Volk" autocomplete="organization"/></div>
-        <div class="field"><label for="pilotBusinessType">Soort onderneming</label><select id="pilotBusinessType"><option value="restaurant">Restaurant</option><option value="cafe">Café of bar</option><option value="lunchroom">Lunchroom of brasserie</option><option value="hotel">Hotel</option><option value="other">Overige horeca</option></select></div>
-        <div class="field"><label for="pilotCity">Vestigingsplaats (optioneel)</label><input id="pilotCity" maxlength="120" placeholder="Bijvoorbeeld Arnhem"/></div>
-        <button id="pilotCreateButton" class="btn btn-primary" onclick="ManagerV2.createProfile()">Mijn pilotprofiel starten</button>
-        <p class="manager-note">Je kunt je bestaande inlogaccount gebruiken. Dit is een aparte registratie: er wordt geen informatie uit je vorige uploads overgenomen.</p>
-      </div>
+      <div id="pilotSetup" class="v2-setup" style="display:none"><div class="v2-setup-intro"><span class="v2-eyebrow">JOUW NIEUWE START · PILOT 1</span><h2>De eerste stap naar meer grip op jouw bedrijf.</h2><p>Vertel HUOS over jouw onderneming. Je start met een schoon profiel: oude uploads en historische cijfers worden niet overgenomen.</p><div>✓ Een frisse start<br>✓ Alleen gegevens die jij toevoegt</div></div><div class="v2-setup-form"><h3>Maak jouw bedrijfsprofiel aan</h3><div class="field"><label for="pilotCompanyName">Naam horecazaak</label><input id="pilotCompanyName" maxlength="160" placeholder="Bijvoorbeeld Restaurant ’t Volk" autocomplete="organization"/></div><div class="field"><label for="pilotBusinessType">Type onderneming</label><select id="pilotBusinessType"><option value="restaurant">Restaurant</option><option value="cafe">Café of bar</option><option value="lunchroom">Lunchroom of brasserie</option><option value="hotel">Hotel</option><option value="other">Overige horeca</option></select></div><div class="field"><label for="pilotCity">Vestigingsplaats (optioneel)</label><input id="pilotCity" maxlength="120" placeholder="Bijvoorbeeld Arnhem"/></div><button id="pilotCreateButton" class="v2-button v2-button-dark" onclick="ManagerV2.createProfile()">Start mijn persoonlijke HUOS <span>↗</span></button><p class="manager-note">Je bestaande login blijft werken. Je begint zonder oude documenten.</p></div></div>
       <div id="pilotWorkspace" style="display:none">
         <div class="manager-page" data-manager-page="overview">
           <div class="manager-welcome"><div><div class="eyebrow">HUOS V2 · SCHONE PILOT</div><h2 id="managerCompany">Jouw onderneming</h2><p>Een nieuwe start. Alles wat je hieronder ziet, komt uitsluitend uit je nieuwe pilotomgeving.</p></div><button class="btn btn-ghost btn-sm" onclick="ManagerV2.refresh()">↻ Bijwerken</button></div>
-          <div class="manager-metrics">
+          <div class="v2-dashboard-intro"><span>JOUW HUOS-BEDRIJFSPROFIEL</span><h3>Hoe goed kent HUOS jouw bedrijf?</h3><p>Dit overzicht laat zien welke gegevens aanwezig zijn, niet hoe gezond je onderneming is.</p></div><div class="manager-metrics">
             <div class="panel manager-metric"><div class="manager-metric-label">Nieuwe documenten</div><strong id="managerDocs">0</strong><small>Alleen deze pilot</small></div>
             <div class="panel manager-metric"><div class="manager-metric-label">Gecontroleerde feiten</div><strong id="managerTransactions">0</strong><small>Broncontrole volgt</small></div>
             <div class="panel manager-metric"><div class="manager-metric-label">Contracten</div><strong id="managerContracts">0</strong><small>In deze pilot</small></div>
