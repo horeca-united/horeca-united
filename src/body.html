@@ -734,21 +734,59 @@
    <div class="manager-content">
     <div id="managerSignedOut" class="panel manager-empty" style="display:none"><h2>Log in op jouw persoonlijke omgeving</h2><p>Je bedrijfsgegevens zijn alleen zichtbaar nadat je bent ingelogd.</p><button class="btn btn-primary" onclick="AuthUI.openLogin()">Inloggen met e-mail</button></div>
     <div id="managerSignedIn" style="display:none">
-     <div id="managerStatus" role="status" aria-live="polite"></div>
-     <div class="manager-page" data-manager-page="overview">
-      <div class="manager-welcome"><div><span class="eyebrow">JOUW BEDRIJF</span><h2 id="managerCompany">Mijn onderneming</h2><p>Inzicht begint bij betrouwbare informatie. Dit is wat HUOS nu over jouw bedrijf weet.</p></div><button class="btn btn-ghost btn-sm" onclick="ManagerV2.refresh()">↻ Ververs gegevens</button></div>
-      <div class="manager-metrics">
-       <div class="panel manager-metric"><div class="manager-metric-label">Documenten</div><strong id="managerDocs">—</strong><small>Geregistreerde uploads</small></div>
-       <div class="panel manager-metric"><div class="manager-metric-label">Inkoopregels</div><strong id="managerTransactions">—</strong><small>Uitgelezen transacties</small></div>
-       <div class="panel manager-metric"><div class="manager-metric-label">Contractregels</div><strong id="managerContracts">—</strong><small>Als contract gemarkeerd</small></div>
-       <div class="panel manager-metric"><div class="manager-metric-label">Open acties</div><strong id="managerActions">—</strong><small>Niet afgehandelde meldingen</small></div>
+      <div id="managerStatus" role="status" aria-live="polite"></div>
+      <div id="pilotSetup" class="panel manager-panel" style="display:none">
+        <div class="eyebrow">JOUW NIEUWE START · PILOT 1</div>
+        <h2>Maak jouw schone HUOS-bedrijfsprofiel aan</h2>
+        <p>We beginnen opnieuw met een lege bedrijfsomgeving. Oude uploads, transacties en demo-besparingen worden hier niet geïmporteerd. Je bestaande gegevens blijven wel bewaard in het oude systeem.</p>
+        <div class="field"><label for="pilotCompanyName">Naam horecazaak</label><input id="pilotCompanyName" maxlength="160" placeholder="Bijvoorbeeld Restaurant ’t Volk" autocomplete="organization"/></div>
+        <div class="field"><label for="pilotBusinessType">Soort onderneming</label><select id="pilotBusinessType"><option value="restaurant">Restaurant</option><option value="cafe">Café of bar</option><option value="lunchroom">Lunchroom of brasserie</option><option value="hotel">Hotel</option><option value="other">Overige horeca</option></select></div>
+        <div class="field"><label for="pilotCity">Vestigingsplaats (optioneel)</label><input id="pilotCity" maxlength="120" placeholder="Bijvoorbeeld Arnhem"/></div>
+        <button id="pilotCreateButton" class="btn btn-primary" onclick="ManagerV2.createProfile()">Mijn pilotprofiel starten</button>
+        <p class="manager-note">Je kunt je bestaande inlogaccount gebruiken. Dit is een aparte registratie: er wordt geen informatie uit je vorige uploads overgenomen.</p>
       </div>
-      <div class="manager-two"><div class="panel manager-panel"><div class="eyebrow">GEGEVENSDEKKING</div><h3>Wat kan HUOS al zien?</h3><div id="managerCoverage"></div><p class="manager-note">Dit meet alleen aanwezige informatie, niet hoe gezond je onderneming is. Controle van facturen en contractvoorwaarden blijft noodzakelijk.</p></div><div class="panel manager-panel"><div class="eyebrow">VOLGENDE STAPPEN</div><h3>Wat kun je nu doen?</h3><div id="managerNext"></div></div></div>
-     </div>
-     <div class="manager-page" data-manager-page="data" style="display:none"><div class="eyebrow">MIJN GEGEVENS</div><h2>Jouw bedrijfsbibliotheek</h2><p>Voeg documenten toe via de bestaande beveiligde uploadomgeving. HUOS koppelt ze later aan concrete inzichten.</p><div class="panel manager-panel"><h3>Beschikbare gegevens</h3><div id="managerDataTypes"></div><div class="actions"><button class="btn btn-primary" onclick="Dashboard.open()">Documenten bekijken of uploaden</button></div></div></div>
-     <div class="manager-page" data-manager-page="contracts" style="display:none"><div class="eyebrow">CONTRACTEN & ACTIES</div><h2>Belangrijke afspraken</h2><p>HUOS toont geregistreerde contracten en herinneringen; data moeten uit broncontracten worden gecontroleerd.</p><div class="panel manager-panel"><h3>Contractmeldingen</h3><div id="managerReminderList"></div></div><div class="panel manager-panel"><h3>Contractgegevens</h3><div id="managerContractList"></div></div></div>
-     <div class="manager-page" data-manager-page="insights" style="display:none"><div class="eyebrow">MIJN INZICHTEN</div><h2>Wat vertelt jouw data?</h2><p>We beginnen met transparante, eenvoudige gegevensinzichten. Betrouwbare prijsvergelijkingen en de uitgebreide AI-assistent volgen later.</p><div class="panel manager-panel" id="managerInsightList"></div></div>
-     <div class="manager-page" data-manager-page="opportunities" style="display:none"><div class="eyebrow">KANSEN & INKOOP</div><h2>Van inzicht naar voordeel</h2><p>Collectieve inkoop is één van de diensten waarmee HUOS je onderneming helpt.</p><div class="manager-two"><div class="panel manager-panel"><h3>Biercollectief</h3><p>Onderzoek brouwerijvoorwaarden, contractverplichtingen en jaarlijkse afname. De uitgebreide Bier Quick Scan wordt hierop aangesloten.</p><span class="pill">Pilot in ontwikkeling</span></div><div class="panel manager-panel"><h3>Andere besparingscategorieën</h3><p>Energie, foodgroothandel, betalingen, verzekeringen en andere vaste lasten blijven onderdeel van HUOS.</p><button class="btn btn-ghost" onclick="QuickScan.start()">Start algemene Quick Scan</button></div></div></div>
+      <div id="pilotWorkspace" style="display:none">
+        <div class="manager-page" data-manager-page="overview">
+          <div class="manager-welcome"><div><div class="eyebrow">HUOS V2 · SCHONE PILOT</div><h2 id="managerCompany">Jouw onderneming</h2><p>Een nieuwe start. Alles wat je hieronder ziet, komt uitsluitend uit je nieuwe pilotomgeving.</p></div><button class="btn btn-ghost btn-sm" onclick="ManagerV2.refresh()">↻ Bijwerken</button></div>
+          <div class="manager-metrics">
+            <div class="panel manager-metric"><div class="manager-metric-label">Nieuwe documenten</div><strong id="managerDocs">0</strong><small>Alleen deze pilot</small></div>
+            <div class="panel manager-metric"><div class="manager-metric-label">Gecontroleerde feiten</div><strong id="managerTransactions">0</strong><small>Broncontrole volgt</small></div>
+            <div class="panel manager-metric"><div class="manager-metric-label">Contracten</div><strong id="managerContracts">0</strong><small>In deze pilot</small></div>
+            <div class="panel manager-metric"><div class="manager-metric-label">Open acties</div><strong id="managerActions">0</strong><small>Gegevens aanvullen</small></div>
+          </div>
+          <div class="manager-two">
+            <div class="panel manager-panel"><div class="eyebrow">GEGEVENSDEKKING</div><h3>Wat weet HUOS nu?</h3><div id="managerCoverage"></div><p class="manager-note">Aanwezigheid is niet hetzelfde als betrouwbaarheid. Facturen worden pas als gecontroleerd weergegeven nadat een review is uitgevoerd.</p></div>
+            <div class="panel manager-panel"><div class="eyebrow">VOLGENDE STAP</div><h3>Leer jouw bedrijf kennen</h3><div id="managerNext"></div><button class="btn btn-primary" onclick="ManagerV2.show('data')">Mijn eerste document toevoegen</button></div>
+          </div>
+        </div>
+        <div class="manager-page" data-manager-page="data" style="display:none">
+          <div class="eyebrow">MIJN NIEUWE BEDRIJFSGEGEVENS</div><h2>Documentenbibliotheek</h2>
+          <p>Upload een nieuwe factuur of een contract. Dit bestand wordt uitsluitend aan je nieuwe pilotbedrijfsprofiel gekoppeld.</p>
+          <div class="panel manager-panel">
+            <h3>Document toevoegen</h3>
+            <div class="field"><label for="pilotDocumentCategory">Documentsoort</label><select id="pilotDocumentCategory"><option value="invoice">Inkoopfactuur</option><option value="contract">Contract</option><option value="overview">Jaaroverzicht</option><option value="other">Overig</option></select></div>
+            <div class="field"><label for="pilotDocumentFile">Bestand (PDF, PNG of JPG, max. 10 MB)</label><input id="pilotDocumentFile" type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"/></div>
+            <button class="btn btn-primary" id="pilotUploadButton" onclick="ManagerV2.uploadDocument()">Veilig uploaden naar mijn pilot</button>
+            <p class="manager-note">Dit is de eerste fase: bestanden worden privé opgeslagen en als 'ontvangen' geregistreerd. Automatische extractie en analyses zijn nog niet gekoppeld. Voeg voor deze eerste test alleen je eigen bedrijfsdocumenten toe, zonder onnodige persoonsgegevens.</p>
+          </div>
+          <div class="panel manager-panel"><h3>Nieuwe uploads in deze pilot</h3><div id="managerDataTypes"></div></div>
+        </div>
+        <div class="manager-page" data-manager-page="contracts" style="display:none">
+          <div class="eyebrow">CONTRACTEN & ACTIES</div><h2>Contractbeheer</h2><p>Alleen contracten uit de nieuwe pilot worden hier getoond. Je oude contractmeldingen blijven buiten beeld.</p>
+          <div class="panel manager-panel" id="managerContractList"></div>
+        </div>
+        <div class="manager-page" data-manager-page="insights" style="display:none">
+          <div class="eyebrow">MIJN INZICHTEN</div><h2>Wat leert HUOS over je bedrijf?</h2><div class="panel manager-panel" id="managerInsightList"></div>
+        </div>
+        <div class="manager-page" data-manager-page="opportunities" style="display:none">
+          <div class="eyebrow">KANSEN & INKOOP</div><h2>Meer inzicht, betere keuzes</h2>
+          <p>Het biercollectief en de andere categorieën worden later aan hetzelfde bedrijfsprofiel gekoppeld. Je hoeft hiervoor geen tweede account aan te maken.</p>
+          <div class="manager-two">
+            <div class="panel manager-panel"><h3>Collectieve bierinkoop</h3><p>Deze module koppelen we aan het nieuwe bedrijfsprofiel nadat de gegevensopslag en validatie zijn getest.</p><span class="pill">In ontwikkeling</span></div>
+            <div class="panel manager-panel"><h3>Andere kostenposten</h3><p>Energie, groothandel, afval, betaalverkeer en verzekeringen blijven onderdeel van het platform.</p><span class="pill">Volgende fase</span></div>
+          </div>
+        </div>
+      </div>
     </div>
    </div>
   </div>
