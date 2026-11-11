@@ -296,7 +296,7 @@ async function beerStepNext(){
  const phone=String(el('beerPublicPhone')?.value||'').trim();
  const website=String(el('beerPublicWebsite')?.value||'').trim();
  const privacy_accepted=el('beerPublicPrivacy')?.checked===true;
- const emailOK=/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);
+ const emailOK=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
  if(!emailOK||email.length>250||company_name.length<2||company_name.length>160||contact_name.length<2||contact_name.length>120){
   el('beerPublicNotice').innerHTML='<div class="error">Vul de bedrijfsnaam, je naam en een geldig e-mailadres in.</div>';return;
  }
