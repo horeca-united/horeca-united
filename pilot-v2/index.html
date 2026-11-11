@@ -135,7 +135,7 @@ const KEY_SUPABASE='sb_publishable_QDvjBPDGIgrQNcSzEw2FZg_Yj6hfIgY';
 const client=window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE);
 const AUTH_REDIRECT='https://huos-v2-prive-pilot.vercel.app/';
 let user=null,org=null,entries=[],docs=[],beerScan=null,activeTab='overview',generation=0;
-let publicBeerAnswers={},publicBeerIndex=0,publicBeerSent=false,pendingBeerSaveBusy=false;
+let publicBeerAnswers={},publicBeerIndex=0,publicBeerSent=false,publicBeerMandateConfirmed=false,pendingBeerSaveBusy=false;
 const BEER_PENDING_KEY='huos2_pending_beer_scan';
 const el=id=>document.getElementById(id);
 const visible=(id,yes)=>el(id).classList.toggle('hide',!yes);
@@ -148,7 +148,7 @@ function showLogin(){page('authView');nav();alert('authMsg','')}
 function startPilot(){if(user)openWorkspace();else showLogin()}
 function startBeerScan(){
   // Homepage scan is independent of the legacy dashboard and requires NO login.
-  publicBeerAnswers={};publicBeerIndex=0;publicBeerSent=false;renderPublicBeer();page('beerPublicView');
+  publicBeerAnswers={data_route:'later_upload'};publicBeerMandateConfirmed=false;publicBeerIndex=0;publicBeerSent=false;renderPublicBeer();page('beerPublicView');
 }
 function tab(id){activeTab=id;document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('hide',x.dataset.page!==id));document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===id))}
 async function sendMagicLink(){const email=el('email').value.trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return alert('authMsg','Vul een geldig e-mailadres in.',true);const b=el('loginBtn');b.disabled=true;alert('authMsg','');try{const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:AUTH_REDIRECT}});if(error)throw error;alert('authMsg','De inloglink is verstuurd. Open de nieuwste e-mail en klik op de link.')}catch(e){alert('authMsg','De inloglink kon niet worden verzonden: '+e.message,true)}finally{b.disabled=false}}
@@ -186,7 +186,8 @@ const BEER_QUESTIONS=[
  {id:'installation_status',label:'11. Van wie is de tapinstallatie?',options:[...CHOOSE,['owned','Van mij / eigen zaak'],['brewery','Van brouwerij / leverancier'],['leased','Gehuurd / lease'],['unknown','Weet ik niet']]},
  {id:'brewery_loan_status',label:'12. Staat er nog een lening of financiering bij de brouwerij open?',options:[...CHOOSE,['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
  {id:'proposal_interest',label:'13. Wil je dat Horeca United voor jouw horecazaak onderzoekt of je kunt besparen op bierinkoop?',options:[...CHOOSE,['yes','Ja, ik ontvang graag een vrijblijvend voorstel'],['maybe','Misschien, ik wil eerst weten wat het voordeel kan zijn'],['insight_only','Nee, ik wil voorlopig alleen inzicht in mijn bierinkoop']]},
- {id:'willingness_to_switch',label:'14. Sta je open voor een andere brouwerij als je daarmee aanzienlijk kunt besparen of betere voorwaarden krijgt?',options:[...CHOOSE,['yes','Ja, ik sta open voor een andere brouwerij'],['maybe','Misschien, afhankelijk van het aanbod'],['no','Nee, ik wil mijn huidige biermerk behouden']]}
+ {id:'willingness_to_switch',label:'14. Sta je open voor een andere brouwerij als je daarmee aanzienlijk kunt besparen of betere voorwaarden krijgt?',options:[...CHOOSE,['yes','Ja, ik sta open voor een andere brouwerij'],['maybe','Misschien, afhankelijk van het aanbod'],['no','Nee, ik wil mijn huidige biermerk behouden']]},
+ {id:'data_route',label:'15. Hoe wil je dat we ontbrekende gegevens aanvullen?',hint:'Voor een goede beoordeling kunnen extra gegevens nodig zijn, zoals bierafname, prijzen, kortingen en contractafspraken.',options:[['mandate','Horeca United mag de gegevens namens mijn onderneming opvragen'],['later_upload','Ik wil ontbrekende gegevens later zelf aanleveren'],['none','Ik wil voorlopig geen aanvullende gegevens delen']]}
 ];
 function beerChoices(question,answers){
  if(question.dynamic==='brands'){
@@ -230,6 +231,18 @@ function beerSelectedChange(prefix,questionId,answers){
  // Extra input appears immediately on selecting "Anders", not after Next.
  const box=document.getElementById(prefix+'extras');
  if(box)box.innerHTML=beerExtra(q,value,answers,prefix);
+ if(questionId==='data_route' && prefix==='beerPublic_'){
+  if(previous!==value)publicBeerMandateConfirmed=false;
+  renderPublicMandateSection();
+ }
+}
+
+function renderPublicMandateSection(){
+ const area=el('beerPublic_extras');
+ if(!area)return;
+ const route=el('beerPublicInput')?.value||publicBeerAnswers.data_route||'later_upload';
+ if(route!=='mandate'){area.innerHTML='';return}
+ area.innerHTML='<div class="beer-mandate-box"><strong>Toestemming om informatie op te vragen</strong><p>Ik geef Horeca United toestemming om uitsluitend bij mijn huidige bierleverancier of brouwerij informatie op te vragen over bierafname, inkoopprijzen, kortingen, bonussen en biercontractvoorwaarden, voor de beoordeling van mijn Bier Quick Scan en eventuele besparingsmogelijkheden.</p><p>Deze toestemming geeft geen bevoegdheid om contracten te wijzigen of op te zeggen, of om namens mijn onderneming over te stappen. Ik kan haar intrekken door contact op te nemen met Horeca United. Horeca United controleert eerst mijn bevoegdheid.</p><label class="beer-privacy-check"><input type="checkbox" id="beerPublicMandateConsent" '+(publicBeerMandateConfirmed?'checked ':'')+'onchange="publicBeerMandateConfirmed=this.checked"><span>Ik bevestig dat ik bevoegd ben om namens de onderneming deze vrijwillige, beperkte toestemming te geven.</span></label></div>';
 }
 /* Public quick scan: ask every beer question BEFORE requesting an email address. */
 function renderPublicBeer(){
@@ -259,10 +272,12 @@ function renderPublicBeer(){
    control='<input id="beerPublicInput" type="'+q.type+'" autocomplete="off" value="'+safe(v)+'" '+(q.type==='number'?'min="'+q.min+'" max="'+q.max+'" step="'+q.step+'"':'')+' placeholder="'+safe(q.hint||'Je antwoord (optioneel)')+'">';
  }
  el('beerPublicQuestion').innerHTML='<h2>'+safe(q.label.replace(/^\\d+\\. /,''))+'</h2><p>'+(q.hint?safe(q.hint):'Geen toegang tot deze informatie? Kies ‘Weet ik niet’ of ga zonder antwoord verder.')+'</p>'+control+'<div id="beerPublic_extras" class="beer-extra-fields">'+beerExtra(q,v,publicBeerAnswers,'beerPublic_')+'</div>';
+ if(q.id==='data_route')renderPublicMandateSection();
 }
 function capturePublicBeer(){
  if(publicBeerIndex>=BEER_QUESTIONS.length)return true;
  const q=BEER_QUESTIONS[publicBeerIndex],field=el('beerPublicInput'),raw=String(field?.value??'').trim();
+ if(q.id==='data_route'&&raw==='mandate'&&!publicBeerMandateConfirmed){el('beerPublicNotice').innerHTML='<div class="error">Bevestig de afzonderlijke toestemming of kies een andere optie.</div>';return false}
  if(!raw){delete publicBeerAnswers[q.id];beerCaptureExtra(q,raw,publicBeerAnswers,'beerPublic_');return true}
  if(q.type==='number'){
    const n=Number(raw);
