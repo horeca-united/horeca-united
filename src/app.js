@@ -16,7 +16,9 @@ sb.auth.onAuthStateChange((event, session) => {
   AuthUI.updateTopbar();
   if (event === 'SIGNED_IN') {
     AuthUI.closeLogin();
-    Dashboard.open();
+    const onManager = document.getElementById('screen-manager')?.classList.contains('active');
+    if (onManager) ManagerV2.refresh();
+    else Dashboard.open();
   } else {
     const dashVisible = document.getElementById('screen-dashboard').classList.contains('active');
     if (dashVisible) {
