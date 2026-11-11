@@ -2622,7 +2622,11 @@ const ManagerV2 = {
     const logged=Boolean(CURRENT_USER);
     document.getElementById('managerSignedOut').style.display=logged?'none':'block';
     document.getElementById('managerSignedIn').style.display=logged?'block':'none';
-    if(!logged){this.organization=null;this.documents=[];return;}
+    this.organization=null;
+    this.documents=[];
+    document.getElementById('pilotSetup').style.display='none';
+    document.getElementById('pilotWorkspace').style.display='none';
+    if(!logged)return;
     this.message('Pilotgegevens laden...');
     try{
       const result=await sb.from('huos_pilot_organizations')
