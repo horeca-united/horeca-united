@@ -2606,71 +2606,116 @@ const DemoData = {
    ========================================================= */
 const ManagerV2 = {
   tab:'overview',
-  state:null,
-  safe(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));},
+  organization:null,
+  documents:[],
+  safe(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));},
   set(id,value){const el=document.getElementById(id);if(el)el.textContent=String(value);},
+  item(title,detail){return '<div class="manager-list-item"><strong>'+this.safe(title)+'</strong><small>'+this.safe(detail)+'</small></div>';},
+  message(msg,isError=false){const el=document.getElementById('managerStatus');if(el)el.innerHTML='<div class="'+(isError?'manager-alert':'manager-notice')+'">'+this.safe(msg)+'</div>';},
   open(){Router.go('manager');this.show(this.tab);this.refresh();},
   show(tab){
     this.tab=tab;
     document.querySelectorAll('[data-manager-tab]').forEach(el=>el.classList.toggle('active',el.dataset.managerTab===tab));
     document.querySelectorAll('[data-manager-page]').forEach(el=>el.style.display=el.dataset.managerPage===tab?'':'none');
   },
-  item(title,desc){return '<div class="manager-list-item"><strong>'+this.safe(title)+'</strong><small>'+this.safe(desc)+'</small></div>';},
   async refresh(){
     const logged=Boolean(CURRENT_USER);
     document.getElementById('managerSignedOut').style.display=logged?'none':'block';
     document.getElementById('managerSignedIn').style.display=logged?'block':'none';
-    if(!logged)return;
-    const userId=CURRENT_USER.id,email=CURRENT_USER.email;
-    const status=document.getElementById('managerStatus');
-    status.innerHTML='';
-    ['managerDocs','managerTransactions','managerContracts','managerActions'].forEach(id=>this.set(id,'…'));
-    try {
-      // Each query relies on existing Supabase RLS; email filtering is additional scoping,
-      // not a substitute for access-control policies.
-      const [profiles,uploads,transactions,reminders]=await Promise.all([
-        sb.from('profiles').select('company_name,business_type,city').eq('email',email).limit(1),
-        sb.from('uploads').select('id,subgroup,uploaded_at').eq('email',email).limit(1000),
-        sb.from('transactions').select('id,product_name,is_contract,renewal_date,action_deadline,category_id,amount,transaction_date').eq('email',email).limit(1000),
-        sb.from('contract_reminders').select('title,message,remind_on,dismissed_at').eq('user_id',userId).order('remind_on',{ascending:true}).limit(200)
-      ]);
-      const errors=[profiles,uploads,transactions,reminders].filter(r=>r.error).map(r=>r.error.message);
-      if(errors.length){status.innerHTML='<div class="manager-alert">Sommige gegevens konden niet worden geladen. Controleer de verbinding en toegangsrechten. '+this.safe(errors.join('; '))+'</div>';}
-      const p=profiles.data?.[0]||{},u=uploads.data||[],t=transactions.data||[],r=reminders.data||[];
-      const c=t.filter(x=>x.is_contract===true),open=r.filter(x=>!x.dismissed_at);
-      this.set('managerCompany',p.company_name||'Mijn onderneming');
-      this.set('managerDocs',uploads.error?'—':u.length+(u.length===1000?'+':''));
-      this.set('managerTransactions',transactions.error?'—':t.length+(t.length===1000?'+':''));
-      this.set('managerContracts',transactions.error?'—':c.length+(t.length===1000?'+':''));
-      this.set('managerActions',reminders.error?'—':open.length+(r.length===200?'+':''));
-      const coverage=[
-        ['Bedrijfsprofiel',Boolean(p.company_name)],
-        ['Documenten',u.length>0],
-        ['Inkoopregels',t.length>0],
-        ['Contracten',c.length>0],
-        ['Actiemeldingen',r.length>0]
-      ];
-      document.getElementById('managerCoverage').innerHTML=coverage.map(x=>'<div class="manager-coverage-row"><span>'+x[0]+'</span><span>'+(x[1]?'Aanwezig':'Aanvullen')+'</span></div>').join('');
-      const steps=[];
-      if(!p.company_name)steps.push(['Bedrijfsprofiel aanvullen','Controleer bedrijfsnaam en contactgegevens in je klantdashboard.']);
-      if(!u.length)steps.push(['Eerste documenten toevoegen','Facturen of contracten geven HUOS meer inzicht in je bedrijfsvoering.']);
-      if(!c.length)steps.push(['Contracten in kaart brengen','Een contract kan pas worden bewaakt als de juiste afspraken zijn geregistreerd.']);
-      if(open.length)steps.push(['Openstaande acties bekijken',open.length+' geregistreerde contractmeldingen vragen aandacht.']);
-      if(!steps.length)steps.push(['Controleer je bedrijfsinzichten','Je hebt al meerdere gegevensbronnen. Controleer of alles actueel en juist is.']);
-      document.getElementById('managerNext').innerHTML=steps.map(x=>this.item(...x)).join('');
-      const breakdown={};u.forEach(x=>{const key=x.subgroup||'Niet ingedeeld';breakdown[key]=(breakdown[key]||0)+1});
-      document.getElementById('managerDataTypes').innerHTML=Object.keys(breakdown).length?Object.entries(breakdown).map(([k,v])=>this.item(k,v+' geregistreerde uploads')).join(''):this.item('Nog geen uploads','Voeg een factuur of contract toe via het klantdashboard.');
-      document.getElementById('managerReminderList').innerHTML=open.length?open.slice(0,20).map(x=>this.item(x.title||'Contractherinnering',(x.remind_on||'Datum onbekend')+' · '+(x.message||''))).join(''):this.item('Geen openstaande meldingen','Dit is geen garantie dat er geen contractdeadlines zijn: niet-ingelezen contracten ontbreken.');
-      document.getElementById('managerContractList').innerHTML=c.length?c.slice(0,20).map(x=>this.item(x.product_name||'Contractregel','Actiedatum: '+(x.action_deadline||'Niet geregistreerd')+' · verlenging: '+(x.renewal_date||'Niet geregistreerd'))).join(''):this.item('Geen contractregels gevonden','Upload contracten en controleer of HUOS ze juist heeft ingedeeld.');
-      const categories=new Set(t.map(x=>x.category_id).filter(Boolean));
-      document.getElementById('managerInsightList').innerHTML=[
-        this.item('Geregistreerde inkoopcategorieën',transactions.error?'Niet beschikbaar':categories.size+' unieke categorie-ID’s in de uitgelezen transacties.'),
-        this.item('Datadekking',coverage.filter(x=>x[1]).length+' van '+coverage.length+' gegevensgroepen zijn vertegenwoordigd; geen kwaliteits- of gezondheidsscore.'),
-        this.item('Prijs- en besparingsvergelijkingen','Nog niet getoond: hiervoor moeten eenheden, perioden, btw, kortingen en bronstukken worden geverifieerd.')
-      ].join('');
-    } catch(e){
-      status.innerHTML='<div class="manager-alert">Het overzicht kon niet worden geladen: '+this.safe(e.message)+'</div>';
-    }
+    if(!logged){this.organization=null;this.documents=[];return;}
+    this.message('Pilotgegevens laden...');
+    try{
+      const result=await sb.from('huos_pilot_organizations')
+        .select('id,owner_id,name,business_type,city,created_at')
+        .eq('owner_id',CURRENT_USER.id).maybeSingle();
+      if(result.error)throw result.error;
+      this.organization=result.data;
+      document.getElementById('pilotSetup').style.display=this.organization?'none':'block';
+      document.getElementById('pilotWorkspace').style.display=this.organization?'block':'none';
+      if(!this.organization){this.message('Welkom bij je nieuwe pilot. Maak hieronder een leeg bedrijfsprofiel aan.');return;}
+      const documents=await sb.from('huos_pilot_documents')
+        .select('id,file_name,file_type,category,status,uploaded_at')
+        .eq('organization_id',this.organization.id)
+        .order('uploaded_at',{ascending:false}).limit(200);
+      if(documents.error)throw documents.error;
+      this.documents=documents.data||[];
+      this.render();
+      document.getElementById('managerStatus').innerHTML='';
+    }catch(error){this.message('Laden mislukt: '+error.message,true);}
+  },
+  async createProfile(){
+    if(!CURRENT_USER){this.message('Log eerst in.',true);return;}
+    const name=document.getElementById('pilotCompanyName').value.trim();
+    const city=document.getElementById('pilotCity').value.trim();
+    const business_type=document.getElementById('pilotBusinessType').value;
+    if(name.length<2||name.length>160){this.message('Vul een bedrijfsnaam van minstens twee tekens in.',true);return;}
+    const btn=document.getElementById('pilotCreateButton');btn.disabled=true;
+    try{
+      // Creates ONE completely new organization. No legacy profile/documents imported.
+      const result=await sb.from('huos_pilot_organizations')
+        .insert({owner_id:CURRENT_USER.id,name,business_type,city:city||null})
+        .select('id').single();
+      if(result.error)throw result.error;
+      this.message('Nieuw pilotprofiel aangemaakt.');
+      await this.refresh();
+    }catch(error){this.message('Aanmelden mislukt: '+error.message,true);}
+    finally{btn.disabled=false;}
+  },
+  async uploadDocument(){
+    if(!CURRENT_USER||!this.organization){this.message('Maak eerst een pilotprofiel aan.',true);return;}
+    const file=document.getElementById('pilotDocumentFile').files?.[0];
+    const category=document.getElementById('pilotDocumentCategory').value;
+    if(!file){this.message('Kies een document om te uploaden.',true);return;}
+    const allowed=['application/pdf','image/png','image/jpeg'];
+    if(!allowed.includes(file.type)||file.size>10485760||file.size<=0){this.message('Gebruik een PDF, PNG of JPG van maximaal 10 MB.',true);return;}
+    const btn=document.getElementById('pilotUploadButton');btn.disabled=true;
+    // Server validates bucket, path, owner and file size again.
+    const extension=file.type==='application/pdf'?'pdf':file.type==='image/png'?'png':'jpg';
+    const path=CURRENT_USER.id+'/'+this.organization.id+'/'+crypto.randomUUID()+'.'+extension;
+    try{
+      const up=await sb.storage.from('huos-pilot-private').upload(path,file,{contentType:file.type,upsert:false});
+      if(up.error)throw up.error;
+      const saved=await sb.from('huos_pilot_documents')
+        .insert({organization_id:this.organization.id,uploaded_by:CURRENT_USER.id,storage_path:path,file_name:file.name.slice(0,255),file_type:file.type,category})
+        .select('id').single();
+      if(saved.error){
+        // Private storage cleanup is intentionally not attempted from browser; flag for admin.
+        throw new Error('Bestand opgeslagen, maar registratie mislukt. Upload niet opnieuw; meld dit aan HUOS. '+saved.error.message);
+      }
+      document.getElementById('pilotDocumentFile').value='';
+      await this.refresh();
+      this.message('Document veilig ontvangen. Dit bestand telt alleen mee in je nieuwe pilot.');
+    }catch(error){this.message('Upload mislukt: '+error.message,true);}
+    finally{btn.disabled=false;}
+  },
+  render(){
+    const o=this.organization,docs=this.documents;
+    this.set('managerCompany',o.name);
+    this.set('managerDocs',docs.length+(docs.length===200?'+':''));
+    this.set('managerTransactions','0');
+    this.set('managerContracts',docs.filter(d=>d.category==='contract'&&d.status==='verified').length);
+    this.set('managerActions',docs.filter(d=>d.status==='received'||d.status==='review').length);
+    document.getElementById('managerCoverage').innerHTML=[
+      ['Basisprofiel','Aangemaakt'],
+      ['Nieuwe documenten',docs.length?docs.length+' ontvangen':'Nog leeg'],
+      ['Geverifieerde inkoopgegevens','Nog niet beschikbaar'],
+      ['Gecontroleerde contracten','Nog niet beschikbaar']
+    ].map(r=>'<div class="manager-coverage-row"><span>'+this.safe(r[0])+'</span><span>'+this.safe(r[1])+'</span></div>').join('');
+    document.getElementById('managerNext').innerHTML=!docs.length?
+      this.item('Begin met één document','Upload bijvoorbeeld een inkoopfactuur. Alle eerdere uploads blijven buiten beeld.'):
+      this.item('Documenten ontvangen','Je hebt '+docs.length+' document(en) toegevoegd. De validatie- en extractiemodule sluiten we hierna aan.');
+    document.getElementById('managerDataTypes').innerHTML=docs.length?
+      docs.map(d=>this.item(d.file_name,({invoice:'Inkoopfactuur',contract:'Contract',overview:'Jaaroverzicht',other:'Overig'}[d.category]||'Document')+' · '+d.status+' · '+new Date(d.uploaded_at).toLocaleDateString('nl-NL'))).join(''):
+      this.item('Nog geen pilotdocumenten','Je begint bewust met een lege documentenbibliotheek.');
+    const contracts=docs.filter(d=>d.category==='contract');
+    document.getElementById('managerContractList').innerHTML=contracts.length?
+      contracts.map(d=>this.item(d.file_name,'Bestand ontvangen; de contractvoorwaarden en opzegdatum zijn nog niet geverifieerd.')).join(''):
+      this.item('Nog geen contracten','Voeg een nieuw contract toe via Mijn gegevens.');
+    document.getElementById('managerInsightList').innerHTML=[
+      this.item('Informatie in deze pilot',docs.length+' document(en); geen oude uploadgegevens geïmporteerd.'),
+      this.item('Automatische documentanalyse','Nog niet ingeschakeld. We tonen geen afgeleide bedragen zonder gecontroleerde bron.'),
+      this.item('Volgende stap','Herkenning van leveranciers, kosten, periodes en contractverplichtingen met controle door de ondernemer.')
+    ].join('');
   }
 };
 
