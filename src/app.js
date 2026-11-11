@@ -11,37 +11,32 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
    ========================================================= */
 let CURRENT_USER = null;
 
+// HUOS 2.0: successful magic-link authentication must NEVER open the legacy
+// customer dashboard. Only the new, independently scoped pilot workspace.
 sb.auth.onAuthStateChange((event, session) => {
   CURRENT_USER = session?.user ?? null;
   AuthUI.updateTopbar();
   if (event === 'SIGNED_IN') {
     AuthUI.closeLogin();
-    const onManager = document.getElementById('screen-manager')?.classList.contains('active');
-    if (onManager) ManagerV2.refresh();
-    else Dashboard.open();
-  } else {
-    const dashVisible = document.getElementById('screen-dashboard').classList.contains('active');
-    if (dashVisible) {
-      Dashboard.renderDocuments();
-      Dashboard.renderOverzicht();
-      Dashboard.renderProfiel();
-      Dashboard.renderBesparingen();
-      Dashboard.renderContracten();
-    }
+    // Run outside of the auth callback to avoid a lock/deadlock from async DB calls.
+    setTimeout(() => ManagerV2.open(), 0);
+  } else if (event === 'SIGNED_OUT') {
+    setTimeout(() => {
+      ManagerV2.organization = null;
+      ManagerV2.documents = [];
+      Router.go('landing');
+    }, 0);
   }
 });
 
-// Restore session on page load — re-render dashboard if it's already open
-sb.auth.getSession().then(({ data: { session } }) => {
+// Handle refreshed pages and restored sessions. Supabase may emit SIGNED_IN
+// before getSession resolves; repeating an idempotent read is safe.
+sb.auth.getSession().then(({data:{session},error}) => {
+  if (error) return;
   CURRENT_USER = session?.user ?? null;
   AuthUI.updateTopbar();
-  const dashVisible = document.getElementById('screen-dashboard').classList.contains('active');
-  if (dashVisible) {
-    Dashboard.renderDocuments();
-    Dashboard.renderOverzicht();
-    Dashboard.renderProfiel();
-  }
-});
+  if (CURRENT_USER) ManagerV2.open();
+}).catch(error => console.warn('HUOS session restoration failed:',error));
 
 /* =========================================================
    AuthUI
@@ -74,7 +69,9 @@ const AuthUI = {
     btn.textContent = 'Versturen…';
     const { error } = await sb.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin + window.location.pathname }
+      // The private Vercel URL must also appear in Supabase Auth → Redirect URLs.
+      // Never use the historical GitHub Pages hostname for this HUOS v2 pilot.
+      options: { emailRedirectTo: 'https://huos-v2-prive-pilot.vercel.app/' }
     });
     btn.disabled = false;
     btn.textContent = 'Stuur inloglink';
@@ -91,8 +88,9 @@ const AuthUI = {
     await sb.auth.signOut();
     CURRENT_USER = null;
     this.updateTopbar();
-    const dashVisible = document.getElementById('screen-dashboard').classList.contains('active');
-    if (dashVisible) Dashboard.renderDocuments();
+    ManagerV2.organization = null;
+    ManagerV2.documents = [];
+    Router.go('landing');
   },
   updateTopbar() {
     const el = document.getElementById('topbarAuth');
