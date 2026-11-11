@@ -290,7 +290,7 @@ async function beerStepNext(){
    publicBeerIndex++;renderPublicBeer();return;
  }
  const email=String(el('beerPublicEmail')?.value||'').trim().toLowerCase();
- if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)){el('beerPublicNotice').innerHTML='<div class="error">Vul een geldig e-mailadres in.</div>';return}
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){el('beerPublicNotice').innerHTML='<div class="error">Vul een geldig e-mailadres in.</div>';return}
  if(Object.keys(publicBeerAnswers).length===0){el('beerPublicNotice').innerHTML='<div class="error">Vul minstens één antwoord in voordat je verdergaat.</div>';return}
  const button=el('beerPublicNext');button.disabled=true;
  try{
