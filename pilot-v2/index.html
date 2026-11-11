@@ -63,6 +63,27 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
   .v2-trustline{padding-top:34px;padding-bottom:33px;gap:6px;font-size:12px;line-height:1.7}
   .v2-huos-intro{padding-top:31px;padding-bottom:34px}
 }
+
+/* Public-facing beer scan: the questionnaire appears before email or account creation */
+.beer-public{padding:58px 0 90px;min-height:68vh;background:linear-gradient(#f2f7f2,#fff)}
+.beer-public-inner{max-width:720px;margin:0 auto}
+.beer-public-card{border:1px solid #dce9df;background:#fff;border-radius:20px;padding:38px;box-shadow:0 16px 38px #1738270a}
+.beer-public-head h1{font:600 clamp(31px,4vw,42px)/1.2 var(--font-display);margin:13px 0}
+.beer-public-head p{font-size:14px;color:#65806b;line-height:1.8}
+.beer-public-progress{height:6px;background:#e4eee5;border-radius:5px;overflow:hidden;margin:28px 0 15px}
+.beer-public-progress i{display:block;height:100%;background:#4a9565;border-radius:5px;transition:width .2s}
+.beer-public-meta{display:flex;justify-content:space-between;gap:12px;color:#78907d;font:600 11px var(--font-mono);margin-bottom:22px}
+.beer-public-question h2{font:600 clamp(24px,3vw,31px)/1.25 var(--font-display);margin:12px 0}
+.beer-public-question p{color:#66806d;font-size:13px}
+.beer-public-question input,.beer-public-question select{width:100%;border:1px solid #cbdccf;border-radius:10px;padding:15px;margin-top:17px;background:#fff;font-size:15px}
+.beer-public-question input:focus,.beer-public-question select:focus{outline:2px solid #a1cdae}
+.beer-public-buttons{display:flex;justify-content:space-between;gap:12px;margin-top:26px}
+.beer-public-buttons .btn{padding:13px 20px}
+.beer-public-caption{font-size:11px;color:#849b8a;margin-top:20px;line-height:1.6}
+.beer-public-done{border:1px solid #cfe5d4;background:#f0f8f0;border-radius:13px;padding:18px;color:#275b3e}
+.beer-public-done strong{display:block;margin-bottom:8px}
+.beer-public-done p{margin:0;color:#577b60}
+@media(max-width:600px){.beer-public{padding:25px 0 60px}.beer-public-card{padding:24px}.beer-public-buttons{flex-direction:column-reverse}.beer-public-buttons button{width:100%}}
 </style></head><body>
 <header class="top"><div class="wrap top-inner"><a class="brand" onclick="showLanding()"><span class="brand-mark">HU.</span><span><strong>Horeca United</strong><small>Jouw digitale horecamanager</small></span></a><div class="nav-actions"><button class="btn ghost" id="navHome" onclick="showLanding()">Home</button><button class="btn" id="navLogin" onclick="showLogin()">Inloggen</button><button class="btn hide" id="navWorkspace" onclick="openWorkspace()">Mijn HUOS</button><button class="btn ghost hide" id="navLogout" onclick="logout()">Uitloggen</button></div></div></header>
 <!-- ============ HUOS V2 LANDING ============ -->
@@ -80,6 +101,19 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
 <div class="shell"><section class="v2-end"><div><span class="v2-eyebrow">ZET DE EERSTE STAP</span><h2>Jij kent je zaak. HUOS helpt je verder.</h2><p>Start jouw bedrijfsprofiel. Je hoeft niet meteen je volledige administratie te delen.</p></div><button class="v2-button v2-button-pale" onclick="startPilot()">Start jouw bedrijfsprofiel <span>↗</span></button></section></div>
 <div class="shell v2-beer-end"><div><span class="v2-eyebrow">EERSTE INKOOPMODULE</span><h2>Ook benieuwd naar je bierafspraken?</h2><p>Na het kennismaken met HUOS kun je de Bier Quick Scan gebruiken om je bierleverancier, prijzen en contractvoorwaarden zelf in kaart te brengen. Onbekende gegevens mag je overslaan.</p></div><button class="v2-button v2-button-dark" onclick="startBeerScan()">Start Bier Quick Scan <span>↗</span></button></div>
 <footer class="shell v2-footer"><div><strong>HU. Horeca United</strong><small>Jouw digitale horecamanager</small></div><p>HUOS 2.0 · Privé pilot · Stapsgewijze ontwikkeling</p></footer>
+</section>
+<section id="beerPublicView" class="hide beer-public">
+ <div class="wrap"><div class="beer-public-inner">
+  <div class="beer-public-head"><span class="eyebrow">HORECA UNITED / BIER QUICK SCAN</span><h1>Hoe zit jouw bierinkoop in elkaar?</h1><p>Beantwoord de vragen op je eigen tempo. Pas aan het einde vragen we je e-mailadres, zodat je de scan veilig kunt bewaren. Onbekende gegevens mag je overslaan.</p></div>
+  <div class="beer-public-card">
+   <div class="beer-public-progress"><i id="beerPublicBar" style="width:0%"></i></div>
+   <div class="beer-public-meta"><span id="beerPublicStep">Vraag 1</span><span id="beerPublicSection">Bierinkoop</span></div>
+   <div id="beerPublicQuestion" class="beer-public-question"></div>
+   <div id="beerPublicNotice" role="status" aria-live="polite"></div>
+   <div id="beerPublicButtons" class="beer-public-buttons"><button id="beerPublicBack" class="btn ghost" onclick="beerStepBack()">← Vorige</button><button id="beerPublicNext" class="btn" onclick="beerStepNext()">Volgende vraag →</button></div>
+   <p class="beer-public-caption">Geen voorbeeldcijfers of automatische besparingsberekeningen. Antwoorden worden pas na bevestiging van het e-mailadres aan je HUOS-bedrijfsprofiel gekoppeld.</p>
+  </div>
+ </div></div>
 </section>
 <section id="authView" class="hide"><div class="auth-shell"><div class="panel"><span class="eyebrow">PRIVÉ HUOS 2.0</span><h2>Welkom bij jouw nieuwe start.</h2><p>Log in met je e-mailadres. Je ontvangt een eenmalige inloglink. Er worden geen gegevens uit de vorige HUOS-versie overgenomen.</p><div class="field"><label for="email">E-mailadres</label><input id="email" type="email" placeholder="Jouw e-mailadres" autocomplete="email"></div><button class="btn" id="loginBtn" onclick="sendMagicLink()">Stuur mijn inloglink ↗</button><div id="authMsg" role="status" aria-live="polite"></div><p><a class="auth-return" onclick="showLanding()">Terug naar de homepage</a></p></div></div></section>
 <section id="workspaceView" class="hide"><div class="wrap workspace"><div class="workspace-heading"><div><span class="eyebrow">JOUW DIGITALE HORECAMANAGER</span><h1 id="companyTitle">Jouw bedrijfsomgeving</h1><p>Je ziet hier alleen gegevens die je zelf toevoegt in deze nieuwe pilot.</p></div><span class="badge">HUOS 2.0 · PRIVÉ PILOT</span></div><div id="workspaceMsg" role="status" aria-live="polite"></div>
@@ -100,22 +134,27 @@ const KEY_SUPABASE='sb_publishable_QDvjBPDGIgrQNcSzEw2FZg_Yj6hfIgY';
 const client=window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE);
 const AUTH_REDIRECT='https://huos-v2-prive-pilot.vercel.app/';
 let user=null,org=null,entries=[],docs=[],beerScan=null,activeTab='overview',generation=0;
+let publicBeerAnswers={},publicBeerIndex=0,publicBeerSent=false,pendingBeerSaveBusy=false;
+const BEER_PENDING_KEY='huos2_pending_beer_scan';
 const el=id=>document.getElementById(id);
 const visible=(id,yes)=>el(id).classList.toggle('hide',!yes);
 const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const alert=(id,msg,fail=false)=>{el(id).innerHTML=msg?'<div class="'+(fail?'error':'success')+'">'+safe(msg)+'</div>':''};
 function nav(){visible('navLogin',!user);visible('navLogout',!!user);visible('navWorkspace',!!user)}
-function page(id){for(const p of ['landing','authView','workspaceView'])visible(p,p===id);window.scrollTo({top:0,behavior:'instant'})}
+function page(id){for(const p of ['landing','authView','workspaceView','beerPublicView'])visible(p,p===id);window.scrollTo({top:0,behavior:'instant'})}
 function showLanding(){page('landing');nav()}
 function showLogin(){page('authView');nav();alert('authMsg','')}
 function startPilot(){if(user)openWorkspace();else showLogin()}
-function startBeerScan(){if(user){if(org){tab('beer');page('workspaceView')}else openWorkspace()}else showLogin()}
+function startBeerScan(){
+  // Homepage scan is independent of the legacy dashboard and requires NO login.
+  publicBeerAnswers={};publicBeerIndex=0;publicBeerSent=false;renderPublicBeer();page('beerPublicView');
+}
 function tab(id){activeTab=id;document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('hide',x.dataset.page!==id));document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===id))}
 async function sendMagicLink(){const email=el('email').value.trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return alert('authMsg','Vul een geldig e-mailadres in.',true);const b=el('loginBtn');b.disabled=true;alert('authMsg','');try{const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:AUTH_REDIRECT}});if(error)throw error;alert('authMsg','De inloglink is verstuurd. Open de nieuwste e-mail en klik op de link.')}catch(e){alert('authMsg','De inloglink kon niet worden verzonden: '+e.message,true)}finally{b.disabled=false}}
 async function logout(){await client.auth.signOut();generation++;user=null;org=null;entries=[];docs=[];beerScan=null;nav();showLanding()}
 async function openWorkspace(){if(!user)return showLogin();const stamp=++generation;page('workspaceView');nav();visible('setup',false);visible('workspaceBody',false);alert('workspaceMsg','Jouw lege bedrijfsomgeving laden...');try{const p=await client.from('huos_pilot_organizations').select('id,owner_id,name,business_type,city').eq('owner_id',user.id).maybeSingle();if(p.error)throw p.error;if(stamp!==generation)return;org=p.data;if(!org){alert('workspaceMsg','');visible('setup',true);el('companyTitle').textContent='Begin met je bedrijfsprofiel';return}el('companyTitle').textContent=org.name;visible('workspaceBody',true);await loadData(stamp)}catch(e){if(stamp===generation)alert('workspaceMsg','Laden mislukt: '+e.message,true)}}
 async function createProfile(){if(!user)return showLogin();const name=el('company').value.trim(),city=el('city').value.trim(),business_type=el('kind').value;if(!business_type)return alert('workspaceMsg','Kies zelf een type onderneming.',true);if(name.length<2||name.length>160)return alert('workspaceMsg','Vul je bedrijfsnaam in (minimaal twee tekens).',true);const b=el('createBtn');b.disabled=true;try{const r=await client.from('huos_pilot_organizations').insert({owner_id:user.id,name,city:city||null,business_type}).select('id').single();if(r.error)throw r.error;await openWorkspace()}catch(e){alert('workspaceMsg','Opslaan mislukt: '+e.message,true)}finally{b.disabled=false}}
-async function loadData(stamp=++generation){if(!user||!org)return;const [a,b,c]=await Promise.all([client.from('huos_pilot_entries').select('id,category,title,value_text,notes,created_at').eq('organization_id',org.id).order('created_at',{ascending:false}).limit(300),client.from('huos_pilot_documents').select('id,file_name,category,status,uploaded_at').eq('organization_id',org.id).order('uploaded_at',{ascending:false}).limit(300),client.from('huos_pilot_beer_scans').select('id,answers,status,updated_at').eq('organization_id',org.id).maybeSingle()]);if(stamp!==generation)return;if(a.error||b.error||c.error){alert('workspaceMsg','Een deel van de bedrijfsgegevens kon niet worden opgehaald: '+(a.error?.message||b.error?.message||c.error?.message),true);return}entries=a.data||[];docs=b.data||[];beerScan=c.data||null;alert('workspaceMsg','');render();renderBeerScan()}
+async function loadData(stamp=++generation){if(!user||!org)return;const [a,b,c]=await Promise.all([client.from('huos_pilot_entries').select('id,category,title,value_text,notes,created_at').eq('organization_id',org.id).order('created_at',{ascending:false}).limit(300),client.from('huos_pilot_documents').select('id,file_name,category,status,uploaded_at').eq('organization_id',org.id).order('uploaded_at',{ascending:false}).limit(300),client.from('huos_pilot_beer_scans').select('id,answers,status,updated_at').eq('organization_id',org.id).maybeSingle()]);if(stamp!==generation)return;if(a.error||b.error||c.error){alert('workspaceMsg','Een deel van de bedrijfsgegevens kon niet worden opgehaald: '+(a.error?.message||b.error?.message||c.error?.message),true);return}entries=a.data||[];docs=b.data||[];beerScan=c.data||null;alert('workspaceMsg','');render();renderBeerScan();await storePendingBeer()}
 function render(){el('overviewCompany').textContent=org?.name||'—';el('overviewEntries').textContent=String(entries.length)+(entries.length===300?'+':'');el('overviewDocs').textContent=String(docs.length)+(docs.length===300?'+':'');el('nextStep').innerHTML='<p>'+(entries.length===0?'Je hebt nog geen bedrijfsgegevens ingevoerd. Begin bijvoorbeeld met een leverancier of kostenpost.':docs.length===0?'Je hebt je eerste gegevens ingevoerd. Voeg eventueel een nieuw document toe.':'Je gegevens zijn opgeslagen. Je kunt op jouw tempo nieuwe informatie blijven toevoegen.')+'</p>';el('entryList').innerHTML=entries.length?entries.map(x=>'<div class="line-item"><span><strong>'+safe(x.title)+'</strong><small>'+safe(({cost:'Kostenpost',supplier:'Leverancier',contract:'Contractafspraak',note:'Notitie'}[x.category]||x.category))+(x.value_text?' · '+safe(x.value_text):'')+(x.notes?' · '+safe(x.notes):'')+'</small></span><button class="entry-delete" onclick="removeEntry(\''+x.id+'\')">Verwijderen</button></div>').join(''):'<div class="empty"><strong>Nog geen gegevens</strong>Je hebt nog niets ingevoerd.</div>';el('docList').innerHTML=docs.length?docs.map(x=>'<div class="line-item"><span><strong>'+safe(x.file_name)+'</strong><small>'+safe(({invoice:'Inkoopfactuur',contract:'Contract',overview:'Overzicht',other:'Overig'}[x.category]||x.category))+' · '+safe(x.status)+' · '+new Date(x.uploaded_at).toLocaleDateString('nl-NL')+'</small></span></div>').join(''):'<div class="empty"><strong>Nog geen documenten</strong>Je documentenbibliotheek is leeg.</div>'}
 async function addEntry(){if(!org||!user)return;const title=el('entryTitle').value.trim();if(title.length<2)return alert('workspaceMsg','Vul een omschrijving van minimaal twee tekens in.',true);const b=el('entryBtn');b.disabled=true;try{const r=await client.from('huos_pilot_entries').insert({organization_id:org.id,created_by:user.id,category:el('entryCategory').value,title,value_text:el('entryValue').value.trim()||null,notes:el('entryNotes').value.trim()||null}).select('id').single();if(r.error)throw r.error;for(const id of ['entryTitle','entryValue','entryNotes'])el(id).value='';await loadData();tab('entries')}catch(e){alert('workspaceMsg','Opslaan mislukt: '+e.message,true)}finally{b.disabled=false}}
 async function removeEntry(id){if(!org||!user||!confirm('Deze zelf ingevoerde regel verwijderen?'))return;const r=await client.from('huos_pilot_entries').delete().eq('id',id).eq('organization_id',org.id);if(r.error)return alert('workspaceMsg',r.error.message,true);await loadData();tab('entries')}
@@ -139,6 +178,105 @@ const BEER_QUESTIONS=[
  {id:'brewery_loan_status',label:'12. Staat er nog een lening of financiering bij de brouwerij open?',options:[['','Kies of sla over'],['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
  {id:'proposal_interest',label:'13. Wat wil je dat HUOS met deze informatie doet?',options:[['','Kies of sla over'],['insight_only','Eerst inzicht in mijn voorwaarden'],['maybe','Misschien een voorstel in de toekomst'],['yes','Ik heb interesse in een voorstel']]}
 ];
+
+/* Public quick scan: ask every beer question BEFORE requesting an email address. */
+function renderPublicBeer(){
+ const questions=BEER_QUESTIONS;
+ const isEmail=publicBeerIndex>=questions.length;
+ const q=isEmail?null:questions[publicBeerIndex];
+ const total=questions.length+1;
+ el('beerPublicBar').style.width=((publicBeerIndex+1)/total*100)+'%';
+ el('beerPublicStep').textContent=isEmail?'Laatste stap: jouw e-mailadres':'Vraag '+(publicBeerIndex+1)+' van '+questions.length;
+ el('beerPublicSection').textContent=isEmail?'Afronden':'Bier Quick Scan';
+ el('beerPublicBack').disabled=publicBeerIndex===0||publicBeerSent;
+ el('beerPublicNext').disabled=publicBeerSent;
+ el('beerPublicNext').textContent=isEmail?'Stuur mijn bevestigingslink →':publicBeerIndex===questions.length-1?'Naar de laatste stap →':'Volgende vraag →';
+ el('beerPublicButtons').classList.toggle('hide',publicBeerSent);
+ el('beerPublicNotice').innerHTML='';
+ if(publicBeerSent){el('beerPublicQuestion').innerHTML='<div class="beer-public-done"><strong>Controleer je e-mail</strong><p>Open de nieuwste e-mail op hetzelfde apparaat om je antwoorden aan je nieuwe HUOS-profiel te koppelen. Zodra je bent ingelogd, kun je verdergaan.</p></div>';return}
+ if(isEmail){
+   const email=user?.email||'';
+   el('beerPublicQuestion').innerHTML='<span class="eyebrow">JE HEBT DE VRAGEN DOORLOPEN</span><h2>Waar mogen we de bevestigingslink naartoe sturen?</h2><p>Je hoeft vooraf geen account aan te maken. We gebruiken je e-mailadres voor een eenmalige veilige inloglink, niet voor marketing. Na bevestiging kun je een bedrijfsprofiel aanmaken en je scan opslaan.</p><label class="field"><span>E-mailadres</span><input id="beerPublicEmail" type="email" autocomplete="email" placeholder="jij@jouwzaak.nl" value="'+safe(email)+'"></label>';
+   return;
+ }
+ const v=publicBeerAnswers[q.id]??'';
+ let control;
+ if(q.options){
+   control='<select id="beerPublicInput">'+q.options.map(([value,label])=>'<option value="'+safe(value)+'"'+(String(value)===String(v)?' selected':'')+'>'+safe(label)+'</option>').join('')+'</select>';
+ }else{
+   control='<input id="beerPublicInput" type="'+q.type+'" autocomplete="off" value="'+safe(v)+'" '+(q.type==='number'?'min="'+q.min+'" max="'+q.max+'" step="'+q.step+'"':'')+' placeholder="'+safe(q.hint||'Je antwoord (optioneel)')+'">';
+ }
+ el('beerPublicQuestion').innerHTML='<h2>'+safe(q.label.replace(/^\\d+\\. /,''))+'</h2><p>'+(q.hint?safe(q.hint):'Kies je antwoord. Als je dit niet weet, kun je doorgaan zonder iets in te vullen.')+'</p>'+control;
+}
+function capturePublicBeer(){
+ if(publicBeerIndex>=BEER_QUESTIONS.length)return true;
+ const q=BEER_QUESTIONS[publicBeerIndex],field=el('beerPublicInput'),raw=String(field?.value??'').trim();
+ if(!raw){delete publicBeerAnswers[q.id];return true}
+ if(q.type==='number'){
+   const n=Number(raw);
+   if(!Number.isFinite(n)||n<q.min||n>q.max){el('beerPublicNotice').innerHTML='<div class="error">Controleer dit getal of laat het leeg als je het niet weet.</div>';return false}
+   publicBeerAnswers[q.id]=n;
+ }else publicBeerAnswers[q.id]=raw;
+ return true;
+}
+function beerStepBack(){
+ if(publicBeerSent||publicBeerIndex===0)return;
+ if(!capturePublicBeer())return;
+ publicBeerIndex--;renderPublicBeer();
+}
+async function beerStepNext(){
+ if(publicBeerSent)return;
+ if(publicBeerIndex<BEER_QUESTIONS.length){
+   if(!capturePublicBeer())return;
+   publicBeerIndex++;renderPublicBeer();return;
+ }
+ const email=String(el('beerPublicEmail')?.value||'').trim().toLowerCase();
+ if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)){el('beerPublicNotice').innerHTML='<div class="error">Vul een geldig e-mailadres in.</div>';return}
+ if(Object.keys(publicBeerAnswers).length===0){el('beerPublicNotice').innerHTML='<div class="error">Vul minstens één antwoord in voordat je verdergaat.</div>';return}
+ const button=el('beerPublicNext');button.disabled=true;
+ try{
+   // Pending data remains only in this browser, up to 24 hours, until email
+   // ownership is confirmed. Never write anonymous data into another account.
+   const draft={email,answers:publicBeerAnswers,expires:Date.now()+86400000};
+   if(user && user.email?.toLowerCase()===email){
+     localStorage.setItem(BEER_PENDING_KEY,JSON.stringify(draft));
+     publicBeerSent=true;renderPublicBeer();
+     await openWorkspace();
+     return;
+   }
+   const response=await client.auth.signInWithOtp({email,options:{emailRedirectTo:AUTH_REDIRECT}});
+   if(response.error)throw response.error;
+   localStorage.setItem(BEER_PENDING_KEY,JSON.stringify(draft));
+   publicBeerSent=true;renderPublicBeer();
+ }catch(e){el('beerPublicNotice').innerHTML='<div class="error">'+safe('De bevestigingslink kon niet worden verstuurd: '+e.message)+'</div>'}
+ finally{button.disabled=false}
+}
+function readPendingBeer(){
+ try{
+   const raw=localStorage.getItem(BEER_PENDING_KEY);if(!raw)return null;
+   const v=JSON.parse(raw);
+   if(!v||!v.answers||typeof v.answers!=='object'||Date.now()>v.expires){localStorage.removeItem(BEER_PENDING_KEY);return null}
+   return v;
+ }catch(e){localStorage.removeItem(BEER_PENDING_KEY);return null}
+}
+async function storePendingBeer(){
+ const pending=readPendingBeer();
+ if(!pending||!user||!org||pendingBeerSaveBusy)return;
+ if(pending.email!==user.email?.toLowerCase()){
+   alert('workspaceMsg','De scan hoort bij een ander e-mailadres. Log met dat adres in om deze antwoorden te bewaren.',true);return;
+ }
+ pendingBeerSaveBusy=true;
+ try{
+   const row={organization_id:org.id,owner_id:user.id,answers:pending.answers,status:'completed',updated_at:new Date().toISOString()};
+   const result=await client.from('huos_pilot_beer_scans').upsert(row,{onConflict:'organization_id'}).select('id,answers,status,updated_at').single();
+   if(result.error)throw result.error;
+   localStorage.removeItem(BEER_PENDING_KEY);
+   beerScan=result.data;renderBeerScan();tab('beer');
+   alert('workspaceMsg','Je Bier Quick Scan is veilig opgeslagen in je nieuwe HUOS-profiel.');
+ }catch(e){alert('workspaceMsg','Je scan staat nog tijdelijk in deze browser maar kon niet worden opgeslagen: '+e.message,true)}
+ finally{pendingBeerSaveBusy=false}
+}
+
 function renderBeerScan(){
  const out=el('beerQuestions');if(!out)return;
  const answers=beerScan?.answers||{};
