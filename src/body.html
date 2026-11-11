@@ -6,6 +6,7 @@
     <div class="logo"><span class="mark">HU</span> Horeca United</div>
     <div class="topbar-links">
       <a onclick="Router.go('landing')">Home</a>
+      <a onclick="ManagerV2.open()">Mijn digitale manager</a>
       <a onclick="Router.go('dashboard')">Klantdashboard</a>
       <a onclick="Router.go('admin')">Horeca United beheer</a>
       <span class="pill">Founding Pilot · demo</span>
@@ -27,6 +28,7 @@
 <nav class="mobile-nav" id="mobileNav">
   <button class="mobile-nav-close" onclick="MobileNav.close()">&times;</button>
   <a onclick="Router.go('landing');MobileNav.close()">Home</a>
+  <a onclick="ManagerV2.open();MobileNav.close()">Mijn digitale manager</a>
   <a onclick="Router.go('dashboard');MobileNav.close()">Klantdashboard</a>
   <a onclick="Router.go('admin');MobileNav.close()">Horeca United beheer</a>
   <div class="divider"></div>
@@ -714,6 +716,43 @@
       </div>
     </div>
   </div>
+</section>
+
+<!-- ===== HUOS V2: DIGITALE MANAGER (ontwikkelbranch) ===== -->
+<section id="screen-manager" class="screen">
+ <div class="shell manager-shell">
+  <div class="manager-heading"><div><div class="eyebrow">HORECA UNITED · JOUW DIGITALE MANAGER</div><h1>Jouw bedrijf, helder in beeld.</h1><p>Breng bedrijfsgegevens samen. HUOS helpt je zien wat bekend is, wat nog ontbreekt en wat aandacht vraagt.</p></div><span class="pill">HUOS 2.0 · pilot</span></div>
+  <div class="manager-layout">
+   <nav class="manager-nav" aria-label="Navigatie digitale manager">
+    <button class="manager-tab active" data-manager-tab="overview" onclick="ManagerV2.show('overview')">⌂ &nbsp; Mijn overzicht</button>
+    <button class="manager-tab" data-manager-tab="data" onclick="ManagerV2.show('data')">▤ &nbsp; Mijn gegevens</button>
+    <button class="manager-tab" data-manager-tab="contracts" onclick="ManagerV2.show('contracts')">◷ &nbsp; Contracten & acties</button>
+    <button class="manager-tab" data-manager-tab="insights" onclick="ManagerV2.show('insights')">✦ &nbsp; Mijn inzichten</button>
+    <button class="manager-tab" data-manager-tab="opportunities" onclick="ManagerV2.show('opportunities')">↗ &nbsp; Kansen & inkoop</button>
+    <div class="manager-nav-caption">Dit is de eerste werkende opzet. Er verschijnen alleen gegevens die HUOS daadwerkelijk kan ophalen.</div>
+   </nav>
+   <div class="manager-content">
+    <div id="managerSignedOut" class="panel manager-empty" style="display:none"><h2>Log in op jouw persoonlijke omgeving</h2><p>Je bedrijfsgegevens zijn alleen zichtbaar nadat je bent ingelogd.</p><button class="btn btn-primary" onclick="AuthUI.openLogin()">Inloggen met e-mail</button></div>
+    <div id="managerSignedIn" style="display:none">
+     <div id="managerStatus" role="status" aria-live="polite"></div>
+     <div class="manager-page" data-manager-page="overview">
+      <div class="manager-welcome"><div><span class="eyebrow">JOUW BEDRIJF</span><h2 id="managerCompany">Mijn onderneming</h2><p>Inzicht begint bij betrouwbare informatie. Dit is wat HUOS nu over jouw bedrijf weet.</p></div><button class="btn btn-ghost btn-sm" onclick="ManagerV2.refresh()">↻ Ververs gegevens</button></div>
+      <div class="manager-metrics">
+       <div class="panel manager-metric"><div class="manager-metric-label">Documenten</div><strong id="managerDocs">—</strong><small>Geregistreerde uploads</small></div>
+       <div class="panel manager-metric"><div class="manager-metric-label">Inkoopregels</div><strong id="managerTransactions">—</strong><small>Uitgelezen transacties</small></div>
+       <div class="panel manager-metric"><div class="manager-metric-label">Contractregels</div><strong id="managerContracts">—</strong><small>Als contract gemarkeerd</small></div>
+       <div class="panel manager-metric"><div class="manager-metric-label">Open acties</div><strong id="managerActions">—</strong><small>Niet afgehandelde meldingen</small></div>
+      </div>
+      <div class="manager-two"><div class="panel manager-panel"><div class="eyebrow">GEGEVENSDEKKING</div><h3>Wat kan HUOS al zien?</h3><div id="managerCoverage"></div><p class="manager-note">Dit meet alleen aanwezige informatie, niet hoe gezond je onderneming is. Controle van facturen en contractvoorwaarden blijft noodzakelijk.</p></div><div class="panel manager-panel"><div class="eyebrow">VOLGENDE STAPPEN</div><h3>Wat kun je nu doen?</h3><div id="managerNext"></div></div></div>
+     </div>
+     <div class="manager-page" data-manager-page="data" style="display:none"><div class="eyebrow">MIJN GEGEVENS</div><h2>Jouw bedrijfsbibliotheek</h2><p>Voeg documenten toe via de bestaande beveiligde uploadomgeving. HUOS koppelt ze later aan concrete inzichten.</p><div class="panel manager-panel"><h3>Beschikbare gegevens</h3><div id="managerDataTypes"></div><div class="actions"><button class="btn btn-primary" onclick="Dashboard.open()">Documenten bekijken of uploaden</button></div></div></div>
+     <div class="manager-page" data-manager-page="contracts" style="display:none"><div class="eyebrow">CONTRACTEN & ACTIES</div><h2>Belangrijke afspraken</h2><p>HUOS toont geregistreerde contracten en herinneringen; data moeten uit broncontracten worden gecontroleerd.</p><div class="panel manager-panel"><h3>Contractmeldingen</h3><div id="managerReminderList"></div></div><div class="panel manager-panel"><h3>Contractgegevens</h3><div id="managerContractList"></div></div></div>
+     <div class="manager-page" data-manager-page="insights" style="display:none"><div class="eyebrow">MIJN INZICHTEN</div><h2>Wat vertelt jouw data?</h2><p>We beginnen met transparante, eenvoudige gegevensinzichten. Betrouwbare prijsvergelijkingen en de uitgebreide AI-assistent volgen later.</p><div class="panel manager-panel" id="managerInsightList"></div></div>
+     <div class="manager-page" data-manager-page="opportunities" style="display:none"><div class="eyebrow">KANSEN & INKOOP</div><h2>Van inzicht naar voordeel</h2><p>Collectieve inkoop is één van de diensten waarmee HUOS je onderneming helpt.</p><div class="manager-two"><div class="panel manager-panel"><h3>Biercollectief</h3><p>Onderzoek brouwerijvoorwaarden, contractverplichtingen en jaarlijkse afname. De uitgebreide Bier Quick Scan wordt hierop aangesloten.</p><span class="pill">Pilot in ontwikkeling</span></div><div class="panel manager-panel"><h3>Andere besparingscategorieën</h3><p>Energie, foodgroothandel, betalingen, verzekeringen en andere vaste lasten blijven onderdeel van HUOS.</p><button class="btn btn-ghost" onclick="QuickScan.start()">Start algemene Quick Scan</button></div></div></div>
+    </div>
+   </div>
+  </div>
+ </div>
 </section>
 
 <!-- ============ PRIVACY ============ -->
