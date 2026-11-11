@@ -86,6 +86,7 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
 @media(max-width:600px){.beer-public{padding:25px 0 60px}.beer-public-card{padding:24px}.beer-public-buttons{flex-direction:column-reverse}.beer-public-buttons button{width:100%}}
 .beer-extra-fields{margin-top:12px}.beer-extra-field{display:flex;flex-direction:column;gap:7px;font-size:12px;color:#4e745a;font-weight:600}.beer-extra-field input{width:100%;padding:13px;border:1px solid #cbdccf;border-radius:10px;background:#fff;margin:0}.beer-public-question select{cursor:pointer}.beer-public-question select option{font-size:14px}
 .beer-privacy-check{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.6;color:#516a56;margin-top:17px}.beer-privacy-check input{width:18px;flex:0 0 18px;height:18px;margin:2px 0 0}.beer-honeypot{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important}.beer-mandate-box{margin-top:19px;padding:19px;border:1px solid #b6d7c0;border-radius:12px;background:#f3f9f4}.beer-mandate-box strong{display:block;font-weight:700;color:#27583b;font-size:14px}.beer-mandate-box p{font-size:12px;line-height:1.7;color:#51705a;margin:12px 0}.beer-mandate-box .beer-privacy-check{margin-top:16px}
+.beer-turnstile-container{margin-top:16px}.beer-turnstile-container:not(:empty){min-height:64px}#beerPublicBotStatus{font-size:12px;color:#597363;margin:10px 0}
 </style></head><body>
 <header class="top"><div class="wrap top-inner"><a class="brand" onclick="showLanding()"><span class="brand-mark">HU.</span><span><strong>Horeca United</strong><small>Jouw digitale horecamanager</small></span></a><div class="nav-actions"><button class="btn ghost" id="navHome" onclick="showLanding()">Home</button><button class="btn" id="navLogin" onclick="showLogin()">Inloggen</button><button class="btn hide" id="navWorkspace" onclick="openWorkspace()">Mijn HUOS</button><button class="btn ghost hide" id="navLogout" onclick="logout()">Uitloggen</button></div></div></header>
 <!-- ============ HUOS V2 LANDING ============ -->
@@ -137,6 +138,7 @@ const client=window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE);
 const AUTH_REDIRECT='https://huos-v2-prive-pilot.vercel.app/';
 let user=null,org=null,entries=[],docs=[],beerScan=null,activeTab='overview',generation=0;
 let publicBeerAnswers={},publicBeerIndex=0,publicBeerSent=false,publicBeerMandateConfirmed=false,pendingBeerSaveBusy=false;
+let beerTurnstileConfig=null,beerTurnstileToken='',beerTurnstileWidgetId=null,beerTurnstileScriptPromise=null;
 const BEER_PENDING_KEY='huos2_pending_beer_scan';
 const el=id=>document.getElementById(id);
 const visible=(id,yes)=>el(id).classList.toggle('hide',!yes);
@@ -246,6 +248,45 @@ function renderPublicMandateSection(){
  area.innerHTML='<div class="beer-mandate-box"><strong>Toestemming om informatie op te vragen</strong><p>Ik geef Horeca United toestemming om uitsluitend bij mijn huidige bierleverancier of brouwerij informatie op te vragen over bierafname, inkoopprijzen, kortingen, bonussen en biercontractvoorwaarden, voor de beoordeling van mijn Bier Quick Scan en eventuele besparingsmogelijkheden.</p><p>Deze toestemming geeft geen bevoegdheid om contracten te wijzigen of op te zeggen, of om namens mijn onderneming over te stappen. Ik kan haar intrekken door contact op te nemen met Horeca United. Horeca United controleert eerst mijn bevoegdheid.</p><label class="beer-privacy-check"><input type="checkbox" id="beerPublicMandateConsent" '+(publicBeerMandateConfirmed?'checked ':'')+'onchange="publicBeerMandateConfirmed=this.checked"><span>Ik bevestig dat ik bevoegd ben om namens de onderneming deze vrijwillige, beperkte toestemming te geven.</span></label></div>';
 }
 /* Public quick scan: ask every beer question BEFORE requesting an email address. */
+
+async function loadBeerTurnstile(){
+ const status=el('beerPublicBotStatus'), mount=el('beerPublicTurnstile');
+ if(!status||!mount)return;
+ try{
+  if(!beerTurnstileConfig){
+   const r=await fetch(URL_SUPABASE+'/functions/v1/huos-beer-intake',{method:'GET',cache:'no-store'});
+   if(!r.ok)throw new Error('config');
+   beerTurnstileConfig=await r.json();
+  }
+  if(!el('beerPublicTurnstile'))return;
+  if(beerTurnstileConfig.turnstile_enabled!==true)return;
+  status.textContent='Anti-spamcontrole wordt geladen…';
+  if(!beerTurnstileScriptPromise){
+   beerTurnstileScriptPromise=new Promise((resolve,reject)=>{
+    const tag=document.createElement('script');
+    tag.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    tag.async=true;tag.defer=true;tag.onload=resolve;tag.onerror=()=>reject(new Error('script'));
+    document.head.appendChild(tag);
+   });
+  }
+  await beerTurnstileScriptPromise;
+  const slot=el('beerPublicTurnstile');
+  if(!slot||!window.turnstile)return;
+  if(beerTurnstileWidgetId!==null){try{window.turnstile.remove(beerTurnstileWidgetId)}catch(e){}beerTurnstileWidgetId=null}
+  beerTurnstileToken='';
+  beerTurnstileWidgetId=window.turnstile.render(slot,{
+   sitekey:beerTurnstileConfig.turnstile_site_key,
+   action:'beer_intake',
+   callback:(token)=>{beerTurnstileToken=token;const x=el('beerPublicBotStatus');if(x)x.textContent='Anti-spamcontrole voltooid.'},
+   'expired-callback':()=>{beerTurnstileToken='';const x=el('beerPublicBotStatus');if(x)x.textContent='De anti-spamcontrole is verlopen. Voltooi deze opnieuw.'},
+   'error-callback':()=>{beerTurnstileToken='';const x=el('beerPublicBotStatus');if(x)x.textContent='Anti-spamcontrole mislukt. Probeer opnieuw.'}
+  });
+ }catch(e){
+  const x=el('beerPublicBotStatus');if(x)x.textContent='De anti-spamcontrole kan niet worden geladen. Probeer opnieuw.';
+  beerTurnstileConfig=null;
+ }
+}
+
 function renderPublicBeer(){
  const questions=BEER_QUESTIONS;
  const isEmail=publicBeerIndex>=questions.length;
@@ -262,7 +303,8 @@ function renderPublicBeer(){
  if(publicBeerSent){el('beerPublicQuestion').innerHTML='<div class="beer-public-done"><strong>Bedankt voor je aanvraag!</strong><p>Horeca United heeft de gegevens ontvangen en zal deze eerst intern bekijken. Als we meer informatie nodig hebben, nemen we contact met je op. Er is geen automatische offerte opgesteld.</p></div>';return}
  if(isEmail){
    const email=user?.email||'';
-   el('beerPublicQuestion').innerHTML='<span class="eyebrow">LAATSTE STAP · AANVRAAG INSTUREN</span><h2>Waar mogen we je bereiken?</h2><p>Vul je bedrijfsnaam, naam en e-mailadres in, zodat Horeca United je aanvraag persoonlijk kan opvolgen. Een telefoonnummer mag je toevoegen, maar is niet verplicht. Horeca United beoordeelt je antwoorden eerst intern en doet niet automatisch een voorstel.</p><div class="field"><label for="beerPublicCompany">Naam horecazaak *</label><input id="beerPublicCompany" maxlength="160" autocomplete="organization" placeholder="Naam van het horecabedrijf"></div><div class="field"><label for="beerPublicContact">Jouw naam *</label><input id="beerPublicContact" maxlength="120" autocomplete="name" placeholder="Voor- en achternaam"></div><div class="field"><label for="beerPublicEmail">E-mailadres *</label><input id="beerPublicEmail" type="email" autocomplete="email" maxlength="250" placeholder="jij@jouwzaak.nl" value="'+safe(email)+'"></div><div class="field"><label for="beerPublicPhone">Telefoonnummer (optioneel)</label><input id="beerPublicPhone" autocomplete="tel" maxlength="50" type="tel" placeholder="Telefoonnummer"></div><label class="beer-privacy-check"><input id="beerPublicPrivacy" type="checkbox"><span>Ik ga ermee akkoord dat Horeca United mijn ingevulde gegevens gebruikt om deze Bier Quick Scan-aanvraag te beoordelen en zo nodig contact met mij op te nemen. <strong>Geen marketinginschrijving.</strong></span></label><input class="beer-honeypot" type="text" id="beerPublicWebsite" autocomplete="off" tabindex="-1" aria-hidden="true">';
+   el('beerPublicQuestion').innerHTML='<span class="eyebrow">LAATSTE STAP · AANVRAAG INSTUREN</span><h2>Waar mogen we je bereiken?</h2><p>Vul je bedrijfsnaam, naam en e-mailadres in, zodat Horeca United je aanvraag persoonlijk kan opvolgen. Een telefoonnummer mag je toevoegen, maar is niet verplicht. Horeca United beoordeelt je antwoorden eerst intern en doet niet automatisch een voorstel.</p><div class="field"><label for="beerPublicCompany">Naam horecazaak *</label><input id="beerPublicCompany" maxlength="160" autocomplete="organization" placeholder="Naam van het horecabedrijf"></div><div class="field"><label for="beerPublicContact">Jouw naam *</label><input id="beerPublicContact" maxlength="120" autocomplete="name" placeholder="Voor- en achternaam"></div><div class="field"><label for="beerPublicEmail">E-mailadres *</label><input id="beerPublicEmail" type="email" autocomplete="email" maxlength="250" placeholder="jij@jouwzaak.nl" value="'+safe(email)+'"></div><div class="field"><label for="beerPublicPhone">Telefoonnummer (optioneel)</label><input id="beerPublicPhone" autocomplete="tel" maxlength="50" type="tel" placeholder="Telefoonnummer"></div><label class="beer-privacy-check"><input id="beerPublicPrivacy" type="checkbox"><span>Ik ga ermee akkoord dat Horeca United mijn ingevulde gegevens gebruikt om deze Bier Quick Scan-aanvraag te beoordelen en zo nodig contact met mij op te nemen. <strong>Geen marketinginschrijving.</strong></span></label><div id="beerPublicTurnstile" class="beer-turnstile-container"></div><div id="beerPublicBotStatus" role="status" aria-live="polite"></div><input class="beer-honeypot" type="text" id="beerPublicWebsite" autocomplete="off" tabindex="-1" aria-hidden="true">';
+   void loadBeerTurnstile();
    return;
  }
  const v=publicBeerAnswers[q.id]??'';
@@ -323,16 +365,20 @@ async function beerStepNext(){
  if(data_route==='mandate'&&!mandate_consent){el('beerPublicNotice').innerHTML='<div class="error">Voor een machtiging is een afzonderlijke toestemmingsverklaring nodig.</div>';return}
  const scanAnswers={...publicBeerAnswers};delete scanAnswers.data_route;
  if(Object.keys(scanAnswers).length===0){el('beerPublicNotice').innerHTML='<div class="error">Vul minstens één inhoudelijk antwoord in voordat je verdergaat.</div>';return}
+ if(!beerTurnstileConfig){el('beerPublicNotice').innerHTML='<div class="error">De beveiligingscontrole is nog niet geladen. Probeer opnieuw.</div>';return}
+ if(beerTurnstileConfig.turnstile_enabled===true&&!beerTurnstileToken){
+  el('beerPublicNotice').innerHTML='<div class="error">Voltooi de anti-spamcontrole voordat je verstuurt.</div>';return;
+ }
  const button=el('beerPublicNext');button.disabled=true;
  try{
   const response=await fetch(URL_SUPABASE+'/functions/v1/huos-beer-intake',{
    method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({company_name,contact_name,email,phone,website,privacy_accepted,answers:scanAnswers,data_route,mandate_consent,mandate_authority_asserted:mandate_consent,mandate_consent_version:mandate_consent?'huos-mandate-beer-v1':null})
+   body:JSON.stringify({company_name,contact_name,email,phone,website,privacy_accepted,answers:scanAnswers,data_route,mandate_consent,mandate_authority_asserted:mandate_consent,mandate_consent_version:mandate_consent?'huos-mandate-beer-v1':null,turnstile_token:beerTurnstileToken})
   });
   const body=await response.json().catch(()=>({}));
   if(!response.ok||body.ok!==true)throw new Error(body.error||'De aanvraag kon niet worden verstuurd.');
   publicBeerSent=true;renderPublicBeer();
- }catch(e){el('beerPublicNotice').innerHTML='<div class="error">'+safe(e.message||'Versturen niet mogelijk.')+'</div>'}
+ }catch(e){el('beerPublicNotice').innerHTML='<div class="error">'+safe(e.message||'Versturen niet mogelijk.')+'</div>';if(beerTurnstileConfig?.turnstile_enabled){beerTurnstileToken='';if(beerTurnstileWidgetId!==null&&window.turnstile)window.turnstile.reset(beerTurnstileWidgetId)}}
  finally{button.disabled=false}
 }
 function readPendingBeer(){
