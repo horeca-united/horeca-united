@@ -84,6 +84,7 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
 .beer-public-done strong{display:block;margin-bottom:8px}
 .beer-public-done p{margin:0;color:#577b60}
 @media(max-width:600px){.beer-public{padding:25px 0 60px}.beer-public-card{padding:24px}.beer-public-buttons{flex-direction:column-reverse}.beer-public-buttons button{width:100%}}
+.beer-extra-fields{margin-top:12px}.beer-extra-field{display:flex;flex-direction:column;gap:7px;font-size:12px;color:#4e745a;font-weight:600}.beer-extra-field input{width:100%;padding:13px;border:1px solid #cbdccf;border-radius:10px;background:#fff;margin:0}.beer-public-question select{cursor:pointer}.beer-public-question select option{font-size:14px}
 </style></head><body>
 <header class="top"><div class="wrap top-inner"><a class="brand" onclick="showLanding()"><span class="brand-mark">HU.</span><span><strong>Horeca United</strong><small>Jouw digitale horecamanager</small></span></a><div class="nav-actions"><button class="btn ghost" id="navHome" onclick="showLanding()">Home</button><button class="btn" id="navLogin" onclick="showLogin()">Inloggen</button><button class="btn hide" id="navWorkspace" onclick="openWorkspace()">Mijn HUOS</button><button class="btn ghost hide" id="navLogout" onclick="logout()">Uitloggen</button></div></div></header>
 <!-- ============ HUOS V2 LANDING ============ -->
@@ -162,23 +163,67 @@ async function uploadFile(){if(!org||!user)return;const file=el('docFile').files
 
 // 13 questions adapted from the original Bier Quick Scan pilot scope.
 // Responses remain owner-scoped in huos_pilot_beer_scans, never imported from bier_leads.
-const BEER_QUESTIONS=[
- {id:'brewery_supplier',label:'1. Met welke brouwerij of bierleverancier werk je?',type:'text',hint:'Naam leverancier of brouwerij'},
- {id:'tap_beer_brand',label:'2. Welk merk standaard pils schenk je op tap?',type:'text',hint:'Naam pilsmerk'},
- {id:'distributor',label:'3. Wie levert het bier bij jouw zaak?',type:'text',hint:'Bijvoorbeeld brouwerij, drankengroothandel of tussenleverancier'},
- {id:'keg_size_l',label:'4. Wat is het formaat van jouw standaard fust (liters)?',type:'number',min:0.1,max:200,step:'any',hint:'Aantal liters; leeg laten als onbekend'},
- {id:'keg_price_ex_vat',label:'5. Wat betaal je per fust exclusief btw?',type:'number',min:0,max:5000,step:'any',hint:'Bedrag in euro; leeg laten als onbekend'},
- {id:'annual_volume_hl',label:'6. Wat was je totale bierafname in 2025 (hectoliter)?',type:'number',min:0,max:100000,step:'any',hint:'1 hectoliter = 100 liter. Alleen invullen als je het weet'},
- {id:'annual_volume_source',label:'7. Waarop baseer je die jaarafname?',options:[['','Kies of sla over'],['own_estimate','Eigen schatting'],['invoice','Facturen/jaaroverzicht'],['supplier_statement','Opgave leverancier'],['unknown','Weet ik niet']]},
- {id:'bonus_status',label:'8. Ontvang je bierkortingen, bonussen of een jaarlijkse teruggave?',options:[['','Kies of sla over'],['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
- {id:'contract_end_status',label:'9. Weet je wanneer je huidige biercontract eindigt?',options:[['','Kies of sla over'],['date_known','Ja, ik weet de datum'],['ongoing','Geen vaste einddatum'],['unknown','Weet ik niet']]},
- {id:'contract_end_date',label:'Einddatum biercontract (als bekend)',type:'date'},
- {id:'purchase_obligation',label:'10. Heb je een afnameverplichting voor bier?',options:[['','Kies of sla over'],['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
- {id:'installation_status',label:'11. Van wie is de tapinstallatie?',options:[['','Kies of sla over'],['owned','Van mij / eigen zaak'],['brewery','Van brouwerij / leverancier'],['leased','Gehuurd / lease'],['unknown','Weet ik niet']]},
- {id:'brewery_loan_status',label:'12. Staat er nog een lening of financiering bij de brouwerij open?',options:[['','Kies of sla over'],['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
- {id:'proposal_interest',label:'13. Wat wil je dat HUOS met deze informatie doet?',options:[['','Kies of sla over'],['insight_only','Eerst inzicht in mijn voorwaarden'],['maybe','Misschien een voorstel in de toekomst'],['yes','Ik heb interesse in een voorstel']]}
-];
 
+const BREWERY_BRANDS={
+ 'Heineken':['Heineken','Brand','Birra Moretti','Amstel'],
+ 'AB InBev':['Hertog Jan','Jupiler','Dommelsch','Stella Artois'],
+ 'Grolsch / Asahi':['Grolsch Premium Pilsner','Peroni'],
+ 'Royal Swinkels':['Bavaria','Swinckels','Estaminet'],
+ 'Gulpener':['Gulpener Pils','Ur-Pilsner','Château Neubourg']
+};
+const CHOOSE=[['','Maak een keuze']];
+const BEER_QUESTIONS=[
+ {id:'brewery_supplier',label:'1. Met welke brouwerij werk je?',options:[...CHOOSE,...Object.keys(BREWERY_BRANDS).map(x=>[x,x]),['other','Anders'],['unknown','Weet ik niet']],otherLabel:'Welke brouwerij?',otherKey:'brewery_supplier_other'},
+ {id:'tap_beer_brand',label:'2. Welk merk standaard pils schenk je op tap?',dynamic:'brands',otherLabel:'Welk pilsmerk?',otherKey:'tap_beer_brand_other'},
+ {id:'distributor',label:'3. Wie levert het bier bij jouw zaak?',options:[...CHOOSE,['direct','Rechtstreeks via brouwerij'],['HANOS','HANOS'],['Sligro','Sligro'],['Bidfood','Bidfood'],['other','Anders'],['unknown','Weet ik niet']],otherLabel:'Welke distributeur?',otherKey:'distributor_other',directLabel:'Welke brouwerij levert rechtstreeks?',directKey:'direct_delivery_brewery'},
+ {id:'keg_size_l',label:'4. Wat is het formaat van jouw standaard fust (liters)?',options:[...CHOOSE,['20','20 liter'],['30','30 liter'],['50','50 liter'],['other','Ander formaat'],['unknown','Weet ik niet']],otherLabel:'Ander fustformaat in liters',otherKey:'keg_size_l_other'},
+ {id:'keg_price_ex_vat',label:'5. Wat betaal je per fust exclusief btw?',type:'number',min:0,max:5000,step:'any',hint:'Bedrag in euro. Leeg laten als onbekend.'},
+ {id:'annual_volume_hl',label:'6. Hoeveel bier heb je in 2025 afgenomen (hectoliter)?',type:'number',min:0,max:100000,step:'any',hint:'1 hectoliter = 100 liter. Leeg laten als onbekend.'},
+ {id:'annual_volume_source',label:'7. Waarop baseer je deze jaarafname?',options:[...CHOOSE,['own_estimate','Eigen schatting'],['invoice','Facturen / jaaroverzicht'],['supplier_statement','Opgave leverancier'],['unknown','Weet ik niet']]},
+ {id:'bonus_status',label:'8. Ontvang je bierkortingen, bonussen of een jaarlijkse teruggave?',options:[...CHOOSE,['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
+ {id:'contract_end_status',label:'9. Weet je wanneer je huidige biercontract eindigt?',options:[...CHOOSE,['date_known','Ja, ik weet de datum'],['ongoing','Geen vaste einddatum'],['unknown','Weet ik niet']],otherLabel:'Einddatum biercontract',otherKey:'contract_end_date',otherType:'date',otherValue:'date_known'},
+ {id:'purchase_obligation',label:'10. Heb je een afnameverplichting voor bier?',options:[...CHOOSE,['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
+ {id:'installation_status',label:'11. Van wie is de tapinstallatie?',options:[...CHOOSE,['owned','Van mij / eigen zaak'],['brewery','Van brouwerij / leverancier'],['leased','Gehuurd / lease'],['unknown','Weet ik niet']]},
+ {id:'brewery_loan_status',label:'12. Staat er nog een lening of financiering bij de brouwerij open?',options:[...CHOOSE,['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
+ {id:'proposal_interest',label:'13. Wat wil je dat HUOS met deze informatie doet?',options:[...CHOOSE,['insight_only','Eerst inzicht in mijn voorwaarden'],['maybe','Misschien een voorstel in de toekomst'],['yes','Ik heb interesse in een voorstel']]}
+];
+function beerChoices(question,answers){
+ if(question.dynamic==='brands'){
+  const list=BREWERY_BRANDS[answers.brewery_supplier]||[];
+  return [...CHOOSE,...list.map(x=>[x,x]),['other','Anders'],['unknown','Weet ik niet']];
+ }
+ return question.options||[];
+}
+function beerExtra(question,value,answers,prefix){
+ const key=question.otherKey;
+ const showOther=key && (value==='other'||(question.otherValue&&value===question.otherValue));
+ const direct=question.directKey && value==='direct';
+ const renderField=(fieldKey,label,type='text')=>'<label class="beer-extra-field">'+safe(label)+'<input type="'+type+'" id="'+prefix+fieldKey+'" value="'+safe(answers[fieldKey]||'')+'" autocomplete="off" maxlength="160"></label>';
+ return (showOther?renderField(key,question.otherLabel,question.otherType||'text'):'')+(direct?renderField(question.directKey,question.directLabel):'');
+}
+function beerOptionsHTML(question,answers,value){
+ return beerChoices(question,answers).map(([v,label])=>'<option value="'+safe(v)+'"'+(String(value)===String(v)?' selected':'')+'>'+safe(label)+'</option>').join('');
+}
+function beerCaptureExtra(question,value,answers,prefix){
+ for(const field of [question.otherKey,question.directKey]){
+  if(!field)continue;
+  const input=document.getElementById(prefix+field);
+  if(input)answers[field]=input.value.trim();
+  else delete answers[field];
+ }
+}
+function beerSelectedChange(prefix,questionId,answers){
+ const q=BEER_QUESTIONS.find(x=>x.id===questionId),field=document.getElementById(prefix+q.id);
+ if(!q||!field)return;
+ const oldBrewery=answers.brewery_supplier;
+ answers[q.id]=field.value;
+ if(questionId==='brewery_supplier'&&oldBrewery!==field.value){
+  delete answers.tap_beer_brand;
+  delete answers.tap_beer_brand_other;
+ }
+ const box=document.getElementById(prefix+'extras');
+ if(box)box.innerHTML=beerExtra(q,field.value,answers,prefix);
+}
 /* Public quick scan: ask every beer question BEFORE requesting an email address. */
 function renderPublicBeer(){
  const questions=BEER_QUESTIONS;
@@ -201,22 +246,30 @@ function renderPublicBeer(){
  }
  const v=publicBeerAnswers[q.id]??'';
  let control;
- if(q.options){
-   control='<select id="beerPublicInput">'+q.options.map(([value,label])=>'<option value="'+safe(value)+'"'+(String(value)===String(v)?' selected':'')+'>'+safe(label)+'</option>').join('')+'</select>';
+ if(q.options||q.dynamic){
+   control='<select id="beerPublicInput" onchange="beerSelectedChange(\'beerPublic_\',\''+q.id+'\',publicBeerAnswers)">'+beerOptionsHTML(q,publicBeerAnswers,v)+'</select>';
  }else{
    control='<input id="beerPublicInput" type="'+q.type+'" autocomplete="off" value="'+safe(v)+'" '+(q.type==='number'?'min="'+q.min+'" max="'+q.max+'" step="'+q.step+'"':'')+' placeholder="'+safe(q.hint||'Je antwoord (optioneel)')+'">';
  }
- el('beerPublicQuestion').innerHTML='<h2>'+safe(q.label.replace(/^\\d+\\. /,''))+'</h2><p>'+(q.hint?safe(q.hint):'Kies je antwoord. Als je dit niet weet, kun je doorgaan zonder iets in te vullen.')+'</p>'+control;
+ el('beerPublicQuestion').innerHTML='<h2>'+safe(q.label.replace(/^\\d+\\. /,''))+'</h2><p>'+(q.hint?safe(q.hint):'Maak een keuze. Als je dit niet weet, kun je de vraag overslaan.')+'</p>'+control+'<div id="beerPublic_extras" class="beer-extra-fields">'+beerExtra(q,v,publicBeerAnswers,'beerPublic_')+'</div>';
 }
 function capturePublicBeer(){
  if(publicBeerIndex>=BEER_QUESTIONS.length)return true;
  const q=BEER_QUESTIONS[publicBeerIndex],field=el('beerPublicInput'),raw=String(field?.value??'').trim();
- if(!raw){delete publicBeerAnswers[q.id];return true}
+ if(!raw){delete publicBeerAnswers[q.id];beerCaptureExtra(q,raw,publicBeerAnswers,'beerPublic_');return true}
  if(q.type==='number'){
    const n=Number(raw);
    if(!Number.isFinite(n)||n<q.min||n>q.max){el('beerPublicNotice').innerHTML='<div class="error">Controleer dit getal of laat het leeg als je het niet weet.</div>';return false}
    publicBeerAnswers[q.id]=n;
  }else publicBeerAnswers[q.id]=raw;
+ beerCaptureExtra(q,raw,publicBeerAnswers,'beerPublic_');
+ if(q.id==='brewery_supplier'){
+   const brands=beerChoices(BEER_QUESTIONS[1],publicBeerAnswers).map(x=>x[0]);
+   if(!brands.includes(publicBeerAnswers.tap_beer_brand)){
+     delete publicBeerAnswers.tap_beer_brand;
+     delete publicBeerAnswers.tap_beer_brand_other;
+   }
+ }
  return true;
 }
 function beerStepBack(){
@@ -282,16 +335,30 @@ function renderBeerScan(){
  const answers=beerScan?.answers||{};
  let currentPart='';
  out.innerHTML=BEER_QUESTIONS.map((q,i)=>{
-  const part=i<3?'MIJN BIERLEVERANCIER':i<7?'PRIJZEN EN AFNAME':i<10?'KORTING EN CONTRACT':i<13?'VERPLICHTINGEN':'MIJN VOORKEUR';
+  const part=i<3?'MIJN BIERLEVERANCIER':i<7?'PRIJZEN EN AFNAME':i<9?'KORTING EN CONTRACT':i<12?'VERPLICHTINGEN':'MIJN VOORKEUR';
   const heading=part!==currentPart?'<div class="beer-section-title">'+part+'</div>':'';
   currentPart=part;
   const id='beer_'+q.id,v=answers[q.id]??'';
-  let field='';
-  if(q.options){field='<select id="'+id+'">'+q.options.map(([val,name])=>'<option value="'+safe(val)+'"'+(val===v?' selected':'')+'>'+safe(name)+'</option>').join('')+'</select>'}
+  let field;
+  if(q.options||q.dynamic)field='<select id="'+id+'" onchange="beerPrivateChange(\''+q.id+'\')">'+beerOptionsHTML(q,answers,v)+'</select>';
   else field='<input id="'+id+'" type="'+q.type+'" value="'+safe(v)+'" autocomplete="off"'+(q.min!=null?' min="'+q.min+'" max="'+q.max+'" step="'+q.step+'"':'')+'>';
-  return heading+'<div class="field'+(q.type==='text'?' wide':'')+'"><label for="'+id+'">'+safe(q.label)+'</label>'+field+(q.hint?'<small>'+safe(q.hint)+'</small>':'')+'</div>';
+  return heading+'<div class="field'+(q.type==='text'?' wide':'')+'"><label for="'+id+'">'+safe(q.label)+'</label>'+field+'<div id="beer_'+q.id+'_extras" class="beer-extra-fields">'+beerExtra(q,v,answers,'beer_')+'</div>'+(q.hint?'<small>'+safe(q.hint)+'</small>':'')+'</div>';
  }).join('');
- el('beerScanStatus').innerHTML=beerScan?'<div class="beer-status">Jouw '+(beerScan.status==='completed'?'opgeslagen scan':'concept')+' uit de nieuwe pilot is geladen. Je kunt deze antwoorden aanpassen.</div>':'<div class="beer-status">Nieuwe Bier Quick Scan — nog geen antwoorden opgeslagen.</div>';
+ el('beerScanStatus').innerHTML=beerScan?'<div class="beer-status">Jouw '+(beerScan.status==='completed'?'opgeslagen scan':'concept')+' uit deze pilot is geladen. Je kunt de antwoorden aanpassen.</div>':'<div class="beer-status">Nieuwe Bier Quick Scan — nog geen antwoorden opgeslagen.</div>';
+}
+function beerPrivateChange(id){
+ const q=BEER_QUESTIONS.find(x=>x.id===id), answers=beerScan?.answers||{};
+ const v=el('beer_'+id)?.value;
+ if(!q)return;
+ const box=el('beer_'+id+'_extras');
+ if(box)box.innerHTML=beerExtra(q,v,answers,'beer_');
+ if(id==='brewery_supplier'){
+   const brandField=el('beer_tap_beer_brand');
+   if(brandField){
+     brandField.innerHTML=beerOptionsHTML(BEER_QUESTIONS[1],{...answers,brewery_supplier:v},'');
+     const target=el('beer_tap_beer_brand_extras');if(target)target.innerHTML='';
+   }
+ }
 }
 async function saveBeerScan(status){
  if(!user||!org)return alert('workspaceMsg','Maak eerst jouw bedrijfsprofiel aan.',true);
@@ -301,6 +368,7 @@ async function saveBeerScan(status){
   if(!raw)continue;
   if(q.type==='number'){const n=Number(raw);if(!Number.isFinite(n)||n<q.min||n>q.max)return alert('workspaceMsg','Controleer het ingevoerde getal bij vraag '+q.label+'.',true);answers[q.id]=n}
   else answers[q.id]=raw;
+  beerCaptureExtra(q,raw,answers,'beer_');
  }
  const b=el('beerFinish'),d=el('beerSaveDraft');b.disabled=true;d.disabled=true;
  try{
