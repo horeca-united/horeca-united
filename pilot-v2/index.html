@@ -213,16 +213,22 @@ function beerCaptureExtra(question,value,answers,prefix){
  }
 }
 function beerSelectedChange(prefix,questionId,answers){
- const q=BEER_QUESTIONS.find(x=>x.id===questionId),field=document.getElementById(prefix+q.id);
- if(!q||!field)return;
- const oldBrewery=answers.brewery_supplier;
- answers[q.id]=field.value;
- if(questionId==='brewery_supplier'&&oldBrewery!==field.value){
+ const q=BEER_QUESTIONS.find(x=>x.id===questionId);
+ if(!q)return;
+ // Public scan renders one select at a time as #beerPublicInput.
+ // The private dashboard uses a distinct #beer_<question> field.
+ const field=document.getElementById(prefix==='beerPublic_'?'beerPublicInput':prefix+q.id);
+ if(!field)return;
+ const previous=answers[q.id];
+ const value=field.value;
+ answers[q.id]=value;
+ if(questionId==='brewery_supplier'&&previous!==value){
   delete answers.tap_beer_brand;
   delete answers.tap_beer_brand_other;
  }
+ // Extra input appears immediately on selecting "Anders", not after Next.
  const box=document.getElementById(prefix+'extras');
- if(box)box.innerHTML=beerExtra(q,field.value,answers,prefix);
+ if(box)box.innerHTML=beerExtra(q,value,answers,prefix);
 }
 /* Public quick scan: ask every beer question BEFORE requesting an email address. */
 function renderPublicBeer(){
