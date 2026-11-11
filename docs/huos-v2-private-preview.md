@@ -6,14 +6,14 @@ The current public `main` GitHub Pages site remains unchanged.
 The repository is public and GitHub Pages would make the preview accessible to anyone who finds the URL. A secret link or client-side login is not genuine site-access protection.
 
 ## Recommended hosting
-Use a separate **Vercel project** connected to `horeca-united/horeca-united`, with production branch pinned to `feature/huos-digitale-manager-v2` **only after** deployment protection has been configured and verified. Ideally choose 'Vercel Authentication' / team login for all environments, or use Password Protection if covered by the workspace plan. If preview protection cannot be enabled, STOP: do not deploy a public preview.
+Use a separate **Vercel project** connected to `horeca-united/horeca-united`, with production branch pinned to `feature/huos-digitale-manager-v2` **only after** deployment protection has been configured and verified. **Require Vercel Authentication → All Deployments**, including the project's production alias, before first deploy. This protects even a one-person pilot project; the main public GitHub Pages website is separate and remains public. Only the permitted Vercel team account can view the pilot. Password Protection is an alternative only when available on the workspace plan. If preview protection cannot be enabled, STOP: do not deploy a public preview.
 
 ## Build
 `build-preview.js` runs legacy `build.js` and copies only index.html to `dist`.
 `vercel.json` uses `node build-preview.js`, output `dist`, and robots noindex. The X-Robots-Tag header is NOT access control.
 
 ## Deployment safety tests
-1. Verify deployment protection is enabled BEFORE copying any live data; access the URL in a private browser and assert HTTP auth challenge / Vercel login before HTML is served.
+1. Under Vercel project Security → Deployment Protection set **Vercel Authentication: All Deployments** before publishing any real data. Verify production and preview links in a private browser prompt for a Vercel sign-in before serving HTML.
 2. Check `/src/app.js`, `/build.js`, `/.mcp.json` are NOT served (only `dist/index.html` is published).
 3. Verify magic link login redirect stays on the preview domain. Supabase Auth 'Site URL' is shared with v1: DO NOT overwrite it; add the precise preview callback to the allowed Redirect URLs through Supabase dashboard as needed. Use a provider-specific redirectTo from frontend only if registered; test.
 4. Verify owner creates only their new `huos_pilot_organizations` record. Old `uploads` and `transactions` are never imported into pilot.
