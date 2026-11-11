@@ -85,7 +85,8 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
 .beer-public-done p{margin:0;color:#577b60}
 @media(max-width:600px){.beer-public{padding:25px 0 60px}.beer-public-card{padding:24px}.beer-public-buttons{flex-direction:column-reverse}.beer-public-buttons button{width:100%}}
 .beer-extra-fields{margin-top:12px}.beer-extra-field{display:flex;flex-direction:column;gap:7px;font-size:12px;color:#4e745a;font-weight:600}.beer-extra-field input{width:100%;padding:13px;border:1px solid #cbdccf;border-radius:10px;background:#fff;margin:0}.beer-public-question select{cursor:pointer}.beer-public-question select option{font-size:14px}
-.beer-privacy-check{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.6;color:#516a56;margin-top:17px}.beer-privacy-check input{width:18px;flex:0 0 18px;height:18px;margin:2px 0 0}.beer-honeypot{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important}</style></head><body>
+.beer-privacy-check{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.6;color:#516a56;margin-top:17px}.beer-privacy-check input{width:18px;flex:0 0 18px;height:18px;margin:2px 0 0}.beer-honeypot{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important}.beer-mandate-box{margin-top:19px;padding:19px;border:1px solid #b6d7c0;border-radius:12px;background:#f3f9f4}.beer-mandate-box strong{display:block;font-weight:700;color:#27583b;font-size:14px}.beer-mandate-box p{font-size:12px;line-height:1.7;color:#51705a;margin:12px 0}.beer-mandate-box .beer-privacy-check{margin-top:16px}
+</style></head><body>
 <header class="top"><div class="wrap top-inner"><a class="brand" onclick="showLanding()"><span class="brand-mark">HU.</span><span><strong>Horeca United</strong><small>Jouw digitale horecamanager</small></span></a><div class="nav-actions"><button class="btn ghost" id="navHome" onclick="showLanding()">Home</button><button class="btn" id="navLogin" onclick="showLogin()">Inloggen</button><button class="btn hide" id="navWorkspace" onclick="openWorkspace()">Mijn HUOS</button><button class="btn ghost hide" id="navLogout" onclick="logout()">Uitloggen</button></div></div></header>
 <!-- ============ HUOS V2 LANDING ============ -->
 <section id="landing" class="v2-landing">
@@ -317,12 +318,16 @@ async function beerStepNext(){
   el('beerPublicNotice').innerHTML='<div class="error">Vul de bedrijfsnaam, je naam en een geldig e-mailadres in. Alleen het telefoonnummer is optioneel.</div>';return;
  }
  if(!privacy_accepted){el('beerPublicNotice').innerHTML='<div class="error">Geef eerst toestemming om je aanvraag te beoordelen.</div>';return}
- if(Object.keys(publicBeerAnswers).length===0){el('beerPublicNotice').innerHTML='<div class="error">Vul minstens één antwoord in voordat je verdergaat.</div>';return}
+ const data_route=publicBeerAnswers.data_route||'later_upload';
+ const mandate_consent=data_route==='mandate'&&publicBeerMandateConfirmed;
+ if(data_route==='mandate'&&!mandate_consent){el('beerPublicNotice').innerHTML='<div class="error">Voor een machtiging is een afzonderlijke toestemmingsverklaring nodig.</div>';return}
+ const scanAnswers={...publicBeerAnswers};delete scanAnswers.data_route;
+ if(Object.keys(scanAnswers).length===0){el('beerPublicNotice').innerHTML='<div class="error">Vul minstens één inhoudelijk antwoord in voordat je verdergaat.</div>';return}
  const button=el('beerPublicNext');button.disabled=true;
  try{
   const response=await fetch(URL_SUPABASE+'/functions/v1/huos-beer-intake',{
    method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({company_name,contact_name,email,phone,website,privacy_accepted,answers:publicBeerAnswers})
+   body:JSON.stringify({company_name,contact_name,email,phone,website,privacy_accepted,answers:scanAnswers,data_route,mandate_consent,mandate_authority_asserted:mandate_consent,mandate_consent_version:mandate_consent?'huos-mandate-beer-v1':null})
   });
   const body=await response.json().catch(()=>({}));
   if(!response.ok||body.ok!==true)throw new Error(body.error||'De aanvraag kon niet worden verstuurd.');
