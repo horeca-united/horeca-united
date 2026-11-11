@@ -181,7 +181,7 @@ const BEER_QUESTIONS=[
  {id:'annual_volume_hl',label:'6. Hoeveel bier heb je in 2025 afgenomen (hectoliter)?',type:'number',min:0,max:100000,step:'any',hint:'1 hectoliter = 100 liter. Leeg laten als onbekend.'},
  {id:'annual_volume_source',label:'7. Waarop baseer je deze jaarafname?',options:[...CHOOSE,['own_estimate','Eigen schatting'],['invoice','Facturen / jaaroverzicht'],['supplier_statement','Opgave leverancier'],['unknown','Weet ik niet']]},
  {id:'bonus_status',label:'8. Ontvang je bierkortingen, bonussen of een jaarlijkse teruggave?',options:[...CHOOSE,['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
- {id:'contract_end_status',label:'9. Weet je wanneer je huidige biercontract eindigt?',options:[...CHOOSE,['date_known','Ja, ik weet de datum'],['ongoing','Geen vaste einddatum'],['unknown','Weet ik niet']],otherLabel:'Einddatum biercontract',otherKey:'contract_end_date',otherType:'date',otherValue:'date_known'},
+ {id:'contract_end_status',label:'9. Wat is de situatie van jouw huidige biercontract?',options:[...CHOOSE,['date_known','Ik heb een lopend contract en weet de einddatum'],['ongoing','Ik heb een lopend contract zonder vaste einddatum'],['no_contract','Ik heb momenteel geen biercontract lopen'],['unknown','Ik heb een contract, maar weet de einddatum niet']],otherLabel:'Wat is de einddatum van je biercontract?',otherKey:'contract_end_date',otherType:'date',otherValue:'date_known'},
  {id:'purchase_obligation',label:'10. Heb je een afnameverplichting voor bier?',options:[...CHOOSE,['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
  {id:'installation_status',label:'11. Van wie is de tapinstallatie?',options:[...CHOOSE,['owned','Van mij / eigen zaak'],['brewery','Van brouwerij / leverancier'],['leased','Gehuurd / lease'],['unknown','Weet ik niet']]},
  {id:'brewery_loan_status',label:'12. Staat er nog een lening of financiering bij de brouwerij open?',options:[...CHOOSE,['yes','Ja'],['no','Nee'],['unknown','Weet ik niet']]},
@@ -257,7 +257,7 @@ function renderPublicBeer(){
  }else{
    control='<input id="beerPublicInput" type="'+q.type+'" autocomplete="off" value="'+safe(v)+'" '+(q.type==='number'?'min="'+q.min+'" max="'+q.max+'" step="'+q.step+'"':'')+' placeholder="'+safe(q.hint||'Je antwoord (optioneel)')+'">';
  }
- el('beerPublicQuestion').innerHTML='<h2>'+safe(q.label.replace(/^\\d+\\. /,''))+'</h2><p>'+(q.hint?safe(q.hint):'Maak een keuze. Als je dit niet weet, kun je de vraag overslaan.')+'</p>'+control+'<div id="beerPublic_extras" class="beer-extra-fields">'+beerExtra(q,v,publicBeerAnswers,'beerPublic_')+'</div>';
+ el('beerPublicQuestion').innerHTML='<h2>'+safe(q.label.replace(/^\\d+\\. /,''))+'</h2><p>'+(q.hint?safe(q.hint):'Je kunt deze vraag overslaan als je het antwoord niet weet.')+'</p>'+control+'<div id="beerPublic_extras" class="beer-extra-fields">'+beerExtra(q,v,publicBeerAnswers,'beerPublic_')+'</div>';
 }
 function capturePublicBeer(){
  if(publicBeerIndex>=BEER_QUESTIONS.length)return true;
