@@ -490,7 +490,7 @@ function monthRange(str){const m=String(str).match(/\b(januari|februari|maart|ap
 function parseAmt(s){s=String(s).replace(/[€\s]/g,'');if(/,\d{2}$/.test(s))s=s.replace(/\./g,'').replace(',','.');else s=s.replace(/,(?=\d{3}\b)/g,'');const n=parseFloat(s);return isFinite(n)?n:null}
 const AMT_G=/(-?\d{1,3}(?:\.\d{3})+,\d{2}|-?\d+,\d{2}|-?\d{1,3}(?:,\d{3})+\.\d{2}|-?\d+\.\d{2})(?![\d%])/g;
 function lastAmt(line){const ms=[...String(line).replace(/\d+(?:[.,]\d+)?\s*%/g,'').matchAll(AMT_G)];return ms.length?parseAmt(ms[ms.length-1][1]):null}
-const KNOWN_SUP=[['Renewi','afval'],['PreZero','afval'],['Suez','afval'],['GP Groot','afval'],['Remondis','afval'],['Veolia','afval'],['Van Gansewinkel','afval'],
+const KNOWN_SUP=[['Milieuservice Nederland','afval'],['Milieuservice','afval'],['Renewi','afval'],['HVC','afval'],['Rova','afval'],['Avri','afval'],['Cure Afvalbeheer','afval'],['PreZero','afval'],['Suez','afval'],['GP Groot','afval'],['Remondis','afval'],['Veolia','afval'],['Van Gansewinkel','afval'],
  ['Vattenfall','elektra'],['Eneco','elektra'],['Essent','elektra'],['Greenchoice','elektra'],['Budget Energie','elektra'],['Engie','elektra'],['Vandebron','elektra'],['Energiedirect','elektra'],['Pure Energie','elektra'],['Frank Energie','elektra'],['Total Energies','elektra'],['TotalEnergies','elektra'],
  ['Vitens','water'],['Evides','water'],['Brabant Water','water'],['Waternet','water'],['Dunea','water'],['PWN','water'],['WMD','water'],['Oasen','water'],['WML','water'],
  ['Heineken','bier'],['Grolsch','bier'],['Bavaria','bier'],['Swinkels','bier'],['AB InBev','bier'],['Brand Bierbrouwerij','bier'],['Coca-Cola','frisdrank'],['Vrumona','frisdrank'],['Refresco','frisdrank'],
@@ -507,8 +507,8 @@ function parseInvoice(lines,prev){
  let l=find(/factuurdatum/i)||find(/^\s*datum\b|\bdatum\s*[:.]/i);r.invoice_date=l?datesIn(l)[0]:null;if(!r.invoice_date)r.invoice_date=datesIn(text)[0]||null;
  l=find(/(leverings|verbruiks|facturatie|afreken)?periode|looptijd|t\/m|tot en met/i);
  if(l){const ds=datesIn(l);if(ds.length>=2){r.period_start=ds[0];r.period_end=ds[1]}else{const mr=monthRange(l);if(mr){r.period_start=mr[0];r.period_end=mr[1]}}}
- l=find(/(totaal|subtotaal|netto|bedrag)[^\n]*?(excl|exclusief|zonder)\.?\s*(btw|b\.t\.w)/i)||find(/^(sub)?totaal\s*excl/i);r.amount_excl=l?lastAmt(l):null;
- l=lines.find(l=>/^\s*(btw|b\.t\.w\.?|omzetbelasting)\b/i.test(l)&&!/(excl|incl|nummer|nr\b|nl\d{9}b\d{2})/i.test(l));r.vat=l?lastAmt(l):null;
+ l=lines.find(x=>/(totaal|subtotaal|netto|bedrag)[^\n]*?(excl|exclusief|zonder)\.?\s*(btw|b\.t\.w)/i.test(x)&&lastAmt(x)!=null)||lines.find(x=>/^\s*(sub)?totaal\s*(\(?excl)/i.test(x)&&lastAmt(x)!=null)||lines.find(x=>/^\s*(subtotaal|netto\s*(bedrag|totaal)|totaal\s*netto|totaal\s*goederen|goederenwaarde)\b/i.test(x)&&lastAmt(x)!=null);r.amount_excl=l?lastAmt(l):null;
+ l=lines.find(x=>/(^|[\s%])(btw|b\.t\.w\.?|omzetbelasting)\b/i.test(x)&&!/(excl|incl|nummer|nr\b|\bNL\s?\d|iban|kvk)/i.test(x)&&lastAmt(x)!=null);r.vat=l?lastAmt(l):null;
  l=find(/totaal\s*(incl|inclusief)|te betalen|totaalbedrag|factuurbedrag|totaal\s*te\s*voldoen/i);r.amount_incl=l?lastAmt(l):null;
  if(r.amount_excl==null&&r.amount_incl!=null&&r.vat!=null)r.amount_excl=Math.round((r.amount_incl-r.vat)*100)/100;
  if(r.amount_excl!=null&&r.vat!=null&&r.amount_incl!=null){if(Math.abs(r.amount_excl+r.vat-r.amount_incl)<0.05)r.checks.push('excl. + btw = totaal incl. ✓');else r.warn.push('Excl. + btw is niet gelijk aan het totaal incl. — controleer het bedrag.')}
@@ -517,7 +517,11 @@ function parseInvoice(lines,prev){
  const prevSups=[...new Set(prev.map(x=>x.supplier))];
  for(const [n,c] of KNOWN_SUP){if(lower.includes(n.toLowerCase())){sup=n;cat=c;break}}
  if(!sup){const ps=prevSups.find(p=>lower.includes(p.toLowerCase()));if(ps)sup=ps}
- if(!sup){const ln=lines.slice(0,10).find(x=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b/.test(x));if(ln)sup=ln.replace(/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b.*$/,'').trim().slice(0,80)}
+ const own=String(((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||'').toLowerCase().split(/[^a-z0-9à-ÿ]+/).filter(w=>w.length>=4&&!['restaurant','eetcafe','cafe','hotel','grand','brasserie','lunchroom','bistro'].includes(w));
+ const isOwn=x=>own.some(w=>x.toLowerCase().includes(w));
+ if(!sup){const dm=[...text.matchAll(/(?:www\.|@)([a-z0-9-]{3,40})\.(?:nl|com|eu|be|de)\b/gi)].map(m=>m[1].toLowerCase()).find(d=>!['gmail','hotmail','outlook','live','icloud','yahoo','ziggo','kpnmail','xs4all','pdfgenerator'].includes(d)&&!isOwn(d));
+  if(dm)sup=dm.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' ')}
+ if(!sup){const ln=lines.slice(0,12).find(x=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b/.test(x)&&!isOwn(x));if(ln)sup=ln.replace(/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b.*$/,'').trim().slice(0,80)}
  if(sup){const ex=prevSups.find(p=>p.toLowerCase()===sup.toLowerCase()||p.toLowerCase().includes(sup.toLowerCase())||sup.toLowerCase().includes(p.toLowerCase()));if(ex)sup=ex}
  r.supplier=sup;
  // eerdere regel van dezelfde leverancier → zelfde product/eenheid/categorie
@@ -528,6 +532,7 @@ function parseInvoice(lines,prev){
  const ql=lines.find(x=>UNIT_RE.test(x)&&!/^\s*(btw|totaal)/i.test(x));
  if(ql){const qm=ql.match(UNIT_RE);r.quantity=parseAmt(qm[1].includes('.')&&!qm[1].includes(',')?qm[1].replace(/\./g,''):qm[1]);r.unit=UNIT_NORM[qm[2].toLowerCase()]||qm[2];
   if(!r.product){const desc=ql.slice(0,ql.toLowerCase().indexOf(qm[0].toLowerCase())).replace(/\s{2,}.*$/,'').trim();if(desc.length>=3)r.product=desc.slice(0,80)}}
+ if(!r.product){const hi=lines.findIndex(x=>/omschrijving/i.test(x));if(hi>=0){const pl=lines.slice(hi+1,hi+8).find(x=>/[a-z]{4}/i.test(x)&&lastAmt(x)==null&&!/^(locatie|adres|datum|periode|subtotaal|totaal|btw)\b/i.test(x.trim()));if(pl)r.product=pl.replace(/\s+\d+\s*x\s*per\s*\w*$/i,'').replace(/\s{2,}.*$/,'').trim().slice(0,80)}}
  if(r.unit_hint&&r.unit&&r.unit_hint!==r.unit)r.warn.push(`Vorige keer was de eenheid "${r.unit_hint}", nu "${r.unit}". Gebruik dezelfde eenheid om eerlijk te vergelijken.`);
  if(r.unit_hint&&!r.unit)r.unit=r.unit_hint;
  if(r.invoice_number&&sup&&prev.some(x=>x.invoice_number&&x.invoice_number.toLowerCase()===r.invoice_number.toLowerCase()&&x.supplier.toLowerCase()===sup.toLowerCase()))r.warn.push('Let op: dit factuurnummer van deze leverancier is al eerder ingevoerd (dubbele factuur?).');
