@@ -59,7 +59,7 @@ td .s{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .msg{font-size:12px;margin-top:6px;min-height:16px}.msg.err{color:var(--bad)}.msg.ok{color:var(--ok)}
 .timeline{list-style:none;margin:0;padding:0}.timeline li{padding:8px 0;border-bottom:1px solid #eef2ee;font-size:12px}.timeline li span{color:var(--muted);display:block}
 .note{padding:9px 0;border-bottom:1px solid #eef2ee;font-size:13px;white-space:pre-wrap}.note span{display:block;color:var(--muted);font-size:11px;margin-bottom:3px}
-.gate{max-width:520px;margin:60px auto;text-align:center;padding:34px}.gate p{color:var(--muted);line-height:1.6}
+.gate a{color:var(--dark);font-weight:500}.gate{max-width:520px;margin:60px auto;text-align:center;padding:34px}.gate p{color:var(--muted);line-height:1.6}
 .hint{font-size:12px;color:var(--muted)}
 .num{text-align:right;white-space:nowrap}.pct-up{color:var(--bad);font-weight:600}.pct-mid{color:var(--warn);font-weight:600}.pct-down{color:var(--ok);font-weight:600}
 .sig{border-left:3px solid var(--bad);background:#fff;padding:10px 14px;border-radius:10px;margin:8px 0;font-size:13px}.sig b{display:block;margin-bottom:2px}.sig .s{display:block;margin-top:4px}.form label.hint{display:flex;flex-direction:column;gap:4px}.form label.hint input{width:100%}.orgpick select{padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font:inherit}
@@ -87,6 +87,7 @@ td .s{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 const URL_SUPABASE='https://yyvzqnjumnpotawnrvfw.supabase.co';
 const KEY_SUPABASE='sb_publishable_QDvjBPDGIgrQNcSzEw2FZg_Yj6hfIgY';
 const params=new URLSearchParams(location.search);
+const RECOVERY=/type=recovery/.test(location.hash)||/type=recovery/.test(location.search);
 const LIVE_HOST=/(^|\.)vercel\.app$/.test(location.hostname)||location.hostname==='localhost';
 const DEMO=params.has('demo')||!LIVE_HOST;
 const client=(!DEMO&&window.supabase)?window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE,{auth:{storageKey:'huos-beheer-auth',persistSession:true,detectSessionInUrl:true}}):null;
@@ -211,6 +212,7 @@ async function boot(){
  try{
   S.user=await api.session();
   if(!S.user)return loginGate();
+  if(RECOVERY&&!S.pwDone)return passwordView(true);
   if(false)return gate('Log eerst in','Je bent niet ingelogd. Log in via de pilot met je zakelijke e-mailadres en open daarna dit beheerscherm opnieuw.',true);
   S.role=await api.myRole();
   if(!S.role){renderWho();return gate('Geen toegang','Dit account heeft geen interne rol bij Horeca United. Neem contact op met een beheerder als je denkt dat dit niet klopt.',false)}
@@ -226,7 +228,8 @@ function gate(title,text,login){
  $('#app').innerHTML=`<div class="gate card"><h1>${esc(title)}</h1><p>${esc(text)}</p>${login?'<p><a class="btn primary" href="./">Naar inloggen</a></p>':''}</div>`;
 }
 function renderWho(){
- $('#who').innerHTML=`<span class="hide-m">${esc(S.user?.email||'')}</span> ${S.role?`<span class="role">${esc(ROLE[S.role]||S.role)}</span>`:''} <button class="btn small" id="logout">Uitloggen</button>`;
+ $('#who').innerHTML=`<span class="hide-m">${esc(S.user?.email||'')}</span> ${S.role?`<span class="role">${esc(ROLE[S.role]||S.role)}</span>`:''} ${DEMO?'':'<button class="btn small" id="pwbtn">Wachtwoord</button> '}<button class="btn small" id="logout">Uitloggen</button>`;
+ if($('#pwbtn'))$('#pwbtn').onclick=()=>passwordView(false);
  $('#logout').onclick=async()=>{await api.signOut();if(DEMO)location.reload()};
 }
 function render(){
@@ -479,16 +482,31 @@ async function renderLog(){
 function loginGate(msg){
  $('#who').innerHTML='';
  $('#app').innerHTML=`<div class="gate card"><h1>Inloggen beheer</h1><p>Log in met je zakelijke e-mailadres van Horeca United. Deze inlog staat los van de klantomgeving: je kunt in een ander tabblad als testklant ingelogd blijven.</p>
- <div class="form" style="text-align:left"><input id="lemail" type="email" autocomplete="email" placeholder="naam@horecaunited.nl"><button class="btn primary" id="lgo">Stuur inloglink</button><div class="msg" id="lmsg">${msg?esc(msg):''}</div></div>
- <p class="hint">Open de link uit de e-mail in deze browser. Geen e-mail? Kijk ook in je spammap.</p></div>`;
- const go=async()=>{const m=$('#lmsg'),email=$('#lemail').value.trim().toLowerCase();m.className='msg';if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){m.className='msg err';m.textContent='Vul een geldig e-mailadres in.';return}
+ <div class="form" style="text-align:left"><input id="lemail" type="email" autocomplete="username" placeholder="naam@horecaunited.nl"><input id="lpw" type="password" autocomplete="current-password" placeholder="Wachtwoord"><button class="btn primary" id="lgo">Inloggen</button><div class="msg" id="lmsg">${msg?esc(msg):''}</div></div>
+ <p class="hint"><a href="#" id="lreset">Wachtwoord instellen of vergeten?</a> · <a href="#" id="lmagic">Liever een inloglink per e-mail</a></p></div>`;
+ const m=$('#lmsg');
+ const mail=()=>{const e=$('#lemail').value.trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){m.className='msg err';m.textContent='Vul eerst een geldig e-mailadres in.';return null}return e};
+ const flag=()=>{try{localStorage.setItem('huos-login-target',JSON.stringify({to:'beheer',ts:Date.now()}))}catch(_){}};
+ const busy=async(fn)=>{m.className='msg';m.textContent='Bezig…';$('#lgo').disabled=true;try{await fn()}catch(e){m.className='msg err';m.textContent=errText(e)}finally{const b=$('#lgo');if(b)b.disabled=false}};
+ const login=()=>{const e=mail();if(!e)return;const pw=$('#lpw').value;if(!pw){m.className='msg err';m.textContent='Vul je wachtwoord in.';return}
   if(DEMO){m.className='msg err';m.textContent='Demo: inloggen is uitgeschakeld.';return}
-  $('#lgo').disabled=true;try{try{localStorage.setItem('huos-login-target',JSON.stringify({to:'beheer',ts:Date.now()}))}catch(_){}
-   const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:AUTH_REDIRECT,shouldCreateUser:false}});if(error)throw error;m.className='msg ok';m.textContent='De inloglink is verstuurd. Open de nieuwste e-mail en klik op de link.'}
-  catch(e){m.className='msg err';m.textContent='Versturen mislukt: '+errText(e)}finally{$('#lgo').disabled=false}};
- $('#lgo').onclick=go;$('#lemail').onkeydown=e=>{if(e.key==='Enter')go()};
+  busy(async()=>{const {error}=await client.auth.signInWithPassword({email:e,password:pw});if(error)throw new Error(/invalid login/i.test(error.message)?'E-mailadres of wachtwoord klopt niet. Nog geen wachtwoord? Klik op "Wachtwoord instellen of vergeten?".':error.message);S.user=null;await boot()})};
+ $('#lgo').onclick=login;$('#lpw').onkeydown=ev=>{if(ev.key==='Enter')login()};$('#lemail').onkeydown=ev=>{if(ev.key==='Enter')$('#lpw').focus()};
+ $('#lreset').onclick=ev=>{ev.preventDefault();const e=mail();if(!e||DEMO)return;busy(async()=>{flag();const {error}=await client.auth.resetPasswordForEmail(e,{redirectTo:AUTH_REDIRECT});if(error)throw error;m.className='msg ok';m.textContent='Als dit account bestaat, is er een e-mail verstuurd om je wachtwoord in te stellen. Open de link in deze browser (kijk ook in je spammap).'})};
+ $('#lmagic').onclick=ev=>{ev.preventDefault();const e=mail();if(!e||DEMO)return;busy(async()=>{flag();const {error}=await client.auth.signInWithOtp({email:e,options:{emailRedirectTo:AUTH_REDIRECT,shouldCreateUser:false}});if(error)throw error;m.className='msg ok';m.textContent='De inloglink is verstuurd. Open de nieuwste e-mail in deze browser.'})};
 }
-if(client)client.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'){S.user=null;S.role=null;S.orgs=null;loginGate()}else if(ev==='SIGNED_IN'&&!S.user){setTimeout(boot,0)}});
+function passwordView(recovery){
+ $('#app').innerHTML=`<div class="gate card"><h1>${recovery?'Nieuw wachtwoord instellen':'Wachtwoord wijzigen'}</h1><p>Kies een sterk wachtwoord van minimaal 12 tekens dat je nergens anders gebruikt. Bewaar het bij voorkeur in een wachtwoordmanager.</p>
+ <div class="form" style="text-align:left"><input id="pw1" type="password" autocomplete="new-password" placeholder="Nieuw wachtwoord (min. 12 tekens)"><input id="pw2" type="password" autocomplete="new-password" placeholder="Herhaal wachtwoord"><button class="btn primary" id="pwgo">Wachtwoord opslaan</button>${recovery?'':'<button class="btn" id="pwcancel">Annuleren</button>'}<div class="msg" id="pwmsg"></div></div></div>`;
+ if($('#pwcancel'))$('#pwcancel').onclick=()=>render();
+ $('#pwgo').onclick=async()=>{const m=$('#pwmsg'),a=$('#pw1').value,b=$('#pw2').value;m.className='msg err';
+  if(a.length<12)return m.textContent='Gebruik minimaal 12 tekens.';if(a!==b)return m.textContent='De wachtwoorden zijn niet gelijk.';
+  if(DEMO)return m.textContent='Demo: er wordt niets opgeslagen.';
+  $('#pwgo').disabled=true;m.className='msg';m.textContent='Bezig…';
+  try{const {error}=await client.auth.updateUser({password:a});if(error)throw error;S.pwDone=true;history.replaceState(null,'',location.pathname);m.className='msg ok';m.textContent='Wachtwoord opgeslagen. Voortaan log je in met e-mail en wachtwoord.';setTimeout(()=>{S.user=null;boot()},1200)}
+  catch(e){m.className='msg err';m.textContent=errText(e);$('#pwgo').disabled=false}};
+}
+if(client)client.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'){S.user=null;S.role=null;S.orgs=null;loginGate()}else if(ev==='PASSWORD_RECOVERY'){setTimeout(()=>passwordView(true),0)}else if(ev==='SIGNED_IN'&&!S.user&&!RECOVERY){setTimeout(boot,0)}});
 boot();
 </script>
 </body>
