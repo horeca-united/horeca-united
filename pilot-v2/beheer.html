@@ -158,6 +158,12 @@ function liveApi(){
   async setRole(user,role,scope,values,reason){return ok(await client.rpc('huos_staff_set_role',{p_user:user,p_role:role,p_scope:scope,p_scope_values:values,p_reason:reason}))},
   async revoke(user,reason){return ok(await client.rpc('huos_staff_revoke',{p_user:user,p_reason:reason}))},
   async exportLeads(){return ok(await client.rpc('huos_beer_export_leads',{p_stage:null}))},
+  async orgNotices(o){return ok(await client.from('huos_customer_notices').select('id,kind,source_key,title,body,personal_note,status,published_at,read_at').eq('organization_id',o).order('published_at',{ascending:false}).limit(200))},
+  async publishNotice(a){const {data,error}=await client.rpc('huos_notice_publish',a);if(error)throw error;return data},
+  async withdrawNotice(id){const {error}=await client.rpc('huos_notice_withdraw',{p_id:id});if(error)throw error},
+  async requests(){return ok(await client.from('huos_proposal_requests').select('id,organization_id,notice_id,contract_id,origin,subject,customer_message,status,created_at,updated_at').order('created_at',{ascending:false}).limit(500))},
+  async requestEvents(id){return ok(await client.from('huos_proposal_request_events').select('id,actor_role,event,from_status,to_status,note,created_at').eq('request_id',id).order('id'))},
+  async updateRequest(id,st,note){const {error}=await client.rpc('huos_request_update',{p_id:id,p_status:st,p_note:note});if(error)throw error},
   async recentDocs(){return ok(await client.from('huos_pilot_documents').select('id,organization_id,file_name,category,uploaded_at').order('uploaded_at',{ascending:false}).limit(100))},
   async orgs(){return ok(await client.from('huos_pilot_organizations').select('id,name,city,business_type,kvk_number,location_count').order('name'))},
   async costLines(o){return ok(await client.from('huos_cost_lines').select('*').eq('organization_id',o).order('period_end',{ascending:false}).limit(1000))},
@@ -202,6 +208,9 @@ function demoApi(){
   setStage:demoOnly,assign:demoOnly,addNote:demoOnly,verify:demoOnly,mandateDecide:demoOnly,setRole:demoOnly,revoke:demoOnly,
   async exportLeads(){return L},async signOut(){location.reload()},
   async orgs(){return [{id:'o1',name:'Restaurant Demozaak',city:'Arnhem',business_type:'restaurant',kvk_number:'12345678',location_count:1}]},
+  async orgNotices(){return []},publishNotice:demoOnly,withdrawNotice:demoOnly,updateRequest:demoOnly,
+  async requests(){return [{id:'rq1',organization_id:'o1',notice_id:null,contract_id:null,origin:'notice',subject:'Je kosten voor elektra zijn gestegen',customer_message:'Graag bellen na 14:00',status:'new',created_at:d(0),updated_at:d(0)}]},
+  async requestEvents(){return [{id:1,actor_role:'klant',event:'created',to_status:'new',note:'Graag bellen na 14:00',created_at:d(0)}]},
   async recentDocs(){return [{id:'dd1',organization_id:'o1',file_name:'factuur-afval-okt.pdf',category:'invoice',uploaded_at:d(0)}]},
   async costLines(){return DEMO_COST},async costCompare(){return DEMO_CMP},async orgDocs(){return [{id:'dd1',file_name:'factuur-afval-sept.pdf',category:'invoice',uploaded_at:d(20)}]},async orgContracts(){return []},
   addCost:demoOnly,updateCost:demoOnly,deleteCost:demoOnly,fileUrl:demoOnly
@@ -221,6 +230,7 @@ async function boot(){
   const row=await api.myStaffRow(S.user.id);S.scope=row?.scope||null;
   renderWho();
   try{S.recent=await api.recentDocs()||[]}catch(_){S.recent=[]}
+  try{S.requests=await api.requests()||[]}catch(_){S.requests=[]}
   const [leads,trans]=await Promise.all([api.leads(),api.transitions()]);
   S.leads=leads||[];S.transitions=trans||[];
   if(S.role==='admin'){try{S.staff=await api.staffList()||[]}catch(e){S.staff=[]}}
@@ -237,10 +247,11 @@ function renderWho(){
 }
 function render(){
  const nNew=newUploads().length;
- const tabs=[['leads','Leads'],['costs','Kosten'+(nNew?` <span class="badge">${nNew} nieuw</span>`:'')]].concat(S.role==='admin'?[['staff','Medewerkers'],['log','Logboek']]:[]);
+ const nReq=(S.requests||[]).filter(r=>r.status==='new').length;
+ const tabs=[['leads','Leads'],['costs','Kosten'+(nNew?` <span class="badge">${nNew} nieuw</span>`:'')],['requests','Aanvragen'+(nReq?` <span class="badge">${nReq} nieuw</span>`:'')]].concat(S.role==='admin'?[['staff','Medewerkers'],['log','Logboek']]:[]);
  $('#app').innerHTML=`<div class="tabs">${tabs.map(([k,v])=>`<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${v}</button>`).join('')}</div><div id="view"></div>`;
  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.sel=null;render()});
- if(S.tab==='leads')renderLeads();else if(S.tab==='costs')renderCosts();else if(S.tab==='staff')renderStaff();else renderLog();
+ if(S.tab==='leads')renderLeads();else if(S.tab==='costs')renderCosts();else if(S.tab==='requests')renderRequests();else if(S.tab==='staff')renderStaff();else renderLog();
 }
 
 /* ---------- Leads ---------- */
@@ -391,7 +402,8 @@ async function renderCosts(){
   if(!S.orgs.length){v.innerHTML='<h1>Kosten per bedrijf</h1><div class="card empty">Er zijn nog geen klantbedrijven waar jij toegang toe hebt.</div>';return}
   if(!S.costOrg||!S.orgs.find(o=>o.id===S.costOrg))S.costOrg=S.orgs[0].id;
   const o=S.costOrg;
-  const [lines,cmp,docs,cons]=await Promise.all([api.costLines(o),api.costCompare(o),api.orgDocs(o),api.orgContracts(o)]);
+  const [lines,cmp,docs,cons,notes]=await Promise.all([api.costLines(o),api.costCompare(o),api.orgDocs(o),api.orgContracts(o),api.orgNotices(o).catch(()=>[])]);
+  S.notices=notes||[];S.cmp=cmp||[];
   S.costLines=lines||[];S.costDocs=docs||[];
   const canEdit=S.role==='reviewer'||S.role==='admin';
   const recent=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
@@ -406,7 +418,7 @@ async function renderCosts(){
    <div class="stat"><span>Kostenregels</span><b>${S.costLines.length}</b><small>${rows.length} product(en) / leverancier(s)</small></div>
    <div class="stat"><span>Stijgingen</span><b>${sigs.length}</b><small>t.o.v. begin dit jaar, of anders de oudste factuur</small></div>
   </div>
-  <h3>Stijgingen</h3>${sigs.length?sigs.map(r=>`<div class="sig"><b>${esc(CCAT[r.category]||r.category)} · ${esc(r.supplier)}${r.product?' · '+esc(r.product):''}</b>${r.signal_reference==='year_start'?`${pctCell(r.pct_since_year_start)} sinds ${esc(fmtMonth(r.ytd_start))}`:`${pctCell(r.pct_since_oldest)} sinds ${esc(fmtMonth(r.oldest_start))}`} — <b style="display:inline">${eur(r.extra_per_month)}</b> per maand meer (≈ ${eur(Math.round(r.extra_per_month*12))} per jaar)${r.pct_since_oldest!=null&&r.oldest_start!==r.ytd_start?` · sinds ${esc(fmtMonth(r.oldest_start))}: ${pctCell(r.pct_since_oldest)}`:''}<span class="s hint">Nog niet zichtbaar voor de klant — goedkeuren en tonen komt in fase 2.</span></div>`).join(''):'<p class="hint">Nog geen stijgingen gevonden.</p>'}
+  <h3>Stijgingen</h3>${sigs.length?sigs.map(r=>`<div class="sig"><b>${esc(CCAT[r.category]||r.category)} · ${esc(r.supplier)}${r.product?' · '+esc(r.product):''}</b>${r.signal_reference==='year_start'?`${pctCell(r.pct_since_year_start)} sinds ${esc(fmtMonth(r.ytd_start))}`:`${pctCell(r.pct_since_oldest)} sinds ${esc(fmtMonth(r.oldest_start))}`} — <b style="display:inline">${eur(r.extra_per_month)}</b> per maand meer (≈ ${eur(Math.round(r.extra_per_month*12))} per jaar)${r.signal_reference==='year_start'&&r.pct_since_oldest!=null&&r.oldest_start!==r.ytd_start?` · sinds ${esc(fmtMonth(r.oldest_start))}: ${pctCell(r.pct_since_oldest)}`:''}${noticeControls(r,canEdit)}</div>`).join(''):'<p class="hint">Nog geen stijgingen gevonden.</p>'}
   <h3>Vergelijking per product</h3>
   <div class="card" style="overflow:auto"><table><thead><tr><th>Categorie</th><th>Leverancier / product</th><th>Laatste factuur</th><th class="num">Per maand</th><th class="num hide-m">Per eenheid</th><th class="num">t.o.v. begin jaar</th><th class="num">t.o.v. oudste</th><th class="num hide-m">t.o.v. vorige</th></tr></thead><tbody>
   ${rows.length?rows.map(r=>`<tr style="cursor:default"><td>${esc(CCAT[r.category]||r.category)}${r.is_signal?' '+chip(['Stijging','c-bad']):''}</td><td><b>${esc(r.supplier)}</b><span class="s">${[r.product?esc(r.product):'',r.n_lines+(r.n_lines==1?' factuur':' facturen')].filter(Boolean).join(' · ')}</span></td><td>${esc(fmtPeriod(r.latest_start,r.latest_end))}</td><td class="num">${eur(r.latest_monthly)}</td><td class="num hide-m">${r.latest_unit_price!=null?eur(r.latest_unit_price)+'<span class="s">per '+esc(r.latest_unit)+'</span>':'—'}</td><td class="num">${pctCell(r.pct_since_year_start,r.ytd_start)}</td><td class="num">${pctCell(r.pct_since_oldest,r.oldest_start)}</td><td class="num hide-m">${pctCell(r.pct_since_previous,r.prev_start)}</td></tr>`).join(''):'<tr><td colspan="8" class="empty">Nog geen kostenregels voor dit bedrijf.</td></tr>'}
@@ -427,6 +439,7 @@ async function renderCosts(){
 `;
   $('#corg').onchange=e=>{S.costOrg=e.target.value;S.costEdit=null;renderCosts()};
   document.querySelectorAll('[data-goorg]').forEach(a=>a.onclick=ev=>{ev.preventDefault();S.costOrg=a.dataset.goorg;S.costEdit=null;renderCosts()});
+  bindNoticeControls();
   if($('#seenall'))$('#seenall').onclick=()=>{try{localStorage.setItem(seenKey(),new Date().toISOString())}catch(_){}render()};
   document.querySelectorAll('[data-file]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();const d=S.costDocs.find(x=>x.id===a.dataset.file);if(!d)return;const w=window.open('','_blank');try{const u=await api.fileUrl(d.storage_path);if(w)w.location=u;else location.href=u}catch(e){if(w)w.close();alert('Openen mislukt: '+errText(e))}});
   if(!canEdit)return;
@@ -461,6 +474,70 @@ async function saveCost(){
 }
 
 
+
+
+/* ---------- Meldingen aan de klant (vanuit een stijging) ---------- */
+const fmtMonthLong=d=>d?new Date(d+'T12:00:00').toLocaleDateString('nl-NL',{month:'long',year:'numeric'}):'';
+function noticeFor(r){return (S.notices||[]).find(n=>n.status==='published'&&n.source_key==='cost:'+r.latest_id)}
+function defaultNotice(r){
+ const pct=r.signal_reference==='year_start'?r.pct_since_year_start:r.pct_since_oldest,since=r.signal_reference==='year_start'?r.ytd_start:r.oldest_start;
+ const p=Number(pct).toLocaleString('nl-NL',{minimumFractionDigits:1,maximumFractionDigits:1});
+ return {title:`Je kosten voor ${(CCAT[r.category]||r.category).toLowerCase()} zijn gestegen`,
+  body:`${r.supplier}${r.product?' · '+r.product:''}\n+${p}% sinds ${fmtMonthLong(since)} — ongeveer ${eur(Math.round(r.extra_per_month*12)).replace(',00','')} per jaar meer.\nWil je dat we voor je kijken of dit voordeliger kan?`,pct,since}}
+function noticeControls(r,canEdit){
+ const n=noticeFor(r);
+ if(n)return `<span class="s">✓ Getoond aan klant op ${esc(fmtDT(n.published_at))} · ${n.read_at?'gelezen '+esc(fmtDT(n.read_at)):'nog niet gelezen'}${canEdit?` · <a href="#" data-nwd="${esc(n.id)}">intrekken</a>`:''}</span>`;
+ if(!canEdit)return '<span class="s hint">Nog niet getoond aan de klant.</span>';
+ return `<span class="s"><button class="btn small" data-npub="${esc(r.latest_id)}">Tonen aan klant…</button></span><div class="neditor" id="ne_${esc(r.latest_id)}" hidden></div>`}
+function bindNoticeControls(){
+ document.querySelectorAll('[data-npub]').forEach(b=>b.onclick=()=>{const r=(S.cmp||[]).find(x=>x.latest_id===b.dataset.npub);if(!r)return;const d=defaultNotice(r),box=$('#ne_'+CSS.escape(r.latest_id));
+  box.hidden=false;b.hidden=true;
+  box.innerHTML=`<div class="form" style="margin-top:10px"><label class="hint">Titel<input class="nt" maxlength="140" value="${esc(d.title)}"></label><label class="hint">Tekst<textarea class="nb" rows="4" maxlength="1500">${esc(d.body)}</textarea></label><label class="hint">Persoonlijke noot (optioneel)<textarea class="nn" rows="2" maxlength="1000" placeholder="Bijvoorbeeld: Ik kijk graag met je mee. – Hui"></textarea></label><div class="row" style="flex:none"><button class="btn primary ngo">Publiceren bij klant</button><button class="btn ncancel">Annuleren</button></div><div class="msg nmsg"></div><span class="hint">De klant ziet dit bij Meldingen, met de knoppen "Stuur mij een voorstel" en "Upload je nieuwste factuur".</span></div>`;
+  box.querySelector('.ncancel').onclick=()=>{box.hidden=true;box.innerHTML='';b.hidden=false};
+  box.querySelector('.ngo').onclick=async()=>{const m=box.querySelector('.nmsg'),t=box.querySelector('.nt').value.trim(),bd=box.querySelector('.nb').value.trim(),nt=box.querySelector('.nn').value.trim();
+   if(t.length<3||bd.length<3){m.className='msg nmsg err';m.textContent='Vul een titel en tekst in.';return}
+   const go=box.querySelector('.ngo');go.disabled=true;m.className='msg nmsg';m.textContent='Bezig…';
+   try{await api.publishNotice({p_org:S.costOrg,p_kind:'cost_increase',p_source_key:'cost:'+r.latest_id,p_source:{category:r.category,supplier:r.supplier,product:r.product,pct:d.pct,since:d.since,extra_per_month:r.extra_per_month,reference:r.signal_reference},p_title:t,p_body:bd,p_note:nt||null,p_cta:'proposal'});await renderCosts()}
+   catch(e){m.className='msg nmsg err';m.textContent=errText(e);go.disabled=false}};
+ });
+ document.querySelectorAll('[data-nwd]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();if(!confirm('Deze melding intrekken? De klant ziet hem dan niet meer. Een eventuele aanvraag blijft bestaan.'))return;try{await api.withdrawNotice(a.dataset.nwd);await renderCosts()}catch(e){alert(errText(e))}});
+}
+
+/* ---------- Aanvragen ("Stuur mij een voorstel") ---------- */
+const REQ_ST={new:['Nieuw','c-bad'],in_progress:['In behandeling','c-info'],proposal_sent:['Voorstel verstuurd','c-ok'],closed:['Afgerond','c-grey']};
+const REQ_ORIGIN={notice:'Melding',contract:'Contract',general:'Algemeen'};
+async function renderRequests(){
+ const v=$('#view');v.innerHTML='<p class="hint">Laden…</p>';
+ try{
+  if(!S.orgs)S.orgs=await api.orgs()||[];
+  S.requests=await api.requests()||[];
+  const canEdit=S.role==='reviewer'||S.role==='admin',f=S.reqFilter||'open';
+  const name=id=>(S.orgs.find(o=>o.id===id)||{}).name||'Onbekend bedrijf';
+  const list=S.requests.filter(r=>f==='all'||r.status!=='closed');
+  const cnt=k=>S.requests.filter(r=>r.status===k).length;
+  v.innerHTML=`<h1>Aanvragen</h1><p class="sub">Alle keren dat een klant op "Stuur mij een voorstel" klikte — vanuit een melding of een contract.</p>
+  <div class="stats"><div class="stat"><span>Nieuw</span><b>${cnt('new')}</b><small>nog niet opgepakt</small></div><div class="stat"><span>In behandeling</span><b>${cnt('in_progress')}</b><small>&nbsp;</small></div><div class="stat"><span>Voorstel verstuurd</span><b>${cnt('proposal_sent')}</b><small>&nbsp;</small></div></div>
+  <div class="orgpick"><select id="rqf"><option value="open" ${f==='open'?'selected':''}>Openstaand</option><option value="all" ${f==='all'?'selected':''}>Alles, ook afgerond</option></select></div>
+  <div class="card" style="overflow:auto"><table><thead><tr><th>Datum</th><th>Bedrijf</th><th>Onderwerp</th><th>Status</th></tr></thead><tbody>
+  ${list.length?list.map(r=>`<tr data-rq="${esc(r.id)}"><td>${esc(fmtDT(r.created_at))}</td><td><b>${esc(name(r.organization_id))}</b></td><td>${esc(r.subject)}<span class="s">${esc(REQ_ORIGIN[r.origin]||r.origin)}${r.customer_message?' · “'+esc(r.customer_message)+'”':''}</span></td><td>${chip(REQ_ST[r.status]||[r.status,'c-grey'])}</td></tr>
+   <tr class="rqd" id="rqd_${esc(r.id)}" hidden><td colspan="4"></td></tr>`).join(''):'<tr><td colspan="4" class="empty">Geen aanvragen.</td></tr>'}
+  </tbody></table></div>`;
+  $('#rqf').onchange=e=>{S.reqFilter=e.target.value;renderRequests()};
+  document.querySelectorAll('[data-rq]').forEach(tr=>tr.onclick=()=>openRequest(tr.dataset.rq,canEdit));
+  if(S.reqOpen)openRequest(S.reqOpen,canEdit,true);
+ }catch(e){v.innerHTML=`<h1>Aanvragen</h1><p class="msg err">${esc(errText(e))}</p>`}
+}
+async function openRequest(id,canEdit,keep){
+ const row=$('#rqd_'+CSS.escape(id));if(!row)return;if(!row.hidden&&!keep){row.hidden=true;S.reqOpen=null;return}
+ S.reqOpen=id;row.hidden=false;const td=row.firstElementChild;td.innerHTML='<p class="hint">Laden…</p>';
+ const r=S.requests.find(x=>x.id===id);
+ try{const ev=await api.requestEvents(id)||[];
+  td.innerHTML=`<div style="padding:6px 4px 12px"><ul class="timeline">${ev.map(e=>`<li><span>${esc(fmtDT(e.created_at))} · ${esc(e.actor_role==='klant'?'Klant':(ROLE[e.actor_role]||e.actor_role||''))}</span>${e.event==='created'?'Aanvraag ingediend':e.event==='status'?`Status: ${esc((REQ_ST[e.from_status]||[e.from_status])[0])} → <b>${esc((REQ_ST[e.to_status]||[e.to_status])[0])}</b>`:'Notitie'}${e.note?`<div class="s">${esc(e.note)}</div>`:''}</li>`).join('')}</ul>
+  ${canEdit?`<div class="form"><div class="row"><select id="rqs">${Object.entries(REQ_ST).map(([k,[l]])=>`<option value="${k}" ${r.status===k?'selected':''}>${esc(l)}</option>`).join('')}</select><input id="rqn" maxlength="2000" placeholder="Notitie (optioneel, alleen intern zichtbaar)"></div><div class="row" style="flex:none"><button class="btn primary" id="rqgo">Opslaan</button></div><div class="msg" id="rqmsg"></div><span class="hint">De klant ziet alleen de status (Ontvangen, In behandeling, Voorstel verstuurd, Afgerond), niet je notities.</span></div>`:''}</div>`;
+  if(canEdit)$('#rqgo').onclick=async()=>{const st=$('#rqs').value,nt=$('#rqn').value.trim(),m=$('#rqmsg');if(st===r.status&&!nt){m.className='msg err';m.textContent='Wijzig de status of vul een notitie in.';return}
+   $('#rqgo').disabled=true;try{await api.updateRequest(id,st===r.status?null:st,nt||null);S.requests=await api.requests()||S.requests;render()}catch(e){m.className='msg err';m.textContent=errText(e);$('#rqgo').disabled=false}};
+ }catch(e){td.innerHTML=`<p class="msg err">${esc(errText(e))}</p>`}
+}
 
 /* ---------- Nieuwe uploads van klanten (sinds je laatste controle, per medewerker in deze browser) ---------- */
 function seenKey(){return 'huos-beheer-seen-'+(S.user?.id||'')}
