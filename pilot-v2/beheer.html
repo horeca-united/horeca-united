@@ -61,6 +61,9 @@ td .s{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .note{padding:9px 0;border-bottom:1px solid #eef2ee;font-size:13px;white-space:pre-wrap}.note span{display:block;color:var(--muted);font-size:11px;margin-bottom:3px}
 .gate{max-width:520px;margin:60px auto;text-align:center;padding:34px}.gate p{color:var(--muted);line-height:1.6}
 .hint{font-size:12px;color:var(--muted)}
+.num{text-align:right;white-space:nowrap}.pct-up{color:var(--bad);font-weight:600}.pct-mid{color:var(--warn);font-weight:600}.pct-down{color:var(--ok);font-weight:600}
+.sig{border-left:3px solid var(--bad);background:#fff;padding:10px 14px;border-radius:10px;margin:8px 0;font-size:13px}.sig b{display:block;margin-bottom:2px}.sig .s{display:block;margin-top:4px}.form label.hint{display:flex;flex-direction:column;gap:4px}.form label.hint input{width:100%}.orgpick select{padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font:inherit}
+.orgpick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 16px}.orgpick select{min-width:280px}
 @media(max-width:1100px){.layout.open{grid-template-columns:1fr}.detail{position:static;max-height:none}}
 @media(max-width:700px){.hide-m{display:none}.filters input{min-width:0;flex:1}}
 </style>
@@ -152,6 +155,15 @@ function liveApi(){
   async setRole(user,role,scope,values,reason){return ok(await client.rpc('huos_staff_set_role',{p_user:user,p_role:role,p_scope:scope,p_scope_values:values,p_reason:reason}))},
   async revoke(user,reason){return ok(await client.rpc('huos_staff_revoke',{p_user:user,p_reason:reason}))},
   async exportLeads(){return ok(await client.rpc('huos_beer_export_leads',{p_stage:null}))},
+  async orgs(){return ok(await client.from('huos_pilot_organizations').select('id,name,city,business_type,kvk_number,location_count').order('name'))},
+  async costLines(o){return ok(await client.from('huos_cost_lines').select('*').eq('organization_id',o).order('period_end',{ascending:false}).limit(1000))},
+  async costCompare(o){return ok(await client.from('huos_cost_comparison').select('*').eq('organization_id',o))},
+  async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
+  async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,end_date').eq('organization_id',o).limit(300))},
+  async addCost(row){return ok(await client.from('huos_cost_lines').insert(row).select('id').single())},
+  async updateCost(id,row){const r=ok(await client.from('huos_cost_lines').update(row).eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet bijgewerkt (geen rechten?)');return r},
+  async deleteCost(id){const r=ok(await client.from('huos_cost_lines').delete().eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet verwijderd (geen rechten?)');return r},
+  async fileUrl(path){const {data,error}=await client.storage.from('huos-pilot-private').createSignedUrl(path,120);if(error)throw error;return data.signedUrl},
   async signOut(){await client.auth.signOut()}
  };
 }
@@ -184,7 +196,10 @@ function demoApi(){
   async staffAudit(){return [{created_at:d(0),action:'granted',target_user:me,actor_kind:'database',new_value:{role:'admin',scope:'all'},reason:'Eerste hoofdbeheerder (demo)'}]},
   async allEvents(){return ev('l2')},
   setStage:demoOnly,assign:demoOnly,addNote:demoOnly,verify:demoOnly,mandateDecide:demoOnly,setRole:demoOnly,revoke:demoOnly,
-  async exportLeads(){return L},async signOut(){location.reload()}
+  async exportLeads(){return L},async signOut(){location.reload()},
+  async orgs(){return [{id:'o1',name:'Restaurant Demozaak',city:'Arnhem',business_type:'restaurant',kvk_number:'12345678',location_count:1}]},
+  async costLines(){return DEMO_COST},async costCompare(){return DEMO_CMP},async orgDocs(){return [{id:'dd1',file_name:'factuur-afval-sept.pdf',category:'invoice',uploaded_at:d(20)}]},async orgContracts(){return []},
+  addCost:demoOnly,updateCost:demoOnly,deleteCost:demoOnly,fileUrl:demoOnly
  };
 }
 
@@ -212,10 +227,10 @@ function renderWho(){
  $('#logout').onclick=async()=>{await api.signOut();location.href='./'};
 }
 function render(){
- const tabs=[['leads','Leads']].concat(S.role==='admin'?[['staff','Medewerkers'],['log','Logboek']]:[]);
+ const tabs=[['leads','Leads'],['costs','Kosten']].concat(S.role==='admin'?[['staff','Medewerkers'],['log','Logboek']]:[]);
  $('#app').innerHTML=`<div class="tabs">${tabs.map(([k,v])=>`<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${v}</button>`).join('')}</div><div id="view"></div>`;
  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.sel=null;render()});
- if(S.tab==='leads')renderLeads();else if(S.tab==='staff')renderStaff();else renderLog();
+ if(S.tab==='leads')renderLeads();else if(S.tab==='costs')renderCosts();else if(S.tab==='staff')renderStaff();else renderLog();
 }
 
 /* ---------- Leads ---------- */
@@ -339,6 +354,94 @@ async function doExport(){
   const csv='﻿'+cols.join(';')+'\n'+rows.map(r=>cols.map(c=>cell(r[c])).join(';')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='huos-bier-leads-'+new Date().toISOString().slice(0,10)+'.csv';a.click();
  }catch(e){alert(errText(e))}
+}
+
+
+/* ---------- Kosten (intern; niet zichtbaar voor de ondernemer) ---------- */
+const CCAT={bier:'Bier',frisdrank:'Frisdrank',wijn:'Wijn',gedistilleerd:'Gedistilleerd',food:'Vlees / food',groothandel:'Groothandel',elektra:'Elektra',gas:'Gas',water:'Water',afval:'Afval & milieu',verzekeringen:'Verzekeringen',telecom:'Telecom & internet',muziekrechten:'Muziekrechten',betaalverkeer:'Betaalverkeer / pin',schoonmaak:'Schoonmaak',huur:'Huur',overig:'Overig'};
+const DEMO_COST=[
+ {id:'k3',category:'afval',supplier:'Renewi',product:'Restafval 240L',period_start:'2026-09-01',period_end:'2026-09-30',amount_excl_vat:168,quantity:4,unit:'lediging',monthly_amount:170.45,unit_price:42,document_id:'dd1',invoice_number:'R-2026-0912',note:null},
+ {id:'k2',category:'afval',supplier:'Renewi',product:'Restafval 240L',period_start:'2026-01-01',period_end:'2026-01-30',amount_excl_vat:140,quantity:4,unit:'lediging',monthly_amount:142.04,unit_price:35,document_id:null,note:null},
+ {id:'k1',category:'afval',supplier:'Renewi',product:'Restafval 240L',period_start:'2024-01-01',period_end:'2024-03-31',amount_excl_vat:390,quantity:13,unit:'lediging',monthly_amount:130.44,unit_price:30,document_id:null,note:'Oude factuur, later aangeleverd'},
+ {id:'k5',category:'elektra',supplier:'Vattenfall',product:null,period_start:'2026-10-01',period_end:'2026-10-31',amount_excl_vat:1000,quantity:null,unit:null,monthly_amount:981.85,unit_price:null,document_id:null,note:null},
+ {id:'k4',category:'elektra',supplier:'Vattenfall',product:null,period_start:'2026-01-01',period_end:'2026-01-31',amount_excl_vat:800,quantity:null,unit:null,monthly_amount:785.48,unit_price:null,document_id:null,note:null}];
+const DEMO_CMP=[
+ {category:'afval',supplier:'Renewi',product:'Restafval 240L',n_lines:3,latest_start:'2026-09-01',latest_end:'2026-09-30',latest_monthly:170.45,latest_unit_price:42,latest_unit:'lediging',ytd_start:'2026-01-01',oldest_start:'2024-01-01',prev_start:'2026-01-01',pct_since_year_start:20,basis_year_start:'unit_price',pct_since_oldest:40,pct_since_previous:20,signal_reference:'year_start',extra_per_month:28.41,is_signal:false},
+ {category:'elektra',supplier:'Vattenfall',product:null,n_lines:2,latest_start:'2026-10-01',latest_end:'2026-10-31',latest_monthly:981.85,latest_unit_price:null,latest_unit:null,ytd_start:'2026-01-01',oldest_start:'2026-01-01',prev_start:'2026-01-01',pct_since_year_start:25,basis_year_start:'monthly',pct_since_oldest:25,pct_since_previous:25,signal_reference:'year_start',extra_per_month:196.37,is_signal:true}];
+const eur=n=>n==null||n===''?'—':Number(n).toLocaleString('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:2});
+const fmtMonth=d=>d?new Date(d+'T12:00:00').toLocaleDateString('nl-NL',{month:'short',year:'numeric'}):'—';
+const fmtPeriod=(a,b)=>a?(a.slice(0,7)===b.slice(0,7)?fmtMonth(a):fmtDate(a)+' – '+fmtDate(b)):'—';
+function pctCell(p,since){if(p==null)return '<span class="hint">—</span>';const n=Number(p),cls=n>=10?'pct-up':n>0?'pct-mid':'pct-down';return `<span class="${cls}">${n>0?'+':''}${n.toLocaleString('nl-NL',{maximumFractionDigits:1})}%</span>${since?`<span class="s">sinds ${esc(fmtMonth(since))}</span>`:''}`}
+function costKey(r){return [r.category,r.supplier,r.product||''].join(' · ')}
+async function renderCosts(){
+ const v=$('#view');v.innerHTML='<p class="hint">Laden…</p>';
+ try{
+  if(!S.orgs)S.orgs=await api.orgs()||[];
+  if(!S.orgs.length){v.innerHTML='<h1>Kosten per bedrijf</h1><div class="card empty">Er zijn nog geen klantbedrijven waar jij toegang toe hebt.</div>';return}
+  if(!S.costOrg||!S.orgs.find(o=>o.id===S.costOrg))S.costOrg=S.orgs[0].id;
+  const o=S.costOrg;
+  const [lines,cmp,docs,cons]=await Promise.all([api.costLines(o),api.costCompare(o),api.orgDocs(o),api.orgContracts(o)]);
+  S.costLines=lines||[];S.costDocs=docs||[];
+  const canEdit=S.role==='reviewer'||S.role==='admin';
+  const recent=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
+  const perYear=recent.reduce((a,r)=>a+Number(r.latest_monthly||0)*12,0);
+  const sigs=(cmp||[]).filter(r=>r.is_signal).sort((a,b)=>b.extra_per_month-a.extra_per_month);
+  const rows=(cmp||[]).slice().sort((a,b)=>(CCAT[a.category]||'').localeCompare(CCAT[b.category]||'')||a.supplier.localeCompare(b.supplier));
+  const docName=id=>(S.costDocs.find(d=>d.id===id)||{}).file_name;
+  v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="sub">Intern — de ondernemer ziet dit overzicht niet. Alle bedragen excl. btw. Elke nieuwe factuur wordt vergeleken met de eerste factuur van dat jaar, de oudste factuur en de vorige factuur.</p>
+  <div class="orgpick"><select id="corg">${S.orgs.map(x=>`<option value="${esc(x.id)}" ${x.id===o?'selected':''}>${esc(x.name)}${x.city?' — '+esc(x.city):''}</option>`).join('')}</select><span class="hint">${S.costDocs.length} document(en) aangeleverd</span></div>
+  <div class="stats">
+   <div class="stat"><span>Vaste kosten per jaar</span><b>${eur(Math.round(perYear))}</b><small>geschat uit de laatste facturen (≤ 13 mnd oud)</small></div>
+   <div class="stat"><span>Kostenregels</span><b>${S.costLines.length}</b><small>${rows.length} product(en) / leverancier(s)</small></div>
+   <div class="stat"><span>Signalen</span><b>${sigs.length}</b><small>≥ 10% gestegen én ≥ € 50 per maand</small></div>
+  </div>
+  <h3>Signalen</h3>${sigs.length?sigs.map(r=>`<div class="sig"><b>${esc(CCAT[r.category]||r.category)} · ${esc(r.supplier)}${r.product?' · '+esc(r.product):''}</b>${r.signal_reference==='year_start'?`${pctCell(r.pct_since_year_start)} sinds ${esc(fmtMonth(r.ytd_start))}`:`${pctCell(r.pct_since_oldest)} sinds ${esc(fmtMonth(r.oldest_start))}`} — ongeveer <b style="display:inline">${eur(r.extra_per_month)}</b> per maand meer${r.pct_since_oldest!=null&&r.oldest_start!==r.ytd_start?` · sinds ${esc(fmtMonth(r.oldest_start))}: ${pctCell(r.pct_since_oldest)}`:''}<span class="s hint">Nog niet zichtbaar voor de klant — goedkeuren en tonen komt in fase 2.</span></div>`).join(''):'<p class="hint">Geen signalen boven de drempel.</p>'}
+  <h3>Vergelijking per product</h3>
+  <div class="card" style="overflow:auto"><table><thead><tr><th>Categorie</th><th>Leverancier / product</th><th>Laatste factuur</th><th class="num">Per maand</th><th class="num hide-m">Per eenheid</th><th class="num">t.o.v. begin jaar</th><th class="num">t.o.v. oudste</th><th class="num hide-m">t.o.v. vorige</th></tr></thead><tbody>
+  ${rows.length?rows.map(r=>`<tr style="cursor:default"><td>${esc(CCAT[r.category]||r.category)}${r.is_signal?' '+chip(['Signaal','c-bad']):''}</td><td><b>${esc(r.supplier)}</b><span class="s">${[r.product?esc(r.product):'',r.n_lines+(r.n_lines==1?' factuur':' facturen')].filter(Boolean).join(' · ')}</span></td><td>${esc(fmtPeriod(r.latest_start,r.latest_end))}</td><td class="num">${eur(r.latest_monthly)}</td><td class="num hide-m">${r.latest_unit_price!=null?eur(r.latest_unit_price)+'<span class="s">per '+esc(r.latest_unit)+'</span>':'—'}</td><td class="num">${pctCell(r.pct_since_year_start,r.ytd_start)}</td><td class="num">${pctCell(r.pct_since_oldest,r.oldest_start)}</td><td class="num hide-m">${pctCell(r.pct_since_previous,r.prev_start)}</td></tr>`).join(''):'<tr><td colspan="8" class="empty">Nog geen kostenregels voor dit bedrijf.</td></tr>'}
+  </tbody></table></div>
+  <p class="hint">Vergelijking op prijs per eenheid als beide facturen dezelfde eenheid hebben (bijv. per lediging); anders op bedrag per maand. Een stijging door méér volume telt dan niet als prijsstijging.</p>
+  ${canEdit?`<h3 id="cformh">Kostenregel toevoegen</h3><div class="card" style="padding:16px"><div class="form" id="cform">
+   <div class="row"><select id="ccat">${Object.entries(CCAT).map(([k,x])=>`<option value="${k}">${esc(x)}</option>`).join('')}</select><input id="csup" maxlength="120" placeholder="Leverancier *"><input id="cprod" maxlength="160" placeholder="Product / dienst (bijv. restafval 240L)"></div>
+   <div class="row"><label class="hint">Periode van *<input id="cfrom" type="date"></label><label class="hint">t/m *<input id="cto" type="date"></label><label class="hint">Factuurdatum<input id="cidate" type="date"></label><label class="hint">Factuurnummer<input id="cinr" maxlength="60"></label></div>
+   <div class="row"><label class="hint">Bedrag excl. btw (€) *<input id="camt" type="number" min="0" step="0.01"></label><label class="hint">Aantal<input id="cqty" type="number" min="0" step="any" placeholder="bijv. 4"></label><label class="hint">Eenheid<input id="cunit" maxlength="40" placeholder="bijv. lediging, fust, kWh"></label></div>
+   <div class="row"><select id="cdoc"><option value="">Geen factuur gekoppeld</option>${S.costDocs.map(d=>`<option value="${esc(d.id)}">${esc(d.file_name)} (${esc(fmtDate(d.uploaded_at))})</option>`).join('')}</select><select id="ccon"><option value="">Geen contract gekoppeld</option>${(cons||[]).map(c=>`<option value="${esc(c.id)}">${esc(c.supplier)} — ${esc(c.description||c.category)}</option>`).join('')}</select></div>
+   <input id="cnote" maxlength="1000" placeholder="Notitie (optioneel)">
+   <div class="row" style="flex:none"><button class="btn primary" id="cgo">Opslaan</button><button class="btn" id="ccancel" hidden>Annuleren</button></div><div class="msg" id="cmsg"></div>
+  </div></div>`:''}
+  <h3>Alle kostenregels</h3><div class="card" style="overflow:auto"><table><thead><tr><th>Periode</th><th>Categorie</th><th>Leverancier / product</th><th class="num">Bedrag</th><th class="num hide-m">Aantal</th><th class="hide-m">Factuur</th><th></th></tr></thead><tbody>
+  ${S.costLines.length?S.costLines.map(l=>`<tr style="cursor:default"><td>${esc(fmtPeriod(l.period_start,l.period_end))}</td><td>${esc(CCAT[l.category]||l.category)}</td><td><b>${esc(l.supplier)}</b><span class="s">${esc(l.product||'')}${l.note?' · '+esc(l.note):''}</span></td><td class="num">${eur(l.amount_excl_vat)}<span class="s">${eur(l.monthly_amount)} p/m</span></td><td class="num hide-m">${l.quantity!=null?esc(Number(l.quantity).toLocaleString('nl-NL'))+' '+esc(l.unit):'—'}</td><td class="hide-m">${l.document_id&&docName(l.document_id)?`<a href="#" data-file="${esc(l.document_id)}">${esc(docName(l.document_id))}</a>`:(l.invoice_number?esc(l.invoice_number):'—')}</td><td>${canEdit?`<button class="btn small" data-cedit="${esc(l.id)}">Wijzig</button> <button class="btn small" data-cdel="${esc(l.id)}">Verwijder</button>`:''}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Nog geen kostenregels.</td></tr>'}
+  </tbody></table></div>
+  <h3>Aangeleverde documenten</h3><div class="card"><ul class="timeline" style="padding:0 16px">${S.costDocs.map(d=>`<li><span>${esc(fmtDT(d.uploaded_at))} · ${esc(d.category||'')}</span><a href="#" data-file="${esc(d.id)}">${esc(d.file_name)}</a></li>`).join('')||'<li>Nog geen documenten aangeleverd door de klant.</li>'}</ul></div>`;
+  $('#corg').onchange=e=>{S.costOrg=e.target.value;S.costEdit=null;renderCosts()};
+  document.querySelectorAll('[data-file]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();const d=S.costDocs.find(x=>x.id===a.dataset.file);if(!d)return;const w=window.open('','_blank');try{const u=await api.fileUrl(d.storage_path);if(w)w.location=u;else location.href=u}catch(e){if(w)w.close();alert('Openen mislukt: '+errText(e))}});
+  if(!canEdit)return;
+  document.querySelectorAll('[data-cdel]').forEach(b=>b.onclick=async()=>{if(!confirm('Deze kostenregel verwijderen? Dit wordt in het logboek vastgelegd.'))return;try{await api.deleteCost(b.dataset.cdel);renderCosts()}catch(e){alert(errText(e))}});
+  document.querySelectorAll('[data-cedit]').forEach(b=>b.onclick=()=>fillCostForm(S.costLines.find(l=>l.id===b.dataset.cedit)));
+  $('#ccancel').onclick=()=>{S.costEdit=null;renderCosts()};
+  $('#cgo').onclick=saveCost;
+  if(S.costEdit)fillCostForm(S.costLines.find(l=>l.id===S.costEdit));
+ }catch(e){v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="msg err">${esc(errText(e))}</p>`}
+}
+function fillCostForm(l){if(!l)return;S.costEdit=l.id;
+ const set=(id,val)=>{$(id).value=val??''};
+ set('#ccat',l.category);set('#csup',l.supplier);set('#cprod',l.product);set('#cfrom',l.period_start);set('#cto',l.period_end);set('#cidate',l.invoice_date);set('#cinr',l.invoice_number);set('#camt',l.amount_excl_vat);set('#cqty',l.quantity);set('#cunit',l.unit);set('#cdoc',l.document_id);set('#ccon',l.contract_id);set('#cnote',l.note);
+ $('#cformh').textContent='Kostenregel wijzigen';$('#cgo').textContent='Wijziging opslaan';$('#ccancel').hidden=false;$('#cformh').scrollIntoView({behavior:'smooth'})}
+async function saveCost(){
+ const m=$('#cmsg'),b=$('#cgo');m.className='msg';
+ const val=id=>$(id).value.trim();
+ try{
+  const sup=val('#csup'),from=val('#cfrom'),to=val('#cto'),amt=val('#camt'),qty=val('#cqty'),unit=val('#cunit');
+  if(sup.length<2)throw new Error('Vul de leverancier in.');
+  if(!from||!to)throw new Error('Vul de periode van en t/m in.');
+  if(to<from)throw new Error('De einddatum ligt vóór de begindatum.');
+  if(amt===''||Number(amt)<0)throw new Error('Vul het bedrag excl. btw in.');
+  if((qty==='')!==(unit===''))throw new Error('Vul aantal én eenheid in, of laat beide leeg.');
+  const row={category:$('#ccat').value,supplier:sup,product:val('#cprod')||null,period_start:from,period_end:to,invoice_date:val('#cidate')||null,invoice_number:val('#cinr')||null,amount_excl_vat:Number(amt),quantity:qty===''?null:Number(qty),unit:unit||null,document_id:$('#cdoc').value||null,contract_id:$('#ccon').value||null,note:val('#cnote')||null};
+  b.disabled=true;m.textContent='Bezig…';
+  if(S.costEdit)await api.updateCost(S.costEdit,row);else await api.addCost({...row,organization_id:S.costOrg});
+  S.costEdit=null;await renderCosts();const m2=$('#cmsg');if(m2){m2.className='msg ok';m2.textContent='Opgeslagen.'}
+ }catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}
 }
 
 /* ---------- Medewerkers ---------- */
