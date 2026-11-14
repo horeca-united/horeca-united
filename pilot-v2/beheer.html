@@ -89,7 +89,9 @@ const KEY_SUPABASE='sb_publishable_QDvjBPDGIgrQNcSzEw2FZg_Yj6hfIgY';
 const params=new URLSearchParams(location.search);
 const LIVE_HOST=/(^|\.)vercel\.app$/.test(location.hostname)||location.hostname==='localhost';
 const DEMO=params.has('demo')||!LIVE_HOST;
-const client=(!DEMO&&window.supabase)?window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE):null;
+const client=(!DEMO&&window.supabase)?window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE,{auth:{storageKey:'huos-beheer-auth',persistSession:true,detectSessionInUrl:true}}):null;
+/* Eigen sessie, los van de klantomgeving: medewerker en testklant kunnen tegelijk ingelogd zijn in dezelfde browser. */
+const AUTH_REDIRECT='https://huos-v2-prive-pilot.vercel.app/';
 
 const STAGES={new:'Nieuw',contact_needed:'Contact nodig',awaiting_upload:'Wacht op documenten',mandate_pending:'Machtiging in afwachting',document_received:'Document ontvangen',review_needed:'Beoordeling nodig',ready_for_offer:'Klaar voor voorstel',offer_sent:'Voorstel verstuurd',customer:'Klant',closed:'Afgesloten'};
 const STAGE_CLS={new:'c-info',contact_needed:'c-warn',awaiting_upload:'c-warn',mandate_pending:'c-warn',document_received:'c-info',review_needed:'c-info',ready_for_offer:'c-ok',offer_sent:'c-ok',customer:'c-ok',closed:'c-grey'};
@@ -164,7 +166,7 @@ function liveApi(){
   async updateCost(id,row){const r=ok(await client.from('huos_cost_lines').update(row).eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet bijgewerkt (geen rechten?)');return r},
   async deleteCost(id){const r=ok(await client.from('huos_cost_lines').delete().eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet verwijderd (geen rechten?)');return r},
   async fileUrl(path){const {data,error}=await client.storage.from('huos-pilot-private').createSignedUrl(path,120);if(error)throw error;return data.signedUrl},
-  async signOut(){await client.auth.signOut()}
+  async signOut(){await client.auth.signOut({scope:'local'})}
  };
 }
 function demoApi(){
@@ -208,7 +210,8 @@ async function boot(){
  if(DEMO)$('#demoBanner').hidden=false;
  try{
   S.user=await api.session();
-  if(!S.user)return gate('Log eerst in','Je bent niet ingelogd. Log in via de pilot met je zakelijke e-mailadres en open daarna dit beheerscherm opnieuw.',true);
+  if(!S.user)return loginGate();
+  if(false)return gate('Log eerst in','Je bent niet ingelogd. Log in via de pilot met je zakelijke e-mailadres en open daarna dit beheerscherm opnieuw.',true);
   S.role=await api.myRole();
   if(!S.role){renderWho();return gate('Geen toegang','Dit account heeft geen interne rol bij Horeca United. Neem contact op met een beheerder als je denkt dat dit niet klopt.',false)}
   const row=await api.myStaffRow(S.user.id);S.scope=row?.scope||null;
@@ -224,7 +227,7 @@ function gate(title,text,login){
 }
 function renderWho(){
  $('#who').innerHTML=`<span class="hide-m">${esc(S.user?.email||'')}</span> ${S.role?`<span class="role">${esc(ROLE[S.role]||S.role)}</span>`:''} <button class="btn small" id="logout">Uitloggen</button>`;
- $('#logout').onclick=async()=>{await api.signOut();location.href='./'};
+ $('#logout').onclick=async()=>{await api.signOut();if(DEMO)location.reload()};
 }
 function render(){
  const tabs=[['leads','Leads'],['costs','Kosten']].concat(S.role==='admin'?[['staff','Medewerkers'],['log','Logboek']]:[]);
@@ -473,7 +476,19 @@ async function renderLog(){
  }catch(e){$('#view').innerHTML=`<p class="msg err">${esc(errText(e))}</p>`}
 }
 
-if(client)client.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT')location.href='./'});
+function loginGate(msg){
+ $('#who').innerHTML='';
+ $('#app').innerHTML=`<div class="gate card"><h1>Inloggen beheer</h1><p>Log in met je zakelijke e-mailadres van Horeca United. Deze inlog staat los van de klantomgeving: je kunt in een ander tabblad als testklant ingelogd blijven.</p>
+ <div class="form" style="text-align:left"><input id="lemail" type="email" autocomplete="email" placeholder="naam@horecaunited.nl"><button class="btn primary" id="lgo">Stuur inloglink</button><div class="msg" id="lmsg">${msg?esc(msg):''}</div></div>
+ <p class="hint">Open de link uit de e-mail in deze browser. Geen e-mail? Kijk ook in je spammap.</p></div>`;
+ const go=async()=>{const m=$('#lmsg'),email=$('#lemail').value.trim().toLowerCase();m.className='msg';if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){m.className='msg err';m.textContent='Vul een geldig e-mailadres in.';return}
+  if(DEMO){m.className='msg err';m.textContent='Demo: inloggen is uitgeschakeld.';return}
+  $('#lgo').disabled=true;try{try{localStorage.setItem('huos-login-target',JSON.stringify({to:'beheer',ts:Date.now()}))}catch(_){}
+   const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:AUTH_REDIRECT,shouldCreateUser:false}});if(error)throw error;m.className='msg ok';m.textContent='De inloglink is verstuurd. Open de nieuwste e-mail en klik op de link.'}
+  catch(e){m.className='msg err';m.textContent='Versturen mislukt: '+errText(e)}finally{$('#lgo').disabled=false}};
+ $('#lgo').onclick=go;$('#lemail').onkeydown=e=>{if(e.key==='Enter')go()};
+}
+if(client)client.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'){S.user=null;S.role=null;S.orgs=null;loginGate()}else if(ev==='SIGNED_IN'&&!S.user){setTimeout(boot,0)}});
 boot();
 </script>
 </body>
