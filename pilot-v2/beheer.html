@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>HUOS Beheer — Horeca United</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--dark:#12392b;--green:#317b55;--light:#e7f4e8;--cream:#f7f9f6;--text:#17382a;--muted:#6b8976;--border:#e2eae3;
+--display:'Fraunces',Georgia,serif;--body:'Inter',Arial,sans-serif;--mono:'IBM Plex Mono',monospace;
+--ok:#2f7a4f;--okbg:#e5f4e9;--warn:#9a6a12;--warnbg:#fbf1dc;--info:#2c5d8a;--infobg:#e7f0fa;--bad:#a23b3b;--badbg:#fbeaea;--grey:#5f6f66;--greybg:#eef1ee}
+*{box-sizing:border-box}body{margin:0;font-family:var(--body);background:var(--cream);color:var(--text);font-size:14px}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+.demo-banner{background:#fff4d6;color:#6b4e00;text-align:center;font-size:12px;padding:7px 12px;border-bottom:1px solid #f0dfa8}
+header{background:#fff;border-bottom:1px solid var(--border)}
+.hdr{max-width:1320px;margin:auto;padding:0 24px;min-height:70px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.logo{display:flex;align-items:center;gap:11px;font-weight:700;text-decoration:none;color:var(--text)}
+.logo b{width:40px;height:40px;border-radius:11px;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center;font:600 14px var(--mono)}
+.logo small{display:block;font-weight:500;color:var(--muted);font-size:11px}
+.who{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+.role{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.04em;background:var(--light);color:var(--green);padding:4px 8px;border-radius:6px}
+.btn{border:1px solid var(--border);background:#fff;color:var(--text);border-radius:9px;padding:8px 13px;font-size:13px;font-weight:500}
+.btn:hover{border-color:#c6d6c9}.btn.primary{background:var(--dark);border-color:var(--dark);color:#fff}.btn.primary:hover{background:#0d2c21}
+.btn.small{padding:5px 10px;font-size:12px}.btn:disabled{opacity:.5;cursor:not-allowed}
+main{max-width:1320px;margin:auto;padding:22px 24px 60px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{background:none;border:none;padding:11px 14px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--text);border-color:var(--dark)}
+h1{font:600 26px var(--display);margin:0 0 4px}h2{font:600 19px var(--display);margin:0 0 12px}h3{font-size:13px;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+.stat{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.stat span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.stat b{display:block;font:600 24px var(--display);margin-top:4px}.stat small{color:var(--muted);font-size:11px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.filters input,.filters select,.form input,.form select,.form textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:#fff;color:var(--text)}
+.filters input{min-width:240px}
+.card{background:#fff;border:1px solid var(--border);border-radius:12px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #eef2ee;vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;background:#fbfcfb;position:sticky;top:0}
+tbody tr{cursor:pointer}tbody tr:hover{background:#f6faf6}tbody tr.sel{background:#eef6ef}
+td .s{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.chip{display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.c-ok{background:var(--okbg);color:var(--ok)}.c-warn{background:var(--warnbg);color:var(--warn)}.c-info{background:var(--infobg);color:var(--info)}.c-bad{background:var(--badbg);color:var(--bad)}.c-grey{background:var(--greybg);color:var(--grey)}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+.layout{display:grid;grid-template-columns:1fr;gap:18px}
+.layout.open{grid-template-columns:minmax(0,1fr) 520px}
+.detail{padding:20px;align-self:start;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+.detail .close{float:right}
+.two{display:grid;grid-template-columns:1fr;gap:6px}
+.kv{display:grid;grid-template-columns:44% 56%;gap:8px;padding:7px 0;border-bottom:1px dashed #edf1ed;font-size:13px}
+.kv span{color:var(--muted)}.kv b{font-weight:500;word-break:break-word}
+.box{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:10px;background:#fcfdfc}
+.box.orig{border-left:3px solid #9fb8a6}.box.int{border-left:3px solid var(--dark)}
+.form{display:grid;gap:8px;margin-top:8px}.form .row{display:flex;gap:8px;flex-wrap:wrap}.form .row>*{flex:1;min-width:120px}
+.form textarea{min-height:60px;resize:vertical}
+.msg{font-size:12px;margin-top:6px;min-height:16px}.msg.err{color:var(--bad)}.msg.ok{color:var(--ok)}
+.timeline{list-style:none;margin:0;padding:0}.timeline li{padding:8px 0;border-bottom:1px solid #eef2ee;font-size:12px}.timeline li span{color:var(--muted);display:block}
+.note{padding:9px 0;border-bottom:1px solid #eef2ee;font-size:13px;white-space:pre-wrap}.note span{display:block;color:var(--muted);font-size:11px;margin-bottom:3px}
+.gate{max-width:520px;margin:60px auto;text-align:center;padding:34px}.gate p{color:var(--muted);line-height:1.6}
+.hint{font-size:12px;color:var(--muted)}
+.num{text-align:right;white-space:nowrap}.pct-up{color:var(--bad);font-weight:600}.pct-mid{color:var(--warn);font-weight:600}.pct-down{color:var(--ok);font-weight:600}
+.sig{border-left:3px solid var(--bad);background:#fff;padding:10px 14px;border-radius:10px;margin:8px 0;font-size:13px}.sig b{display:block;margin-bottom:2px}.sig .s{display:block;margin-top:4px}.form label.hint{display:flex;flex-direction:column;gap:4px}.form label.hint input{width:100%}.orgpick select{padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font:inherit}
+.orgpick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 16px}.orgpick select{min-width:280px}
+@media(max-width:1100px){.layout.open{grid-template-columns:1fr}.detail{position:static;max-height:none}}
+@media(max-width:700px){.hide-m{display:none}.filters input{min-width:0;flex:1}}
+</style>
+</head>
+<body>
+<div id="demoBanner" class="demo-banner" hidden>DEMO — fictieve gegevens om het beheerscherm te bekijken. Er wordt niets opgeslagen en er is geen verbinding met de database.</div>
+<header><div class="hdr">
+  <a class="logo" href="./"><b>HU</b><div>HUOS Beheer<small>Horeca United — intern</small></div></a>
+  <div class="who" id="who"></div>
+</div></header>
+<main id="app"><div class="gate card"><p>Laden…</p></div></main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+'use strict';
+/* ------------------------------------------------------------------
+   HUOS Beheer (testversie). Alle autorisatie gebeurt in de database
+   (RLS + security-definer functies met rolcontrole). Deze pagina bevat
+   geen geheimen; zonder interne rol levert de database geen gegevens.
+------------------------------------------------------------------- */
+const URL_SUPABASE='https://yyvzqnjumnpotawnrvfw.supabase.co';
+const KEY_SUPABASE='sb_publishable_QDvjBPDGIgrQNcSzEw2FZg_Yj6hfIgY';
+const params=new URLSearchParams(location.search);
+const LIVE_HOST=/(^|\.)vercel\.app$/.test(location.hostname)||location.hostname==='localhost';
+const DEMO=params.has('demo')||!LIVE_HOST;
+const client=(!DEMO&&window.supabase)?window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE):null;
+
+const STAGES={new:'Nieuw',contact_needed:'Contact nodig',awaiting_upload:'Wacht op documenten',mandate_pending:'Machtiging in afwachting',document_received:'Document ontvangen',review_needed:'Beoordeling nodig',ready_for_offer:'Klaar voor voorstel',offer_sent:'Voorstel verstuurd',customer:'Klant',closed:'Afgesloten'};
+const STAGE_CLS={new:'c-info',contact_needed:'c-warn',awaiting_upload:'c-warn',mandate_pending:'c-warn',document_received:'c-info',review_needed:'c-info',ready_for_offer:'c-ok',offer_sent:'c-ok',customer:'c-ok',closed:'c-grey'};
+const HLQ={verified:['Geverifieerd','c-ok'],reported_invoice:['Opgegeven (facturen)','c-info'],reported_supplier:['Opgave leverancier','c-info'],estimated:['Geschat','c-warn'],unknown:['Onbekend','c-grey']};
+const MANDATE={not_requested:['Geen','c-grey'],pending:['In afwachting','c-warn'],verified:['Geverifieerd','c-ok'],rejected:['Afgewezen','c-bad'],revoked:['Ingetrokken','c-bad']};
+const ROLE={admin:'Beheerder',reviewer:'Beoordelaar',viewer:'Alleen-lezen'};
+const SCOPE={all:'Alle leads',assigned:'Alleen toegewezen',region:'Regio',organization:'Onderneming'};
+const Q=[
+ ['brewery_supplier','1. Brouwerij',null],['brewery_supplier_other','   Andere brouwerij',null],
+ ['tap_beer_brand','2. Pilsmerk op tap',null],['tap_beer_brand_other','   Ander pilsmerk',null],
+ ['distributor','3. Leverancier',{direct:'Rechtstreeks via brouwerij',other:'Anders',unknown:'Weet ik niet'}],['distributor_other','   Andere distributeur',null],['direct_delivery_brewery','   Levert rechtstreeks',null],
+ ['keg_size_l','4. Fustformaat (liter)',{other:'Ander formaat',unknown:'Weet ik niet'}],['keg_size_l_other','   Ander fustformaat',null],
+ ['keg_price_ex_vat','5. Fustprijs excl. btw (€)',null],
+ ['annual_volume_hl','6. Afname 2025 (hl)',null],
+ ['annual_volume_source','7. Bron jaarafname',{own_estimate:'Eigen schatting',invoice:'Facturen / jaaroverzicht',supplier_statement:'Opgave leverancier',unknown:'Weet ik niet'}],
+ ['bonus_status','8. Kortingen / bonussen',{yes:'Ja',no:'Nee',unknown:'Weet ik niet'}],
+ ['contract_end_status','9. Biercontract',{date_known:'Lopend, einddatum bekend',ongoing:'Lopend, geen vaste einddatum',no_contract:'Geen contract',unknown:'Weet ik niet'}],['contract_end_date','   Einddatum contract',null],
+ ['purchase_obligation','10. Afnameverplichting',{yes:'Ja',no:'Nee',unknown:'Weet ik niet'}],
+ ['installation_status','11. Tapinstallatie van',{owned:'Eigen zaak',brewery:'Brouwerij / leverancier',leased:'Gehuurd / lease',unknown:'Weet ik niet'}],
+ ['brewery_loan_status','12. Lening brouwerij',{yes:'Ja',no:'Nee',unknown:'Weet ik niet'}],
+ ['proposal_interest','13. Interesse voorstel',{yes:'Ja, graag een voorstel',maybe:'Misschien, eerst voordeel zien',insight_only:'Alleen inzicht'}],
+ ['willingness_to_switch','14. Overstapbereidheid',{yes:'Ja, open voor andere brouwerij',maybe:'Misschien, afhankelijk van aanbod',no:'Nee, huidig merk behouden'}]
+];
+const ROUTE={mandate:'Machtiging: Horeca United mag opvragen',later_upload:'Later zelf aanleveren',none:'Voorlopig niets delen'};
+const SHORT={proposal_interest:{yes:'Ja',maybe:'Misschien',insight_only:'Alleen inzicht'},willingness_to_switch:{yes:'Ja',maybe:'Misschien',no:'Nee'}};
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const chip=(pair)=>pair?`<span class="chip ${pair[1]}">${esc(pair[0])}</span>`:'';
+const fmtDate=d=>d?new Date(d).toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric'}):'—';
+const fmtDT=d=>d?new Date(d).toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
+const fmtHl=n=>n==null||n===''?'—':Number(n).toLocaleString('nl-NL',{maximumFractionDigits:1})+' hl';
+const ansLabel=(key,val,map)=>{if(val==null||val==='')return '—';if(map&&map[val])return map[val];return String(val)};
+function errText(e){const m=(e&&(e.message||e.error_description||e.details))||String(e);return m.replace(/^.*?ERROR:\s*/,'')}
+
+/* ---------- state ---------- */
+const S={user:null,role:null,scope:null,leads:[],staff:[],transitions:[],tab:'leads',sel:null,filters:{q:'',stage:'',hl:'',mandate:''}};
+
+/* ---------- data layer (live = Supabase, demo = fictief) ---------- */
+const api=DEMO?demoApi():liveApi();
+function liveApi(){
+ const ok=({data,error})=>{if(error)throw error;return data};
+ return {
+  async session(){const {data}=await client.auth.getSession();return data.session?.user??null},
+  async myRole(){return ok(await client.rpc('huos_staff_role'))},
+  async myStaffRow(uid){return ok(await client.from('huos_staff').select('role,scope,scope_values').eq('user_id',uid).maybeSingle())},
+  async leads(){return ok(await client.from('huos_beer_lead_overview').select('*').order('submitted_at',{ascending:false}))},
+  async transitions(){return ok(await client.from('huos_beer_stage_transitions').select('*'))},
+  async submission(id){return ok(await client.from('huos_beer_intake_submissions').select('answers,data_route,privacy_notice_version,mandate_consent_version,mandate_consent_at,created_at').eq('id',id).single())},
+  async notes(lead){return ok(await client.from('huos_beer_lead_notes').select('*').eq('lead_id',lead).order('created_at',{ascending:false}))},
+  async verifications(lead){return ok(await client.from('huos_beer_lead_verifications').select('*').eq('lead_id',lead).order('verified_at',{ascending:false}))},
+  async mandate(lead){return ok(await client.from('huos_beer_mandates').select('*').eq('lead_id',lead).maybeSingle())},
+  async events(lead){return ok(await client.from('huos_beer_lead_events').select('*').eq('lead_id',lead).order('created_at',{ascending:false}).limit(100))},
+  async staffList(){return ok(await client.rpc('huos_staff_list'))},
+  async staffAudit(){return ok(await client.from('huos_staff_audit').select('*').order('created_at',{ascending:false}).limit(200))},
+  async allEvents(){return ok(await client.from('huos_beer_lead_events').select('*').order('created_at',{ascending:false}).limit(200))},
+  async setStage(lead,to,note){return ok(await client.rpc('huos_beer_lead_set_stage',{p_lead:lead,p_to:to,p_note:note||null}))},
+  async assign(lead,user,follow,prio){return ok(await client.rpc('huos_beer_lead_assign',{p_lead:lead,p_user:user,p_follow_up:follow||null,p_priority:prio||null}))},
+  async addNote(lead,body){return ok(await client.rpc('huos_beer_lead_add_note',{p_lead:lead,p_body:body}))},
+  async verify(lead,field,year,value,unit,outcome,kind,note){return ok(await client.rpc('huos_beer_lead_verify',{p_lead:lead,p_field:field,p_period_year:year,p_value:value,p_unit:unit,p_outcome:outcome,p_evidence_kind:kind,p_note:note,p_document:null}))},
+  async mandateDecide(id,status,method,note,via){return ok(await client.rpc('huos_beer_mandate_decide',{p_mandate:id,p_status:status,p_method:method||null,p_note:note||null,p_revoked_via:via||null}))},
+  async setRole(user,role,scope,values,reason){return ok(await client.rpc('huos_staff_set_role',{p_user:user,p_role:role,p_scope:scope,p_scope_values:values,p_reason:reason}))},
+  async revoke(user,reason){return ok(await client.rpc('huos_staff_revoke',{p_user:user,p_reason:reason}))},
+  async exportLeads(){return ok(await client.rpc('huos_beer_export_leads',{p_stage:null}))},
+  async orgs(){return ok(await client.from('huos_pilot_organizations').select('id,name,city,business_type,kvk_number,location_count').order('name'))},
+  async costLines(o){return ok(await client.from('huos_cost_lines').select('*').eq('organization_id',o).order('period_end',{ascending:false}).limit(1000))},
+  async costCompare(o){return ok(await client.from('huos_cost_comparison').select('*').eq('organization_id',o))},
+  async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
+  async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,end_date').eq('organization_id',o).limit(300))},
+  async addCost(row){return ok(await client.from('huos_cost_lines').insert(row).select('id').single())},
+  async updateCost(id,row){const r=ok(await client.from('huos_cost_lines').update(row).eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet bijgewerkt (geen rechten?)');return r},
+  async deleteCost(id){const r=ok(await client.from('huos_cost_lines').delete().eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet verwijderd (geen rechten?)');return r},
+  async fileUrl(path){const {data,error}=await client.storage.from('huos-pilot-private').createSignedUrl(path,120);if(error)throw error;return data.signedUrl},
+  async signOut(){await client.auth.signOut()}
+ };
+}
+function demoApi(){
+ const me='00000000-demo-0000-0000-000000000001';
+ const now=Date.now(),d=n=>new Date(now-n*864e5).toISOString();
+ const subs={
+  s1:{answers:{brewery_supplier:'Heineken',tap_beer_brand:'Heineken',distributor:'direct',direct_delivery_brewery:'Heineken',keg_size_l:'50',keg_price_ex_vat:178,annual_volume_hl:120,annual_volume_source:'own_estimate',bonus_status:'yes',contract_end_status:'date_known',contract_end_date:'2027-03-31',purchase_obligation:'yes',installation_status:'brewery',brewery_loan_status:'unknown',proposal_interest:'yes',willingness_to_switch:'maybe'},data_route:'later_upload',privacy_notice_version:'huos-beer-2026-11',created_at:d(1)},
+  s2:{answers:{brewery_supplier:'AB InBev',tap_beer_brand:'Jupiler',distributor:'Sligro',keg_size_l:'20',annual_volume_hl:45,annual_volume_source:'invoice',bonus_status:'no',contract_end_status:'ongoing',purchase_obligation:'no',installation_status:'owned',brewery_loan_status:'no',proposal_interest:'maybe',willingness_to_switch:'yes'},data_route:'mandate',privacy_notice_version:'huos-beer-2026-11',mandate_consent_version:'huos-mandate-beer-v1',mandate_consent_at:d(3),created_at:d(3)},
+  s3:{answers:{brewery_supplier:'Grolsch / Asahi',tap_beer_brand:'Grolsch',distributor:'HANOS',keg_size_l:'unknown',annual_volume_source:'unknown',bonus_status:'unknown',contract_end_status:'unknown',purchase_obligation:'unknown',installation_status:'unknown',brewery_loan_status:'yes',proposal_interest:'insight_only',willingness_to_switch:'no'},data_route:'none',privacy_notice_version:'huos-beer-2026-11',created_at:d(6)},
+  s4:{answers:{brewery_supplier:'Heineken',tap_beer_brand:'Amstel',distributor:'Bidfood',keg_size_l:'30',keg_price_ex_vat:131,annual_volume_hl:210,annual_volume_source:'supplier_statement',bonus_status:'yes',contract_end_status:'date_known',contract_end_date:'2026-12-31',purchase_obligation:'yes',installation_status:'leased',brewery_loan_status:'no',proposal_interest:'yes',willingness_to_switch:'yes'},data_route:'later_upload',privacy_notice_version:'huos-beer-2026-11',created_at:d(11)}
+ };
+ const L=[
+  {lead_id:'l1',submission_id:'s1',submitted_at:d(1),company_name:'Café De Voorbeeldhoek',contact_name:'Sanne Voorbeeld',email:'sanne@voorbeeld.test',phone:null,brewery_supplier:'Heineken',tap_beer_brand:'Heineken',distributor:'direct',proposal_interest:'yes',willingness_to_switch:'maybe',contract_end_status:'date_known',data_route:'later_upload',hl_submitted:120,hl_verified:null,hl_quality:'estimated',mandate_status_current:'not_requested',stage:'new',assigned_to:null,priority:'unknown',next_follow_up_at:null,updated_at:d(1)},
+  {lead_id:'l2',submission_id:'s2',submitted_at:d(3),company_name:'Eetcafé Proefzaak',contact_name:'Mo Test',email:'mo@proefzaak.test',phone:'0600000000',brewery_supplier:'AB InBev',tap_beer_brand:'Jupiler',distributor:'Sligro',proposal_interest:'maybe',willingness_to_switch:'yes',contract_end_status:'ongoing',data_route:'mandate',hl_submitted:45,hl_verified:null,hl_quality:'reported_invoice',mandate_status_current:'pending',stage:'mandate_pending',assigned_to:me,priority:'high',next_follow_up_at:d(-2),updated_at:d(2)},
+  {lead_id:'l3',submission_id:'s3',submitted_at:d(6),company_name:'Bar Fictief',contact_name:'Kim Demo',email:'kim@fictief.test',phone:null,brewery_supplier:'Grolsch / Asahi',tap_beer_brand:'Grolsch',distributor:'HANOS',proposal_interest:'insight_only',willingness_to_switch:'no',contract_end_status:'unknown',data_route:'none',hl_submitted:null,hl_verified:null,hl_quality:'unknown',mandate_status_current:'not_requested',stage:'contact_needed',assigned_to:null,priority:'low',next_follow_up_at:d(-5),updated_at:d(5)},
+  {lead_id:'l4',submission_id:'s4',submitted_at:d(11),company_name:'Restaurant Testtafel',contact_name:'Jip Proef',email:'jip@testtafel.test',phone:null,brewery_supplier:'Heineken',tap_beer_brand:'Amstel',distributor:'Bidfood',proposal_interest:'yes',willingness_to_switch:'yes',contract_end_status:'date_known',data_route:'later_upload',hl_submitted:210,hl_verified:196,hl_quality:'verified',mandate_status_current:'not_requested',stage:'ready_for_offer',assigned_to:me,priority:'high',next_follow_up_at:d(-1),updated_at:d(1)}
+ ];
+ const notes={l2:[{created_at:d(2),body:'Gebeld: eigenaar bevestigt bevoegdheid, KvK-uittreksel volgt per mail.'}],l4:[{created_at:d(4),body:'Jaaroverzicht 2025 ontvangen.'}]};
+ const ver={l4:[{field:'annual_volume_hl',period_year:2025,submitted_value:210,verified_value:196,outcome:'corrected',evidence_kind:'document',note:'Jaaroverzicht 2025 leverancier: 196 hl',verified_at:d(4)}]};
+ const mand={l2:{id:'m2',status:'pending',consent_text_version:'huos-mandate-beer-v1',consent_at:d(3),authority_asserted:true}};
+ const ev=lead=>[{created_at:d(1),event_type:'stage_changed',actor_role:'admin',details:{from:'new',to:L.find(x=>x.lead_id===lead)?.stage}},{created_at:d(3),event_type:'lead_created',actor_role:null,details:{}}];
+ const T=[['new','contact_needed'],['new','awaiting_upload'],['new','mandate_pending'],['new','review_needed'],['new','closed'],['contact_needed','awaiting_upload'],['contact_needed','mandate_pending'],['contact_needed','review_needed'],['contact_needed','closed'],['awaiting_upload','document_received'],['awaiting_upload','contact_needed'],['awaiting_upload','closed'],['mandate_pending','document_received'],['mandate_pending','contact_needed'],['mandate_pending','closed'],['document_received','review_needed'],['document_received','awaiting_upload'],['document_received','closed'],['review_needed','ready_for_offer'],['review_needed','awaiting_upload'],['review_needed','contact_needed'],['review_needed','closed'],['ready_for_offer','offer_sent'],['ready_for_offer','review_needed'],['ready_for_offer','closed'],['offer_sent','customer'],['offer_sent','review_needed'],['offer_sent','closed'],['customer','closed'],['closed','contact_needed']].map(([f,t])=>({from_stage:f,to_stage:t,min_role:(f==='customer'||f==='closed')?'admin':'reviewer'}));
+ const demoOnly=async()=>{throw new Error('Demo: in de demoversie wordt niets opgeslagen.')};
+ return {
+  async session(){return {id:me,email:'hui@horecaunited.nl'}},async myRole(){return 'admin'},async myStaffRow(){return {role:'admin',scope:'all',scope_values:[]}},
+  async leads(){return L},async transitions(){return T},async submission(id){return subs[id]},
+  async notes(l){return notes[l]||[]},async verifications(l){return ver[l]||[]},async mandate(l){return mand[l]||null},async events(l){return ev(l)},
+  async staffList(){return [{user_id:me,email:'hui@horecaunited.nl',role:'admin',active:true,scope:'all',scope_values:[],last_sign_in_at:d(0),created_at:d(0)}]},
+  async staffAudit(){return [{created_at:d(0),action:'granted',target_user:me,actor_kind:'database',new_value:{role:'admin',scope:'all'},reason:'Eerste hoofdbeheerder (demo)'}]},
+  async allEvents(){return ev('l2')},
+  setStage:demoOnly,assign:demoOnly,addNote:demoOnly,verify:demoOnly,mandateDecide:demoOnly,setRole:demoOnly,revoke:demoOnly,
+  async exportLeads(){return L},async signOut(){location.reload()},
+  async orgs(){return [{id:'o1',name:'Restaurant Demozaak',city:'Arnhem',business_type:'restaurant',kvk_number:'12345678',location_count:1}]},
+  async costLines(){return DEMO_COST},async costCompare(){return DEMO_CMP},async orgDocs(){return [{id:'dd1',file_name:'factuur-afval-sept.pdf',category:'invoice',uploaded_at:d(20)}]},async orgContracts(){return []},
+  addCost:demoOnly,updateCost:demoOnly,deleteCost:demoOnly,fileUrl:demoOnly
+ };
+}
+
+/* ---------- boot ---------- */
+async function boot(){
+ if(DEMO)$('#demoBanner').hidden=false;
+ try{
+  S.user=await api.session();
+  if(!S.user)return gate('Log eerst in','Je bent niet ingelogd. Log in via de pilot met je zakelijke e-mailadres en open daarna dit beheerscherm opnieuw.',true);
+  S.role=await api.myRole();
+  if(!S.role){renderWho();return gate('Geen toegang','Dit account heeft geen interne rol bij Horeca United. Neem contact op met een beheerder als je denkt dat dit niet klopt.',false)}
+  const row=await api.myStaffRow(S.user.id);S.scope=row?.scope||null;
+  renderWho();
+  const [leads,trans]=await Promise.all([api.leads(),api.transitions()]);
+  S.leads=leads||[];S.transitions=trans||[];
+  if(S.role==='admin'){try{S.staff=await api.staffList()||[]}catch(e){S.staff=[]}}
+  render();
+ }catch(e){gate('Er ging iets mis',errText(e),false)}
+}
+function gate(title,text,login){
+ $('#app').innerHTML=`<div class="gate card"><h1>${esc(title)}</h1><p>${esc(text)}</p>${login?'<p><a class="btn primary" href="./">Naar inloggen</a></p>':''}</div>`;
+}
+function renderWho(){
+ $('#who').innerHTML=`<span class="hide-m">${esc(S.user?.email||'')}</span> ${S.role?`<span class="role">${esc(ROLE[S.role]||S.role)}</span>`:''} <button class="btn small" id="logout">Uitloggen</button>`;
+ $('#logout').onclick=async()=>{await api.signOut();location.href='./'};
+}
+function render(){
+ const tabs=[['leads','Leads'],['costs','Kosten']].concat(S.role==='admin'?[['staff','Medewerkers'],['log','Logboek']]:[]);
+ $('#app').innerHTML=`<div class="tabs">${tabs.map(([k,v])=>`<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${v}</button>`).join('')}</div><div id="view"></div>`;
+ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.sel=null;render()});
+ if(S.tab==='leads')renderLeads();else if(S.tab==='costs')renderCosts();else if(S.tab==='staff')renderStaff();else renderLog();
+}
+
+/* ---------- Leads ---------- */
+function staffName(uid){if(!uid)return '—';if(uid===S.user.id)return 'Jij';const s=S.staff.find(x=>x.user_id===uid);return s?s.email:'Medewerker'}
+function filtered(){
+ const f=S.filters,q=f.q.trim().toLowerCase();
+ return S.leads.filter(l=>(!q||[l.company_name,l.contact_name,l.email].some(v=>(v||'').toLowerCase().includes(q)))&&(!f.stage||l.stage===f.stage)&&(!f.hl||l.hl_quality===f.hl)&&(!f.mandate||l.mandate_status_current===f.mandate));
+}
+function renderLeads(){
+ const all=S.leads;
+ const sum=(arr,k)=>arr.reduce((a,l)=>a+(Number(l[k])||0),0);
+ const ver=all.filter(l=>l.hl_quality==='verified'),est=all.filter(l=>l.hl_quality==='estimated'),rep=all.filter(l=>l.hl_quality==='reported_invoice'||l.hl_quality==='reported_supplier');
+ const open=all.filter(l=>!['closed','customer'].includes(l.stage)).length;
+ const due=all.filter(l=>l.next_follow_up_at&&new Date(l.next_follow_up_at)<=new Date()&&l.stage!=='closed').length;
+ $('#view').innerHTML=`
+ <h1>Bier Quick Scan — leads</h1><p class="sub">Wat de ondernemer invulde blijft ongewijzigd; interne bevestigingen staan apart.</p>
+ <div class="stats">
+  <div class="stat"><span>Open leads</span><b>${open}</b><small>van ${all.length} totaal</small></div>
+  <div class="stat"><span>Opvolging verlopen</span><b>${due}</b><small>opvolgdatum vandaag of eerder</small></div>
+  <div class="stat"><span>Geverifieerd volume</span><b>${fmtHl(sum(ver,'hl_verified'))}</b><small>${ver.length} lead(s), gecontroleerd</small></div>
+  <div class="stat"><span>Opgegeven met bron</span><b>${fmtHl(sum(rep,'hl_submitted'))}</b><small>${rep.length} lead(s), nog te verifiëren</small></div>
+  <div class="stat"><span>Geschat volume</span><b>${fmtHl(sum(est,'hl_submitted'))}</b><small>${est.length} lead(s), eigen schatting</small></div>
+ </div>
+ <div class="filters">
+  <input id="fq" placeholder="Zoek op bedrijf, contactpersoon of e-mail" value="${esc(S.filters.q)}">
+  <select id="fstage"><option value="">Alle fases</option>${Object.entries(STAGES).map(([k,v])=>`<option value="${k}" ${S.filters.stage===k?'selected':''}>${v}</option>`).join('')}</select>
+  <select id="fhl"><option value="">Alle hl-labels</option>${Object.entries(HLQ).map(([k,v])=>`<option value="${k}" ${S.filters.hl===k?'selected':''}>${v[0]}</option>`).join('')}</select>
+  <select id="fm"><option value="">Alle machtigingen</option>${Object.entries(MANDATE).map(([k,v])=>`<option value="${k}" ${S.filters.mandate===k?'selected':''}>${v[0]}</option>`).join('')}</select>
+  ${S.role==='admin'?'<button class="btn" id="exp">Exporteren (CSV)</button>':''}
+ </div>
+ <div class="layout ${S.sel?'open':''}"><div class="card" style="overflow:auto"><table><thead><tr>
+  <th>Ingezonden</th><th>Onderneming</th><th class="hide-m">Brouwerij / merk</th><th>Afname 2025</th><th>Fase</th><th class="hide-m">Machtiging</th><th class="hide-m">Voorstel / overstap</th><th class="hide-m">Opvolging</th>
+ </tr></thead><tbody id="rows"></tbody></table></div><div id="detail" class="card detail" ${S.sel?'':'hidden'}></div></div>`;
+ const rows=filtered();
+ $('#rows').innerHTML=rows.length?rows.map(l=>`<tr data-id="${esc(l.lead_id)}" class="${S.sel===l.lead_id?'sel':''}">
+  <td>${fmtDate(l.submitted_at)}</td>
+  <td><b>${esc(l.company_name)}</b><span class="s">${esc(l.contact_name)} · ${esc(l.email)}</span></td>
+  <td class="hide-m">${esc(l.brewery_supplier||'—')}<span class="s">${esc(l.tap_beer_brand||'')}</span></td>
+  <td>${l.hl_quality==='verified'?fmtHl(l.hl_verified):fmtHl(l.hl_submitted)}<span class="s">${chip(HLQ[l.hl_quality])}</span></td>
+  <td>${chip([STAGES[l.stage]||l.stage,STAGE_CLS[l.stage]||'c-grey'])}<span class="s">${esc(staffName(l.assigned_to))}</span></td>
+  <td class="hide-m">${chip(MANDATE[l.mandate_status_current])}</td>
+  <td class="hide-m">${esc(SHORT.proposal_interest[l.proposal_interest]||'—')} / ${esc(SHORT.willingness_to_switch[l.willingness_to_switch]||'—')}</td>
+  <td class="hide-m">${l.next_follow_up_at?fmtDate(l.next_follow_up_at):'—'}</td></tr>`).join(''):`<tr><td colspan="8" class="empty">${all.length?'Geen leads met deze filters.':'Nog geen inzendingen.'}</td></tr>`;
+ document.querySelectorAll('#rows tr[data-id]').forEach(tr=>tr.onclick=()=>{S.sel=tr.dataset.id;renderLeads()});
+ const bind=(id,k)=>{const e=$(id);e.oninput=e.onchange=()=>{S.filters[k]=e.value;const pos=e.selectionStart;renderLeads();const n=$(id);n.focus();if(pos!=null&&n.setSelectionRange)n.setSelectionRange(pos,pos)}};
+ bind('#fq','q');bind('#fstage','stage');bind('#fhl','hl');bind('#fm','mandate');
+ if($('#exp'))$('#exp').onclick=doExport;
+ if(S.sel)renderDetail(S.sel);
+}
+async function renderDetail(id){
+ const l=S.leads.find(x=>x.lead_id===id),box=$('#detail');if(!l){box.hidden=true;return}
+ box.innerHTML='<p class="hint">Laden…</p>';
+ try{
+  const [sub,notes,vers,mand,evs]=await Promise.all([api.submission(l.submission_id),api.notes(id),api.verifications(id),api.mandate(id),api.events(id)]);
+  const a=sub?.answers||{};
+  const canEdit=S.role==='reviewer'||S.role==='admin';
+  const nexts=S.transitions.filter(t=>t.from_stage===l.stage&&(t.min_role==='reviewer'||S.role==='admin'));
+  box.innerHTML=`
+  <button class="btn small close" id="dclose">Sluiten</button>
+  <h2>${esc(l.company_name)}</h2>
+  <p class="sub">${esc(l.contact_name)} · ${esc(l.email)}${l.phone?' · '+esc(l.phone):''}<br>Ingezonden ${fmtDT(l.submitted_at)} · ${chip([STAGES[l.stage],STAGE_CLS[l.stage]])}</p>
+
+  <h3>Ingevuld door ondernemer</h3>
+  <div class="box orig">${Q.filter(([k])=>a[k]!=null&&a[k]!=='').map(([k,label,map])=>`<div class="kv"><span>${esc(label.trim())}</span><b>${esc(ansLabel(k,a[k],map))}</b></div>`).join('')||'<p class="hint">Geen antwoorden.</p>'}
+   <div class="kv"><span>15. Aanvullen gegevens</span><b>${esc(ROUTE[sub?.data_route]||sub?.data_route||'—')}</b></div>
+   <p class="hint">Privacyversie ${esc(sub?.privacy_notice_version||'—')}. Deze gegevens zijn niet te wijzigen.</p></div>
+
+  <h3>Bevestigd door Horeca United</h3>
+  <div class="box int">
+   <div class="kv"><span>Afname 2025 — label</span><b>${chip(HLQ[l.hl_quality])}</b></div>
+   <div class="kv"><span>Opgegeven</span><b>${fmtHl(l.hl_submitted)}</b></div>
+   <div class="kv"><span>Geverifieerd</span><b>${l.hl_verified!=null?fmtHl(l.hl_verified):'nog te verifiëren'}</b></div>
+   ${vers.length?vers.map(v=>`<div class="note"><span>${fmtDT(v.verified_at)} · ${esc(v.field)} ${v.period_year?esc(v.period_year):''} · ${esc(v.outcome)} · bron: ${esc(v.evidence_kind)}</span>${esc(JSON.stringify(v.submitted_value))} → <b>${esc(JSON.stringify(v.verified_value))}</b> — ${esc(v.note)}</div>`).join(''):''}
+   ${canEdit?`<div class="form" id="fver"><div class="row"><input id="vval" type="number" min="0" max="100000" step="any" placeholder="Bevestigde hl (2025)"><select id="vkind"><option value="invoice">Factuur / jaaroverzicht</option><option value="supplier_statement">Opgave leverancier</option><option value="document">Document (na upload)</option><option value="call_note">Telefonisch bevestigd</option></select></div>
+    <input id="vnote" placeholder="Wat heb je gecontroleerd? (verplicht)"><button class="btn" id="vgo">Hectoliters vastleggen</button><div class="msg" id="vmsg"></div></div>`:''}
+  </div>
+
+  ${mand?`<h3>Machtiging</h3><div class="box int">
+   <div class="kv"><span>Status</span><b>${chip(MANDATE[mand.status])}</b></div>
+   <div class="kv"><span>Tekstversie</span><b>${esc(mand.consent_text_version)}</b></div>
+   <div class="kv"><span>Akkoord gegeven</span><b>${fmtDT(mand.consent_at)}</b></div>
+   ${mand.authority_check_method?`<div class="kv"><span>Bevoegdheid gecontroleerd</span><b>${esc(mand.authority_check_method)} · ${fmtDT(mand.authority_checked_at)}</b></div>`:''}
+   ${canEdit&&mand.status!=='revoked'?`<div class="form"><div class="row"><select id="mstat"><option value="verified">Bevoegdheid geverifieerd</option><option value="rejected">Afwijzen</option><option value="revoked">Ingetrokken door klant</option></select><select id="mmeth"><option value="kvk_extract">KvK-uittreksel</option><option value="owner_confirmation">Bevestiging eigenaar</option><option value="signed_statement">Getekende verklaring</option><option value="other">Anders</option></select><select id="mvia"><option value="">Intrekking via…</option><option value="email">E-mail</option><option value="phone">Telefoon</option><option value="in_person">Persoonlijk</option><option value="other">Anders</option></select></div>
+   <input id="mnote" placeholder="Toelichting (verplicht bij verifiëren)"><button class="btn" id="mgo">Machtiging bijwerken</button><div class="msg" id="mmsg"></div></div>`:''}
+  </div>`:''}
+
+  ${canEdit?`<h3>Fase en opvolging</h3><div class="box int"><div class="form">
+   <div class="row"><select id="snext">${nexts.length?nexts.map(t=>`<option value="${t.to_stage}">${esc(STAGES[t.to_stage])}</option>`).join(''):'<option value="">Geen vervolgstap mogelijk</option>'}</select></div>
+   <input id="snote" placeholder="Toelichting (verplicht bij afsluiten)"><button class="btn primary" id="sgo" ${nexts.length?'':'disabled'}>Fase wijzigen</button><div class="msg" id="smsg"></div>
+   <div class="row" style="margin-top:8px"><input id="afu" type="date" value="${l.next_follow_up_at?esc(l.next_follow_up_at.slice(0,10)):''}"><select id="apr">${['unknown','high','medium','low'].map(p=>`<option value="${p}" ${l.priority===p?'selected':''}>${{unknown:'Prioriteit onbekend',high:'Hoog',medium:'Middel',low:'Laag'}[p]}</option>`).join('')}</select></div>
+   <button class="btn" id="ago">${l.assigned_to===S.user.id?'Opvolging bijwerken':'Aan mij toewijzen + opvolging'}</button><div class="msg" id="amsg"></div>
+  </div></div>`:''}
+
+  <h3>Interne notities</h3><div class="box">
+   ${canEdit?`<div class="form"><textarea id="nbody" maxlength="4000" placeholder="Zakelijke notitie (geen gezondheids- of privégegevens)"></textarea><button class="btn" id="ngo">Notitie toevoegen</button><div class="msg" id="nmsg"></div></div>`:''}
+   ${notes.length?notes.map(n=>`<div class="note"><span>${fmtDT(n.created_at)}</span>${esc(n.redacted_at?'[afgeschermd]':n.body)}</div>`).join(''):'<p class="hint">Nog geen notities.</p>'}
+  </div>
+
+  <h3>Tijdlijn</h3><ul class="timeline">${evs.map(e=>`<li><span>${fmtDT(e.created_at)}${e.actor_role?' · '+esc(ROLE[e.actor_role]||e.actor_role):' · systeem'}</span>${esc(eventText(e))}</li>`).join('')||'<li>Geen gebeurtenissen.</li>'}</ul>`;
+  $('#dclose').onclick=()=>{S.sel=null;renderLeads()};
+  const run=async(btn,msg,fn,okText)=>{const b=$(btn),m=$(msg);b.disabled=true;m.className='msg';m.textContent='Bezig…';try{await fn();m.className='msg ok';m.textContent=okText;await reload(id)}catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}};
+  if($('#vgo'))$('#vgo').onclick=()=>run('#vgo','#vmsg',()=>{const v=$('#vval').value;if(v==='')throw new Error('Vul de bevestigde hoeveelheid in.');const n=Number(v);return api.verify(id,'annual_volume_hl',2025,n,'hl',(l.hl_submitted!=null&&Number(l.hl_submitted)===n)?'confirmed':'corrected',$('#vkind').value,$('#vnote').value.trim())},'Vastgelegd.');
+  if($('#mgo'))$('#mgo').onclick=()=>run('#mgo','#mmsg',()=>{const st=$('#mstat').value;return api.mandateDecide(mand.id,st,st==='revoked'?null:$('#mmeth').value,$('#mnote').value.trim(),st==='revoked'?($('#mvia').value||null):null)},'Bijgewerkt.');
+  if($('#sgo'))$('#sgo').onclick=()=>run('#sgo','#smsg',()=>api.setStage(id,$('#snext').value,$('#snote').value.trim()),'Fase gewijzigd.');
+  if($('#ago'))$('#ago').onclick=()=>run('#ago','#amsg',()=>{const dt=$('#afu').value;return api.assign(id,S.user.id,dt?new Date(dt+'T09:00:00').toISOString():null,$('#apr').value)},'Bijgewerkt.');
+  if($('#ngo'))$('#ngo').onclick=()=>run('#ngo','#nmsg',()=>{const t=$('#nbody').value.trim();if(!t)throw new Error('Schrijf eerst een notitie.');return api.addNote(id,t)},'Toegevoegd.');
+ }catch(e){box.innerHTML=`<button class="btn small close" onclick="S.sel=null;renderLeads()">Sluiten</button><p class="msg err">${esc(errText(e))}</p>`}
+}
+function eventText(e){const d=e.details||{};switch(e.event_type){
+ case 'lead_created':return 'Lead aangemaakt uit Quick Scan-inzending';
+ case 'stage_changed':return `Fase: ${STAGES[d.from]||d.from||'?'} → ${STAGES[d.to]||d.to||'?'}${d.note?' — '+d.note:''}`;
+ case 'lead_assigned':return 'Toewijzing / opvolging bijgewerkt';
+ case 'note_added':return 'Notitie toegevoegd';
+ case 'field_verified':return `Verificatie ${d.field||''}: ${d.outcome||''} (${d.evidence_kind||''})`;
+ case 'export':return `Export (${d.rows??'?'} rijen)`;
+ default:return e.event_type.replace(/_/g,' ')}}
+async function reload(id){S.leads=await api.leads()||[];S.sel=id;renderLeads()}
+async function doExport(){
+ try{const rows=await api.exportLeads();const cols=['submitted_at','company_name','contact_name','email','phone','brewery_supplier','tap_beer_brand','distributor','hl_submitted','hl_quality','hl_verified','stage','mandate_status_current','proposal_interest','willingness_to_switch','contract_end_status','data_route','next_follow_up_at'];
+  const cell=v=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
+  const csv='﻿'+cols.join(';')+'\n'+rows.map(r=>cols.map(c=>cell(r[c])).join(';')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='huos-bier-leads-'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+ }catch(e){alert(errText(e))}
+}
+
+
+/* ---------- Kosten (intern; niet zichtbaar voor de ondernemer) ---------- */
+const CCAT={bier:'Bier',frisdrank:'Frisdrank',wijn:'Wijn',gedistilleerd:'Gedistilleerd',food:'Vlees / food',groothandel:'Groothandel',elektra:'Elektra',gas:'Gas',water:'Water',afval:'Afval & milieu',verzekeringen:'Verzekeringen',telecom:'Telecom & internet',muziekrechten:'Muziekrechten',betaalverkeer:'Betaalverkeer / pin',schoonmaak:'Schoonmaak',huur:'Huur',overig:'Overig'};
+const DEMO_COST=[
+ {id:'k3',category:'afval',supplier:'Renewi',product:'Restafval 240L',period_start:'2026-09-01',period_end:'2026-09-30',amount_excl_vat:168,quantity:4,unit:'lediging',monthly_amount:170.45,unit_price:42,document_id:'dd1',invoice_number:'R-2026-0912',note:null},
+ {id:'k2',category:'afval',supplier:'Renewi',product:'Restafval 240L',period_start:'2026-01-01',period_end:'2026-01-30',amount_excl_vat:140,quantity:4,unit:'lediging',monthly_amount:142.04,unit_price:35,document_id:null,note:null},
+ {id:'k1',category:'afval',supplier:'Renewi',product:'Restafval 240L',period_start:'2024-01-01',period_end:'2024-03-31',amount_excl_vat:390,quantity:13,unit:'lediging',monthly_amount:130.44,unit_price:30,document_id:null,note:'Oude factuur, later aangeleverd'},
+ {id:'k5',category:'elektra',supplier:'Vattenfall',product:null,period_start:'2026-10-01',period_end:'2026-10-31',amount_excl_vat:1000,quantity:null,unit:null,monthly_amount:981.85,unit_price:null,document_id:null,note:null},
+ {id:'k4',category:'elektra',supplier:'Vattenfall',product:null,period_start:'2026-01-01',period_end:'2026-01-31',amount_excl_vat:800,quantity:null,unit:null,monthly_amount:785.48,unit_price:null,document_id:null,note:null}];
+const DEMO_CMP=[
+ {category:'afval',supplier:'Renewi',product:'Restafval 240L',n_lines:3,latest_start:'2026-09-01',latest_end:'2026-09-30',latest_monthly:170.45,latest_unit_price:42,latest_unit:'lediging',ytd_start:'2026-01-01',oldest_start:'2024-01-01',prev_start:'2026-01-01',pct_since_year_start:20,basis_year_start:'unit_price',pct_since_oldest:40,pct_since_previous:20,signal_reference:'year_start',extra_per_month:28.41,is_signal:false},
+ {category:'elektra',supplier:'Vattenfall',product:null,n_lines:2,latest_start:'2026-10-01',latest_end:'2026-10-31',latest_monthly:981.85,latest_unit_price:null,latest_unit:null,ytd_start:'2026-01-01',oldest_start:'2026-01-01',prev_start:'2026-01-01',pct_since_year_start:25,basis_year_start:'monthly',pct_since_oldest:25,pct_since_previous:25,signal_reference:'year_start',extra_per_month:196.37,is_signal:true}];
+const eur=n=>n==null||n===''?'—':Number(n).toLocaleString('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:2});
+const fmtMonth=d=>d?new Date(d+'T12:00:00').toLocaleDateString('nl-NL',{month:'short',year:'numeric'}):'—';
+const fmtPeriod=(a,b)=>a?(a.slice(0,7)===b.slice(0,7)?fmtMonth(a):fmtDate(a)+' – '+fmtDate(b)):'—';
+function pctCell(p,since){if(p==null)return '<span class="hint">—</span>';const n=Number(p),cls=n>=10?'pct-up':n>0?'pct-mid':'pct-down';return `<span class="${cls}">${n>0?'+':''}${n.toLocaleString('nl-NL',{maximumFractionDigits:1})}%</span>${since?`<span class="s">sinds ${esc(fmtMonth(since))}</span>`:''}`}
+function costKey(r){return [r.category,r.supplier,r.product||''].join(' · ')}
+async function renderCosts(){
+ const v=$('#view');v.innerHTML='<p class="hint">Laden…</p>';
+ try{
+  if(!S.orgs)S.orgs=await api.orgs()||[];
+  if(!S.orgs.length){v.innerHTML='<h1>Kosten per bedrijf</h1><div class="card empty">Er zijn nog geen klantbedrijven waar jij toegang toe hebt.</div>';return}
+  if(!S.costOrg||!S.orgs.find(o=>o.id===S.costOrg))S.costOrg=S.orgs[0].id;
+  const o=S.costOrg;
+  const [lines,cmp,docs,cons]=await Promise.all([api.costLines(o),api.costCompare(o),api.orgDocs(o),api.orgContracts(o)]);
+  S.costLines=lines||[];S.costDocs=docs||[];
+  const canEdit=S.role==='reviewer'||S.role==='admin';
+  const recent=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
+  const perYear=recent.reduce((a,r)=>a+Number(r.latest_monthly||0)*12,0);
+  const sigs=(cmp||[]).filter(r=>r.is_signal).sort((a,b)=>b.extra_per_month-a.extra_per_month);
+  const rows=(cmp||[]).slice().sort((a,b)=>(CCAT[a.category]||'').localeCompare(CCAT[b.category]||'')||a.supplier.localeCompare(b.supplier));
+  const docName=id=>(S.costDocs.find(d=>d.id===id)||{}).file_name;
+  v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="sub">Intern — de ondernemer ziet dit overzicht niet. Alle bedragen excl. btw. Elke nieuwe factuur wordt vergeleken met de eerste factuur van dat jaar, de oudste factuur en de vorige factuur.</p>
+  <div class="orgpick"><select id="corg">${S.orgs.map(x=>`<option value="${esc(x.id)}" ${x.id===o?'selected':''}>${esc(x.name)}${x.city?' — '+esc(x.city):''}</option>`).join('')}</select><span class="hint">${S.costDocs.length} document(en) aangeleverd</span></div>
+  <div class="stats">
+   <div class="stat"><span>Vaste kosten per jaar</span><b>${eur(Math.round(perYear))}</b><small>geschat uit de laatste facturen (≤ 13 mnd oud)</small></div>
+   <div class="stat"><span>Kostenregels</span><b>${S.costLines.length}</b><small>${rows.length} product(en) / leverancier(s)</small></div>
+   <div class="stat"><span>Signalen</span><b>${sigs.length}</b><small>≥ 10% gestegen én ≥ € 50 per maand</small></div>
+  </div>
+  <h3>Signalen</h3>${sigs.length?sigs.map(r=>`<div class="sig"><b>${esc(CCAT[r.category]||r.category)} · ${esc(r.supplier)}${r.product?' · '+esc(r.product):''}</b>${r.signal_reference==='year_start'?`${pctCell(r.pct_since_year_start)} sinds ${esc(fmtMonth(r.ytd_start))}`:`${pctCell(r.pct_since_oldest)} sinds ${esc(fmtMonth(r.oldest_start))}`} — ongeveer <b style="display:inline">${eur(r.extra_per_month)}</b> per maand meer${r.pct_since_oldest!=null&&r.oldest_start!==r.ytd_start?` · sinds ${esc(fmtMonth(r.oldest_start))}: ${pctCell(r.pct_since_oldest)}`:''}<span class="s hint">Nog niet zichtbaar voor de klant — goedkeuren en tonen komt in fase 2.</span></div>`).join(''):'<p class="hint">Geen signalen boven de drempel.</p>'}
+  <h3>Vergelijking per product</h3>
+  <div class="card" style="overflow:auto"><table><thead><tr><th>Categorie</th><th>Leverancier / product</th><th>Laatste factuur</th><th class="num">Per maand</th><th class="num hide-m">Per eenheid</th><th class="num">t.o.v. begin jaar</th><th class="num">t.o.v. oudste</th><th class="num hide-m">t.o.v. vorige</th></tr></thead><tbody>
+  ${rows.length?rows.map(r=>`<tr style="cursor:default"><td>${esc(CCAT[r.category]||r.category)}${r.is_signal?' '+chip(['Signaal','c-bad']):''}</td><td><b>${esc(r.supplier)}</b><span class="s">${[r.product?esc(r.product):'',r.n_lines+(r.n_lines==1?' factuur':' facturen')].filter(Boolean).join(' · ')}</span></td><td>${esc(fmtPeriod(r.latest_start,r.latest_end))}</td><td class="num">${eur(r.latest_monthly)}</td><td class="num hide-m">${r.latest_unit_price!=null?eur(r.latest_unit_price)+'<span class="s">per '+esc(r.latest_unit)+'</span>':'—'}</td><td class="num">${pctCell(r.pct_since_year_start,r.ytd_start)}</td><td class="num">${pctCell(r.pct_since_oldest,r.oldest_start)}</td><td class="num hide-m">${pctCell(r.pct_since_previous,r.prev_start)}</td></tr>`).join(''):'<tr><td colspan="8" class="empty">Nog geen kostenregels voor dit bedrijf.</td></tr>'}
+  </tbody></table></div>
+  <p class="hint">Vergelijking op prijs per eenheid als beide facturen dezelfde eenheid hebben (bijv. per lediging); anders op bedrag per maand. Een stijging door méér volume telt dan niet als prijsstijging.</p>
+  ${canEdit?`<h3 id="cformh">Kostenregel toevoegen</h3><div class="card" style="padding:16px"><div class="form" id="cform">
+   <div class="row"><select id="ccat">${Object.entries(CCAT).map(([k,x])=>`<option value="${k}">${esc(x)}</option>`).join('')}</select><input id="csup" maxlength="120" placeholder="Leverancier *"><input id="cprod" maxlength="160" placeholder="Product / dienst (bijv. restafval 240L)"></div>
+   <div class="row"><label class="hint">Periode van *<input id="cfrom" type="date"></label><label class="hint">t/m *<input id="cto" type="date"></label><label class="hint">Factuurdatum<input id="cidate" type="date"></label><label class="hint">Factuurnummer<input id="cinr" maxlength="60"></label></div>
+   <div class="row"><label class="hint">Bedrag excl. btw (€) *<input id="camt" type="number" min="0" step="0.01"></label><label class="hint">Aantal<input id="cqty" type="number" min="0" step="any" placeholder="bijv. 4"></label><label class="hint">Eenheid<input id="cunit" maxlength="40" placeholder="bijv. lediging, fust, kWh"></label></div>
+   <div class="row"><select id="cdoc"><option value="">Geen factuur gekoppeld</option>${S.costDocs.map(d=>`<option value="${esc(d.id)}">${esc(d.file_name)} (${esc(fmtDate(d.uploaded_at))})</option>`).join('')}</select><select id="ccon"><option value="">Geen contract gekoppeld</option>${(cons||[]).map(c=>`<option value="${esc(c.id)}">${esc(c.supplier)} — ${esc(c.description||c.category)}</option>`).join('')}</select></div>
+   <input id="cnote" maxlength="1000" placeholder="Notitie (optioneel)">
+   <div class="row" style="flex:none"><button class="btn primary" id="cgo">Opslaan</button><button class="btn" id="ccancel" hidden>Annuleren</button></div><div class="msg" id="cmsg"></div>
+  </div></div>`:''}
+  <h3>Alle kostenregels</h3><div class="card" style="overflow:auto"><table><thead><tr><th>Periode</th><th>Categorie</th><th>Leverancier / product</th><th class="num">Bedrag</th><th class="num hide-m">Aantal</th><th class="hide-m">Factuur</th><th></th></tr></thead><tbody>
+  ${S.costLines.length?S.costLines.map(l=>`<tr style="cursor:default"><td>${esc(fmtPeriod(l.period_start,l.period_end))}</td><td>${esc(CCAT[l.category]||l.category)}</td><td><b>${esc(l.supplier)}</b><span class="s">${esc(l.product||'')}${l.note?' · '+esc(l.note):''}</span></td><td class="num">${eur(l.amount_excl_vat)}<span class="s">${eur(l.monthly_amount)} p/m</span></td><td class="num hide-m">${l.quantity!=null?esc(Number(l.quantity).toLocaleString('nl-NL'))+' '+esc(l.unit):'—'}</td><td class="hide-m">${l.document_id&&docName(l.document_id)?`<a href="#" data-file="${esc(l.document_id)}">${esc(docName(l.document_id))}</a>`:(l.invoice_number?esc(l.invoice_number):'—')}</td><td>${canEdit?`<button class="btn small" data-cedit="${esc(l.id)}">Wijzig</button> <button class="btn small" data-cdel="${esc(l.id)}">Verwijder</button>`:''}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Nog geen kostenregels.</td></tr>'}
+  </tbody></table></div>
+  <h3>Aangeleverde documenten</h3><div class="card"><ul class="timeline" style="padding:0 16px">${S.costDocs.map(d=>`<li><span>${esc(fmtDT(d.uploaded_at))} · ${esc(d.category||'')}</span><a href="#" data-file="${esc(d.id)}">${esc(d.file_name)}</a></li>`).join('')||'<li>Nog geen documenten aangeleverd door de klant.</li>'}</ul></div>`;
+  $('#corg').onchange=e=>{S.costOrg=e.target.value;S.costEdit=null;renderCosts()};
+  document.querySelectorAll('[data-file]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();const d=S.costDocs.find(x=>x.id===a.dataset.file);if(!d)return;const w=window.open('','_blank');try{const u=await api.fileUrl(d.storage_path);if(w)w.location=u;else location.href=u}catch(e){if(w)w.close();alert('Openen mislukt: '+errText(e))}});
+  if(!canEdit)return;
+  document.querySelectorAll('[data-cdel]').forEach(b=>b.onclick=async()=>{if(!confirm('Deze kostenregel verwijderen? Dit wordt in het logboek vastgelegd.'))return;try{await api.deleteCost(b.dataset.cdel);renderCosts()}catch(e){alert(errText(e))}});
+  document.querySelectorAll('[data-cedit]').forEach(b=>b.onclick=()=>fillCostForm(S.costLines.find(l=>l.id===b.dataset.cedit)));
+  $('#ccancel').onclick=()=>{S.costEdit=null;renderCosts()};
+  $('#cgo').onclick=saveCost;
+  if(S.costEdit)fillCostForm(S.costLines.find(l=>l.id===S.costEdit));
+ }catch(e){v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="msg err">${esc(errText(e))}</p>`}
+}
+function fillCostForm(l){if(!l)return;S.costEdit=l.id;
+ const set=(id,val)=>{$(id).value=val??''};
+ set('#ccat',l.category);set('#csup',l.supplier);set('#cprod',l.product);set('#cfrom',l.period_start);set('#cto',l.period_end);set('#cidate',l.invoice_date);set('#cinr',l.invoice_number);set('#camt',l.amount_excl_vat);set('#cqty',l.quantity);set('#cunit',l.unit);set('#cdoc',l.document_id);set('#ccon',l.contract_id);set('#cnote',l.note);
+ $('#cformh').textContent='Kostenregel wijzigen';$('#cgo').textContent='Wijziging opslaan';$('#ccancel').hidden=false;$('#cformh').scrollIntoView({behavior:'smooth'})}
+async function saveCost(){
+ const m=$('#cmsg'),b=$('#cgo');m.className='msg';
+ const val=id=>$(id).value.trim();
+ try{
+  const sup=val('#csup'),from=val('#cfrom'),to=val('#cto'),amt=val('#camt'),qty=val('#cqty'),unit=val('#cunit');
+  if(sup.length<2)throw new Error('Vul de leverancier in.');
+  if(!from||!to)throw new Error('Vul de periode van en t/m in.');
+  if(to<from)throw new Error('De einddatum ligt vóór de begindatum.');
+  if(amt===''||Number(amt)<0)throw new Error('Vul het bedrag excl. btw in.');
+  if((qty==='')!==(unit===''))throw new Error('Vul aantal én eenheid in, of laat beide leeg.');
+  const row={category:$('#ccat').value,supplier:sup,product:val('#cprod')||null,period_start:from,period_end:to,invoice_date:val('#cidate')||null,invoice_number:val('#cinr')||null,amount_excl_vat:Number(amt),quantity:qty===''?null:Number(qty),unit:unit||null,document_id:$('#cdoc').value||null,contract_id:$('#ccon').value||null,note:val('#cnote')||null};
+  b.disabled=true;m.textContent='Bezig…';
+  if(S.costEdit)await api.updateCost(S.costEdit,row);else await api.addCost({...row,organization_id:S.costOrg});
+  S.costEdit=null;await renderCosts();const m2=$('#cmsg');if(m2){m2.className='msg ok';m2.textContent='Opgeslagen.'}
+ }catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}
+}
+
+/* ---------- Medewerkers ---------- */
+async function renderStaff(){
+ $('#view').innerHTML='<p class="hint">Laden…</p>';
+ try{
+  const [list,audit]=await Promise.all([api.staffList(),api.staffAudit()]);S.staff=list||[];
+  $('#view').innerHTML=`<h1>Medewerkers en rechten</h1><p class="sub">Alleen beheerders zien deze pagina. Rollen kunnen alleen aan bevestigde @horecaunited.nl-accounts worden gegeven; elke wijziging wordt gelogd.</p>
+  <div class="card" style="overflow:auto"><table><thead><tr><th>Account</th><th>Rol</th><th>Bereik</th><th>Status</th><th class="hide-m">Laatst ingelogd</th><th></th></tr></thead><tbody>
+  ${S.staff.map(s=>`<tr style="cursor:default"><td>${esc(s.email)}${s.user_id===S.user.id?' <span class="chip c-info">jij</span>':''}</td><td>${esc(ROLE[s.role]||s.role)}</td><td>${esc(SCOPE[s.scope]||s.scope)}${(s.scope_values||[]).length?': '+esc(s.scope_values.join(', ')):''}</td><td>${s.active?chip(['Actief','c-ok']):chip(['Ingetrokken','c-grey'])}</td><td class="hide-m">${fmtDT(s.last_sign_in_at)}</td><td>${s.active&&s.user_id!==S.user.id?`<button class="btn small" data-rev="${esc(s.user_id)}">Intrekken</button>`:''}</td></tr>`).join('')}
+  </tbody></table></div>
+  <h3>Rol toekennen of wijzigen</h3><div class="card" style="padding:16px"><div class="form">
+   <p class="hint">Het account moet eerst bestaan (uitnodigen via Supabase → Authentication → Invite user) en één keer zijn ingelogd. Vul het gebruikers-ID in uit Supabase.</p>
+   <div class="row"><input id="ruid" placeholder="Gebruikers-ID (uuid)"><select id="rrole"><option value="viewer">Alleen-lezen</option><option value="reviewer">Beoordelaar</option><option value="admin">Beheerder</option></select><select id="rscope"><option value="assigned">Alleen toegewezen leads</option><option value="all">Alle leads</option><option value="region">Regio</option></select><input id="rvals" placeholder="Regio's (komma-gescheiden)"></div>
+   <input id="rreason" placeholder="Reden (verplicht, komt in het logboek)"><button class="btn primary" id="rgo">Opslaan</button><div class="msg" id="rmsg"></div></div></div>
+  <h3>Logboek rechten</h3><div class="card"><ul class="timeline" style="padding:0 16px">${(audit||[]).map(a=>`<li><span>${fmtDT(a.created_at)} · door ${a.actor_kind==='database'?'database/migratie':esc(staffEmail(a.actor_id))}</span>${esc(a.action)} — ${esc(staffEmail(a.target_user))}: ${esc(a.old_value?(a.old_value.role+'/'+a.old_value.scope+' → '):'')}${esc(a.new_value?(a.new_value.role+'/'+a.new_value.scope):'')}${a.reason?' — '+esc(a.reason):''}</li>`).join('')||'<li>Geen regels.</li>'}</ul></div>`;
+  document.querySelectorAll('[data-rev]').forEach(b=>b.onclick=async()=>{const reason=prompt('Reden voor intrekken (verplicht):');if(!reason)return;try{await api.revoke(b.dataset.rev,reason);renderStaff()}catch(e){alert(errText(e))}});
+  $('#rgo').onclick=async()=>{const m=$('#rmsg');m.className='msg';try{const vals=$('#rvals').value.split(',').map(x=>x.trim()).filter(Boolean);await api.setRole($('#ruid').value.trim(),$('#rrole').value,$('#rscope').value,$('#rscope').value==='region'?vals:[],$('#rreason').value.trim());m.className='msg ok';m.textContent='Opgeslagen.';renderStaff()}catch(e){m.className='msg err';m.textContent=errText(e)}};
+ }catch(e){$('#view').innerHTML=`<p class="msg err">${esc(errText(e))}</p>`}
+}
+function staffEmail(uid){const s=S.staff.find(x=>x.user_id===uid);return s?s.email:(uid?uid.slice(0,8)+'…':'—')}
+
+/* ---------- Logboek ---------- */
+async function renderLog(){
+ $('#view').innerHTML='<p class="hint">Laden…</p>';
+ try{const evs=await api.allEvents();const name=id=>(S.leads.find(l=>l.lead_id===id)||{}).company_name||'—';
+  $('#view').innerHTML=`<h1>Logboek leads</h1><p class="sub">Alle acties op leads, inclusief exports. Dit logboek kan niet worden gewijzigd of gewist.</p>
+  <div class="card"><table><thead><tr><th>Wanneer</th><th>Wie</th><th>Lead</th><th>Actie</th></tr></thead><tbody>${(evs||[]).map(e=>`<tr style="cursor:default"><td>${fmtDT(e.created_at)}</td><td>${e.actor_id?esc(staffEmail(e.actor_id)):'systeem'}</td><td>${e.lead_id?esc(name(e.lead_id)):'—'}</td><td>${esc(eventText(e))}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">Geen gebeurtenissen.</td></tr>'}</tbody></table></div>`;
+ }catch(e){$('#view').innerHTML=`<p class="msg err">${esc(errText(e))}</p>`}
+}
+
+if(client)client.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT')location.href='./'});
+boot();
+</script>
+</body>
+</html>
