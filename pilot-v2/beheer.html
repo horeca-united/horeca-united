@@ -441,7 +441,7 @@ async function renderCosts(){
   ${missingInvoicesHtml()}
   <p class="hint">Vergelijking op prijs per eenheid als beide facturen dezelfde eenheid hebben (bijv. per lediging); anders op bedrag per maand. Een stijging door méér volume telt dan niet als prijsstijging.</p>
   ${contractAuditHtml()}
-  <h3>Aangeleverde documenten</h3><div class="card"><ul class="timeline doclist" style="padding:0 16px">${S.costDocs.map(d=>`<li><span>${esc(fmtDT(d.uploaded_at))} · ${esc(DOCCAT[d.category]||d.category||'')}</span><a href="#" data-file="${esc(d.id)}">${esc(d.file_name)}</a>${canEdit?` <button class="btn small" data-xtr="${esc(d.id)}">Uitlezen → formulier</button>`:''}${' '+docStatusChip(d.id)}</li>`).join('')||'<li>Nog geen documenten aangeleverd door de klant.</li>'}</ul></div>
+  <h3>Aangeleverde documenten</h3><div class="card"><ul class="timeline doclist" style="padding:0 16px">${S.costDocs.map(d=>`<li><span>${esc(fmtDT(d.uploaded_at))} · ${esc(DOCCAT[d.category]||d.category||'')}</span><a href="#" data-file="${esc(d.id)}">${esc(d.file_name)}</a>${canEdit?` <button class="btn small" data-xtr="${esc(d.id)}">Uitlezen → formulier</button>`:''}${docLabel(d.id)}${' '+docStatusChip(d.id)}</li>`).join('')||'<li>Nog geen documenten aangeleverd door de klant.</li>'}</ul></div>
   ${canEdit?`<h3 id="cformh">Kostenregel toevoegen</h3><div class="card" style="padding:16px"><div class="form" id="cform">
    <div class="row"><select id="ckind" title="Soort kosten"><option value="vast">Vaste kosten</option><option value="inkoop">Inkoop (variabel)</option></select><select id="ccat">${Object.entries(CCAT).map(([k,x])=>`<option value="${k}">${esc(x)}</option>`).join('')}</select><input id="csup" maxlength="120" placeholder="Leverancier *"><input id="cprod" maxlength="160" placeholder="Product / dienst (bijv. restafval 240L)"></div>
    <div class="row"><label class="hint">Periode van *<input id="cfrom" type="date"></label><label class="hint">t/m *<input id="cto" type="date"></label><label class="hint">Factuurdatum<input id="cidate" type="date"></label><label class="hint">Factuurnummer<input id="cinr" maxlength="60"></label></div>
@@ -612,6 +612,13 @@ function bindContractBtn(docId){const b=$('#cadd_btn');if(!b)return;b.onclick=()
 const INKOOP_CATS=['bier','frisdrank','wijn','gedistilleerd','food','groothandel'];
 const kindOfCat=c=>INKOOP_CATS.includes(c)?'inkoop':'vast';
 const kindOfLine=id=>((S.costLines||[]).find(l=>l.id===id)||{}).cost_kind||'vast';
+function docLabel(id){const L=(S.costLines||[]).filter(l=>l.document_id===id),C=(S.costCons||[]).filter(x=>x.document_id===id);const parts=[];
+ const sups=[...new Set([...L.map(l=>l.supplier),...C.map(c=>c.supplier)].filter(Boolean))];
+ const main=L.filter(l=>!/(heffing|toeslag)/i.test(l.product||''))[0]||L[0];
+ if(main)parts.push((main.cost_kind==='inkoop'?(main.product||'Inkoop'):(main.product||CCAT[main.category]||''))+(main.period_start&&!(main.product||'').includes(periodLabel(main.period_start,main.period_end))?' · '+periodLabel(main.period_start,main.period_end):''));
+ for(const c of C)parts.push((c.description||CCAT[c.category]||'Contract')+' (contract)');
+ if(!sups.length&&!parts.length)return '';
+ return ` <span class="s" style="display:inline;color:inherit">· <b>${esc(sups.join(', '))}</b>${parts.length?' · '+esc(parts.filter(Boolean).join(' · ')):''}</span>`}
 function docStatusChip(id){const k=S.costLines.some(l=>l.document_id===id),c=(S.costCons||[]).some(x=>x.document_id===id);
  if(k&&c)return chip(['Verwerkt: kosten + contract','c-ok']);if(k)return chip([S.costLines.filter(l=>l.document_id===id).every(l=>l.cost_kind==='inkoop')?'Verwerkt als inkoop':'Verwerkt in kosten','c-ok']);if(c)return chip(['Verwerkt als contract','c-ok']);return chip(['Nog te verwerken','c-warn'])}
 
