@@ -409,7 +409,9 @@ async function renderCosts(){
   S.notices=notes||[];S.cmp=cmp||[];S.costCons=cons||[];S.caudit=caudit||[];
   S.costLines=lines||[];S.costDocs=docs||[];
   const canEdit=S.role==='reviewer'||S.role==='admin';
-  const recent=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
+  const recentAll=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
+  const recent=recentAll.filter(r=>kindOfLine(r.latest_id)!=='inkoop');
+  const inkRows=(cmp||[]).filter(r=>kindOfLine(r.latest_id)==='inkoop');const inkYear=inkRows.reduce((a,r)=>a+Number(r.latest_monthly||0)*12,0);
   const fromInv=recent.reduce((a,r)=>a+Number(r.latest_monthly||0)*12,0);
   const invSup=new Set(recent.map(r=>r.supplier.toLowerCase()));
   const today=new Date().toISOString().slice(0,10);
@@ -425,6 +427,7 @@ async function renderCosts(){
   ${newUploadsBox()}<div class="orgpick"><select id="corg">${S.orgs.map(x=>`<option value="${esc(x.id)}" ${x.id===o?'selected':''}>${esc(x.name)}${x.city?' — '+esc(x.city):''}</option>`).join('')}</select><span class="hint">${S.costDocs.length} document(en) aangeleverd</span></div>
   <div class="stats">
    <div class="stat"><span>Vaste kosten per jaar</span><b>${eur(Math.round(perYear))}</b><small>${fromCon?`facturen ${eur(Math.round(fromInv))} + contracten ${eur(Math.round(fromCon))}`:'geschat uit de laatste facturen (≤ 13 mnd oud)'}</small></div>
+   <div class="stat"><span>Inkoop per jaar</span><b>${inkYear?eur(Math.round(inkYear)):'—'}</b><small>${inkRows.length?inkRows.map(r=>esc(r.supplier)+' ('+esc(periodLabel(r.latest_start,r.latest_end))+')').join(', '):'variabel, telt niet mee in vaste kosten'}</small></div>
    <div class="stat"><span>Kostenregels</span><b>${S.costLines.length}</b><small>${rows.length} product(en) / leverancier(s)</small></div>
    <div class="stat"><span>Stijgingen</span><b>${sigs.length}</b><small>t.o.v. begin dit jaar, of anders de oudste factuur</small></div>
   </div>
@@ -440,7 +443,7 @@ async function renderCosts(){
   ${contractAuditHtml()}
   <h3>Aangeleverde documenten</h3><div class="card"><ul class="timeline doclist" style="padding:0 16px">${S.costDocs.map(d=>`<li><span>${esc(fmtDT(d.uploaded_at))} · ${esc(DOCCAT[d.category]||d.category||'')}</span><a href="#" data-file="${esc(d.id)}">${esc(d.file_name)}</a>${canEdit?` <button class="btn small" data-xtr="${esc(d.id)}">Uitlezen → formulier</button>`:''}${' '+docStatusChip(d.id)}</li>`).join('')||'<li>Nog geen documenten aangeleverd door de klant.</li>'}</ul></div>
   ${canEdit?`<h3 id="cformh">Kostenregel toevoegen</h3><div class="card" style="padding:16px"><div class="form" id="cform">
-   <div class="row"><select id="ccat">${Object.entries(CCAT).map(([k,x])=>`<option value="${k}">${esc(x)}</option>`).join('')}</select><input id="csup" maxlength="120" placeholder="Leverancier *"><input id="cprod" maxlength="160" placeholder="Product / dienst (bijv. restafval 240L)"></div>
+   <div class="row"><select id="ckind" title="Soort kosten"><option value="vast">Vaste kosten</option><option value="inkoop">Inkoop (variabel)</option></select><select id="ccat">${Object.entries(CCAT).map(([k,x])=>`<option value="${k}">${esc(x)}</option>`).join('')}</select><input id="csup" maxlength="120" placeholder="Leverancier *"><input id="cprod" maxlength="160" placeholder="Product / dienst (bijv. restafval 240L)"></div>
    <div class="row"><label class="hint">Periode van *<input id="cfrom" type="date"></label><label class="hint">t/m *<input id="cto" type="date"></label><label class="hint">Factuurdatum<input id="cidate" type="date"></label><label class="hint">Factuurnummer<input id="cinr" maxlength="60"></label></div>
    <div class="row"><label class="hint">Bedrag excl. btw (€) *<input id="camt" type="number" min="0" step="0.01"></label><label class="hint">Aantal<input id="cqty" type="number" min="0" step="any" placeholder="bijv. 4"></label><label class="hint">Eenheid<input id="cunit" maxlength="40" placeholder="bijv. lediging, fust, kWh"></label></div>
    <div class="row"><select id="cdoc"><option value="">Geen factuur gekoppeld</option>${S.costDocs.map(d=>`<option value="${esc(d.id)}">${esc(d.file_name)} (${esc(fmtDate(d.uploaded_at))})</option>`).join('')}</select><select id="ccon"><option value="">Geen contract gekoppeld</option>${(cons||[]).map(c=>`<option value="${esc(c.id)}">${esc(c.supplier)} — ${esc(c.description||c.category)}</option>`).join('')}</select></div>
@@ -463,12 +466,13 @@ async function renderCosts(){
   $('#cgo').onclick=saveCost;
   document.querySelectorAll('[data-xtr]').forEach(b=>b.onclick=()=>extractInvoice(b.dataset.xtr,b));
   document.querySelectorAll('#cform input,#cform select').forEach(x=>x.addEventListener('input',()=>x.classList.remove('auto')));
+  if($('#ccat')){$('#ckind').addEventListener('change',()=>{$('#ckind').dataset.manual='1'});$('#ccat').addEventListener('change',()=>{if(!$('#ckind').dataset.manual)$('#ckind').value=kindOfCat($('#ccat').value)})}
   if(S.costEdit)fillCostForm(S.costLines.find(l=>l.id===S.costEdit));
  }catch(e){v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="msg err">${esc(errText(e))}</p>`}
 }
 function fillCostForm(l){if(!l)return;S.costEdit=l.id;S.pendingSurcharges=null;
  const set=(id,val)=>{$(id).value=val??''};
- set('#ccat',l.category);set('#csup',l.supplier);set('#cprod',l.product);set('#cfrom',l.period_start);set('#cto',l.period_end);set('#cidate',l.invoice_date);set('#cinr',l.invoice_number);set('#camt',l.amount_excl_vat);set('#cqty',l.quantity);set('#cunit',l.unit);set('#cdoc',l.document_id);set('#ccon',l.contract_id);set('#cnote',l.note);
+ set('#ccat',l.category);set('#ckind',l.cost_kind||'vast');$('#ckind').dataset.manual='1';set('#csup',l.supplier);set('#cprod',l.product);set('#cfrom',l.period_start);set('#cto',l.period_end);set('#cidate',l.invoice_date);set('#cinr',l.invoice_number);set('#camt',l.amount_excl_vat);set('#cqty',l.quantity);set('#cunit',l.unit);set('#cdoc',l.document_id);set('#ccon',l.contract_id);set('#cnote',l.note);
  $('#cformh').textContent='Kostenregel wijzigen';$('#cgo').textContent='Wijziging opslaan';$('#ccancel').hidden=false;$('#cformh').scrollIntoView({behavior:'smooth'})}
 async function saveCost(){
  const m=$('#cmsg'),b=$('#cgo');m.className='msg';
@@ -480,7 +484,7 @@ async function saveCost(){
   if(to<from)throw new Error('De einddatum ligt vóór de begindatum.');
   if(amt===''||Number(amt)<0)throw new Error('Vul het bedrag excl. btw in.');
   if((qty==='')!==(unit===''))throw new Error('Vul aantal én eenheid in, of laat beide leeg.');
-  const row={category:$('#ccat').value,supplier:sup,product:val('#cprod')||null,period_start:from,period_end:to,invoice_date:val('#cidate')||null,invoice_number:val('#cinr')||null,amount_excl_vat:Number(amt),quantity:qty===''?null:Number(qty),unit:unit||null,document_id:$('#cdoc').value||null,contract_id:$('#ccon').value||null,note:val('#cnote')||null};
+  const row={cost_kind:$('#ckind').value,category:$('#ccat').value,supplier:sup,product:val('#cprod')||null,period_start:from,period_end:to,invoice_date:val('#cidate')||null,invoice_number:val('#cinr')||null,amount_excl_vat:Number(amt),quantity:qty===''?null:Number(qty),unit:unit||null,document_id:$('#cdoc').value||null,contract_id:$('#ccon').value||null,note:val('#cnote')||null};
   b.disabled=true;m.textContent='Bezig…';
   if(S.costEdit)await api.updateCost(S.costEdit,row);else{await api.addCost({...row,organization_id:S.costOrg});
    if(S.pendingSurcharges&&$('#csplit')&&$('#csplit').checked){for(const x of S.pendingSurcharges)await api.addCost({...row,organization_id:S.costOrg,product:x.label,amount_excl_vat:x.amount,quantity:null,unit:null,contract_id:null,note:'Afgesplitst van factuursubtotaal'})}}
@@ -605,8 +609,11 @@ function bindContractBtn(docId){const b=$('#cadd_btn');if(!b)return;b.onclick=()
 }}
 
 
+const INKOOP_CATS=['bier','frisdrank','wijn','gedistilleerd','food','groothandel'];
+const kindOfCat=c=>INKOOP_CATS.includes(c)?'inkoop':'vast';
+const kindOfLine=id=>((S.costLines||[]).find(l=>l.id===id)||{}).cost_kind||'vast';
 function docStatusChip(id){const k=S.costLines.some(l=>l.document_id===id),c=(S.costCons||[]).some(x=>x.document_id===id);
- if(k&&c)return chip(['Verwerkt: kosten + contract','c-ok']);if(k)return chip(['Verwerkt in kosten','c-ok']);if(c)return chip(['Verwerkt als contract','c-ok']);return chip(['Nog te verwerken','c-warn'])}
+ if(k&&c)return chip(['Verwerkt: kosten + contract','c-ok']);if(k)return chip([S.costLines.filter(l=>l.document_id===id).every(l=>l.cost_kind==='inkoop')?'Verwerkt als inkoop':'Verwerkt in kosten','c-ok']);if(c)return chip(['Verwerkt als contract','c-ok']);return chip(['Nog te verwerken','c-warn'])}
 
 
 /* ---------- Inkoopoverzicht per artikel (bijv. 'Klant - Artikel Statistiek' van een groothandel) ---------- */
@@ -840,7 +847,7 @@ function parseInvoice(lines,prev){
 async function extractInvoice(docId,btn){
  const d=S.costDocs.find(x=>x.id===docId);if(!d)return;
  S.costEdit=null;S.pendingSurcharges=null;$('#cformh').textContent='Kostenregel toevoegen';$('#cgo').textContent='Opslaan';$('#ccancel').hidden=false;
- ['#csup','#cprod','#cfrom','#cto','#cidate','#cinr','#camt','#cqty','#cunit','#cnote'].forEach(id=>{$(id).value='';$(id).classList.remove('auto')});$('#ccat').value='overig';$('#ccat').classList.remove('auto');
+ ['#csup','#cprod','#cfrom','#cto','#cidate','#cinr','#camt','#cqty','#cunit','#cnote'].forEach(id=>{$(id).value='';$(id).classList.remove('auto')});$('#ccat').value='overig';$('#ccat').classList.remove('auto');$('#ckind').value='vast';delete $('#ckind').dataset.manual;$('#ckind').classList.remove('auto');
  $('#cdoc').value=docId;const box=$('#cxtr');$('#cmsg').textContent='';
  const show=html=>{box.innerHTML=`<div class="xbox">${html}</div>`;$('#cformh').scrollIntoView({behavior:'smooth'})};
  if(!/pdf$/i.test(d.file_name)&&!/pdf/.test(d.storage_path||'')){show('<b>Dit is een afbeelding (foto of scan).</b> Automatisch uitlezen werkt alleen bij digitale PDF\'s. Open het bestand en vul de gegevens handmatig in. De factuur is al gekoppeld.');return}
@@ -854,20 +861,20 @@ async function extractInvoice(docId,btn){
   const st=parseArticleStats(lines);
   if(st){S.lastLines=lines;
    const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
-   set('#ccat',st.category);set('#csup',st.supplier);set('#cprod',st.product);set('#cfrom',st.period_start);set('#cto',st.period_end);set('#camt',st.total.toFixed(2));set('#cnote',st.note);
+   set('#ccat',st.category);set('#ckind','inkoop');set('#csup',st.supplier);set('#cprod',st.product);set('#cfrom',st.period_start);set('#cto',st.period_end);set('#camt',st.total.toFixed(2));set('#cnote',st.note);
    const top=st.priced.slice().sort((a,b)=>b.net-a.net).slice(0,8);
-   show(`<b>${esc(d.file_name)}</b><ul><li>Soort document: <b>inkoopoverzicht per artikel</b> (artikelstatistiek)${d.category==='contract'?' — de klant zette het bij contracten, maar het hoort bij de kosten':''}.</li>
+   show(`<b>${esc(d.file_name)}</b><ul><li>Soort document: <b>inkoopoverzicht per artikel</b> (artikelstatistiek).</li>
     <li>${st.rows.length} artikelen · ${st.qty.toLocaleString('nl-NL')} stuks · totaal ${eur(st.total)} excl. btw${st.free?` · ${st.free} regels à € 0,00 (proef/gratis) niet meegeteld`:''}${st.period_start?` · periode ${fmtDate(st.period_start)} – ${fmtDate(st.period_end)}`:''}</li>
     ${st.pattern?`<li>${esc(st.pattern)}</li>`:''}
     ${st.cut?`<li style="color:var(--warn)">Let op: de laatste regel lijkt onvolledig. Controleer het totaal met de PDF.</li>`:''}
-    <li>Het formulier hieronder is ingevuld als <b>één kostenregel voor de hele periode</b>. Controleer en klik op Opslaan.</li></ul>
+    <li>Het formulier hieronder is ingevuld als <b>inkoop (variabel)</b>, één regel voor de hele periode. Inkoop telt niet mee in de vaste kosten per jaar. Controleer en klik op Opslaan.</li></ul>
     <details><summary class="hint">Grootste artikelen</summary><table class="t"><tr><th>Artikel</th><th class="num">Aantal</th><th class="num">Betaald</th><th class="num">Gem. per stuk</th><th class="num">Actuele prijs</th></tr>${top.map(x=>`<tr><td>${esc(x.name)}</td><td class="num">${x.qty}</td><td class="num">${eur(x.net)}</td><td class="num">${eur(x.net/x.qty)}</td><td class="num">${eur(x.price)}</td></tr>`).join('')}</table></details>
     <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);
    bindCopyRaw();return}
   if(g.type==='contract'){S.lastLines=lines;show(`<b>${esc(d.file_name)}</b><ul>${typeLine}</ul>${contractBtnHtml(docId)}<details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);bindContractBtn(docId);bindCopyRaw();return}
   const r=parseInvoice(lines,S.costLines);
   const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
-  const got=[];if(r.category&&set('#ccat',r.category))got.push('categorie');if(set('#csup',r.supplier))got.push('leverancier');if(set('#cprod',r.product))got.push('product');
+  const got=[];if(r.category&&set('#ccat',r.category))got.push('categorie');$('#ckind').value=kindOfCat($('#ccat').value);if(set('#csup',r.supplier))got.push('leverancier');if(set('#cprod',r.product))got.push('product');
   if(set('#cfrom',r.period_start)&&set('#cto',r.period_end))got.push('periode');if(set('#cidate',r.invoice_date))got.push('factuurdatum');if(set('#cinr',r.invoice_number))got.push('factuurnummer');
   S.pendingSurcharges=r.surcharges&&r.surcharges.length&&r.amount_main!=null?r.surcharges:null;
   if(set('#camt',(S.pendingSurcharges?r.amount_main:r.amount_excl)!=null?(S.pendingSurcharges?r.amount_main:r.amount_excl).toFixed(2):null))got.push(S.pendingSurcharges?'bedrag excl. btw (zonder heffing)':'bedrag excl. btw');if(r.quantity!=null&&set('#cqty',r.quantity)&&set('#cunit',r.unit))got.push('aantal + eenheid');
