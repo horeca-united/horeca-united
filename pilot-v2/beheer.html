@@ -158,7 +158,7 @@ function liveApi(){
   async setRole(user,role,scope,values,reason){return ok(await client.rpc('huos_staff_set_role',{p_user:user,p_role:role,p_scope:scope,p_scope_values:values,p_reason:reason}))},
   async revoke(user,reason){return ok(await client.rpc('huos_staff_revoke',{p_user:user,p_reason:reason}))},
   async exportLeads(){return ok(await client.rpc('huos_beer_export_leads',{p_stage:null}))},
-  async orgNotices(o){return ok(await client.from('huos_customer_notices').select('id,kind,source_key,title,body,personal_note,status,published_at,read_at').eq('organization_id',o).order('published_at',{ascending:false}).limit(200))},
+  async orgNotices(o){return ok(await client.from('huos_customer_notices').select('id,kind,source_key,title,body,personal_note,cta,status,published_at,read_at').eq('organization_id',o).order('published_at',{ascending:false}).limit(200))},
   async publishNotice(a){const {data,error}=await client.rpc('huos_notice_publish',a);if(error)throw error;return data},
   async withdrawNotice(id){const {error}=await client.rpc('huos_notice_withdraw',{p_id:id});if(error)throw error},
   async requests(){return ok(await client.from('huos_proposal_requests').select('id,organization_id,notice_id,contract_id,origin,subject,customer_message,status,created_at,updated_at').order('created_at',{ascending:false}).limit(500))},
@@ -483,21 +483,23 @@ function defaultNotice(r){
  const pct=r.signal_reference==='year_start'?r.pct_since_year_start:r.pct_since_oldest,since=r.signal_reference==='year_start'?r.ytd_start:r.oldest_start;
  const p=Number(pct).toLocaleString('nl-NL',{minimumFractionDigits:1,maximumFractionDigits:1});
  return {title:`Je kosten voor ${(CCAT[r.category]||r.category).toLowerCase()} zijn gestegen`,
-  body:`${r.supplier}${r.product?' · '+r.product:''}\n+${p}% sinds ${fmtMonthLong(since)} — ongeveer ${eur(Math.round(r.extra_per_month*12)).replace(',00','')} per jaar meer.\nWil je dat we voor je kijken of dit voordeliger kan?`,pct,since}}
+  body:`${r.supplier}${r.product?' · '+r.product:''}\n+${p}% sinds ${fmtMonthLong(since)} — ongeveer ${eur(Math.round(r.extra_per_month*12)).replace(',00','')} per jaar meer.\nWe houden dit voor je in de gaten. Upload je nieuwste factuur, dan blijft je overzicht actueel.`,pct,since}}
 function noticeControls(r,canEdit){
  const n=noticeFor(r);
- if(n)return `<span class="s">✓ Getoond aan klant op ${esc(fmtDT(n.published_at))} · ${n.read_at?'gelezen '+esc(fmtDT(n.read_at)):'nog niet gelezen'}${canEdit?` · <a href="#" data-nwd="${esc(n.id)}">intrekken</a>`:''}</span>`;
+ if(n)return `<span class="s">✓ Getoond aan klant op ${esc(fmtDT(n.published_at))}${n.cta==='proposal'?' · met voorstelknop':' · zonder voorstelknop'} · ${n.read_at?'gelezen '+esc(fmtDT(n.read_at)):'nog niet gelezen'}${canEdit?` · <a href="#" data-nwd="${esc(n.id)}">intrekken</a>`:''}</span>`;
  if(!canEdit)return '<span class="s hint">Nog niet getoond aan de klant.</span>';
  return `<span class="s"><button class="btn small" data-npub="${esc(r.latest_id)}">Tonen aan klant…</button></span><div class="neditor" id="ne_${esc(r.latest_id)}" hidden></div>`}
 function bindNoticeControls(){
  document.querySelectorAll('[data-npub]').forEach(b=>b.onclick=()=>{const r=(S.cmp||[]).find(x=>x.latest_id===b.dataset.npub);if(!r)return;const d=defaultNotice(r),box=$('#ne_'+CSS.escape(r.latest_id));
   box.hidden=false;b.hidden=true;
-  box.innerHTML=`<div class="form" style="margin-top:10px"><label class="hint">Titel<input class="nt" maxlength="140" value="${esc(d.title)}"></label><label class="hint">Tekst<textarea class="nb" rows="4" maxlength="1500">${esc(d.body)}</textarea></label><label class="hint">Persoonlijke noot (optioneel)<textarea class="nn" rows="2" maxlength="1000" placeholder="Bijvoorbeeld: Ik kijk graag met je mee. – Hui"></textarea></label><div class="row" style="flex:none"><button class="btn primary ngo">Publiceren bij klant</button><button class="btn ncancel">Annuleren</button></div><div class="msg nmsg"></div><span class="hint">De klant ziet dit bij Meldingen, met de knoppen "Stuur mij een voorstel" en "Upload je nieuwste factuur".</span></div>`;
+  box.innerHTML=`<div class="form" style="margin-top:10px"><label class="hint">Titel<input class="nt" maxlength="140" value="${esc(d.title)}"></label><label class="hint">Tekst<textarea class="nb" rows="4" maxlength="1500">${esc(d.body)}</textarea></label><label class="hint">Persoonlijke noot (optioneel)<textarea class="nn" rows="2" maxlength="1000" placeholder="Bijvoorbeeld: Ik kijk graag met je mee. – Hui"></textarea></label><label class="hint" style="flex-direction:row;align-items:center;gap:8px;display:flex"><input type="checkbox" class="ncta" style="width:auto"> Toon de knop “Stuur mij een voorstel” — alleen aanzetten als je zeker weet dat je een beter voorstel kunt doen</label><div class="row" style="flex:none"><button class="btn primary ngo">Publiceren bij klant</button><button class="btn ncancel">Annuleren</button></div><div class="msg nmsg"></div><span class="hint">De klant ziet dit bij Meldingen, met de knop "Upload je nieuwste factuur" (en "Stuur mij een voorstel" als je dat hierboven aanzet).</span></div>`;
+  const P_LINE='Wil je dat we voor je kijken of dit voordeliger kan?',U_LINE='We houden dit voor je in de gaten. Upload je nieuwste factuur, dan blijft je overzicht actueel.';
+  box.querySelector('.ncta').onchange=e=>{const ta=box.querySelector('.nb');ta.value=e.target.checked?ta.value.replace(U_LINE,P_LINE):ta.value.replace(P_LINE,U_LINE)};
   box.querySelector('.ncancel').onclick=()=>{box.hidden=true;box.innerHTML='';b.hidden=false};
   box.querySelector('.ngo').onclick=async()=>{const m=box.querySelector('.nmsg'),t=box.querySelector('.nt').value.trim(),bd=box.querySelector('.nb').value.trim(),nt=box.querySelector('.nn').value.trim();
    if(t.length<3||bd.length<3){m.className='msg nmsg err';m.textContent='Vul een titel en tekst in.';return}
    const go=box.querySelector('.ngo');go.disabled=true;m.className='msg nmsg';m.textContent='Bezig…';
-   try{await api.publishNotice({p_org:S.costOrg,p_kind:'cost_increase',p_source_key:'cost:'+r.latest_id,p_source:{category:r.category,supplier:r.supplier,product:r.product,pct:d.pct,since:d.since,extra_per_month:r.extra_per_month,reference:r.signal_reference},p_title:t,p_body:bd,p_note:nt||null,p_cta:'proposal'});await renderCosts()}
+   try{await api.publishNotice({p_org:S.costOrg,p_kind:'cost_increase',p_source_key:'cost:'+r.latest_id,p_source:{category:r.category,supplier:r.supplier,product:r.product,pct:d.pct,since:d.since,extra_per_month:r.extra_per_month,reference:r.signal_reference},p_title:t,p_body:bd,p_note:nt||null,p_cta:box.querySelector('.ncta').checked?'proposal':'upload'});await renderCosts()}
    catch(e){m.className='msg nmsg err';m.textContent=errText(e);go.disabled=false}};
  });
  document.querySelectorAll('[data-nwd]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();if(!confirm('Deze melding intrekken? De klant ziet hem dan niet meer. Een eventuele aanvraag blijft bestaan.'))return;try{await api.withdrawNotice(a.dataset.nwd);await renderCosts()}catch(e){alert(errText(e))}});
