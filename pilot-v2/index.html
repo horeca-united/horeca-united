@@ -536,7 +536,8 @@ function cStatus(c){
  if(d<180)return ['Let op','yellow'];
  return ['Lopend','green'];
 }
-function cIsKans(c){if(c.status==='terminated')return false;if(c.flexible_cancellation)return true;const d=cDays(cActionDate(c));return d!==null&&d>=0&&d<120}
+function cKansReden(c){if(c.status==='terminated')return null;const r=[];const d=c.flexible_cancellation?null:cDays(cActionDate(c));if(d!==null&&d>=0&&d<120)r.push('op te zeggen vóór '+cDate(cActionDate(c)));const p=c.promo_end_date?cDays(c.promo_end_date):null;if(p!==null&&p>=0&&p<120)r.push('actieprijs stopt na '+cDate(c.promo_end_date));return r.length?r.join(' en '):null}
+function cIsKans(c){return !!cKansReden(c)}
 function cCancelHtml(c){
  if(c.flexible_cancellation)return '<strong>'+safe(c.notice_period_text||'Dagelijks/maandelijks opzegbaar')+'</strong>';
  if(c.cancel_by_date)return '<strong>Uiterlijk '+cDate(c.cancel_by_date)+'</strong><small>Opzegtermijn: '+(c.notice_period_text?safe(c.notice_period_text):c.notice_period_months+' maand'+(c.notice_period_months==1?'':'en'))+'</small>';
@@ -553,7 +554,7 @@ function renderContracts(){
  el('cRunning').textContent=active.filter(c=>c.flexible_cancellation||(days(c)!==null&&days(c)>=180)).length;
  el('cTotal').textContent=contracts.length;
  const kansen=contracts.filter(cIsKans);
- el('cKansen').innerHTML=kansen.length?'<div class="ckans"><div><strong>'+kansen.length+' heronderhandelkans'+(kansen.length>1?'en':'')+' gevonden</strong><p>'+kansen.map(c=>safe(C_CAT[c.category]||c.category)).join(', ')+' — opzegbaar of binnenkort op te zeggen. '+(SHOW_CONTRACT_PROPOSAL?'Horeca United kan voor je onderzoeken of betere voorwaarden mogelijk zijn.':'Wij houden deze contracten voor je in de gaten.')+'</p></div>'+(!SHOW_CONTRACT_PROPOSAL?'':kansen.every(c=>c.proposal_requested_at)?'<span class="cb green">Voorstel aangevraagd</span>':'<button class="btn" onclick="requestContractProposals()">Stuur mij een voorstel</button>')+'</div>':'';
+ el('cKansen').innerHTML=kansen.length?'<div class="ckans"><div><strong>'+kansen.length+' heronderhandelkans'+(kansen.length>1?'en':'')+' gevonden</strong><p>'+kansen.map(c=>safe((C_CAT[c.category]||c.category)+' ('+c.supplier+'): '+cKansReden(c))).join('; ')+'. '+(SHOW_CONTRACT_PROPOSAL?'Horeca United kan voor je onderzoeken of betere voorwaarden mogelijk zijn.':'Wij houden deze contracten voor je in de gaten.')+'</p></div>'+(!SHOW_CONTRACT_PROPOSAL?'':kansen.every(c=>c.proposal_requested_at)?'<span class="cb green">Voorstel aangevraagd</span>':'<button class="btn" onclick="requestContractProposals()">Stuur mij een voorstel</button>')+'</div>':'';
  const rem=active.filter(c=>{const d=days(c);return !c.flexible_cancellation&&d!==null&&d>=0&&d<=c.reminder_days_before});
  el('cReminders').innerHTML=rem.length?'<div class="block"><h3>Herinneringen</h3>'+rem.map(c=>'<div class="line-item"><div><strong>'+safe(C_CAT[c.category]||c.category)+' — '+safe(c.supplier)+'</strong><small>'+(c.cancel_by_date?'Laatste opzegdatum':'Einddatum')+': '+cDate(cActionDate(c))+' (nog '+days(c)+' dag'+(days(c)===1?'':'en')+')</small></div><span class="cb '+cStatus(c)[1]+'">'+cStatus(c)[0]+'</span></div>').join('')+'</div>':'';
  if(!contracts.length){el('contractTable').innerHTML='<div class="empty"><strong>Nog geen contracten vastgelegd</strong><span>Voeg je eerste contract toe, bijvoorbeeld energie, bier of verzekeringen, of sleep het contract onderaan deze pagina.</span></div>';return}
