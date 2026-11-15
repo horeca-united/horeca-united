@@ -159,6 +159,7 @@ function liveApi(){
   async revoke(user,reason){return ok(await client.rpc('huos_staff_revoke',{p_user:user,p_reason:reason}))},
   async exportLeads(){return ok(await client.rpc('huos_beer_export_leads',{p_stage:null}))},
   async orgNotices(o){return ok(await client.from('huos_customer_notices').select('id,kind,source_key,title,body,personal_note,cta,status,published_at,read_at').eq('organization_id',o).order('published_at',{ascending:false}).limit(200))},
+  async staffAddContract(a){const {data,error}=await client.rpc('huos_staff_add_contract',a);if(error)throw error;return data},
   async publishNotice(a){const {data,error}=await client.rpc('huos_notice_publish',a);if(error)throw error;return data},
   async withdrawNotice(id){const {error}=await client.rpc('huos_notice_withdraw',{p_id:id});if(error)throw error},
   async requests(){return ok(await client.from('huos_proposal_requests').select('id,organization_id,notice_id,contract_id,origin,subject,customer_message,status,created_at,updated_at').order('created_at',{ascending:false}).limit(500))},
@@ -169,7 +170,7 @@ function liveApi(){
   async costLines(o){return ok(await client.from('huos_cost_lines').select('*').eq('organization_id',o).order('period_end',{ascending:false}).limit(1000))},
   async costCompare(o){return ok(await client.from('huos_cost_comparison').select('*').eq('organization_id',o))},
   async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
-  async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,end_date').eq('organization_id',o).limit(300))},
+  async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,end_date,document_id,added_by_staff').eq('organization_id',o).limit(300))},
   async addCost(row){return ok(await client.from('huos_cost_lines').insert(row).select('id').single())},
   async updateCost(id,row){const r=ok(await client.from('huos_cost_lines').update(row).eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet bijgewerkt (geen rechten?)');return r},
   async deleteCost(id){const r=ok(await client.from('huos_cost_lines').delete().eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet verwijderd (geen rechten?)');return r},
@@ -208,7 +209,7 @@ function demoApi(){
   setStage:demoOnly,assign:demoOnly,addNote:demoOnly,verify:demoOnly,mandateDecide:demoOnly,setRole:demoOnly,revoke:demoOnly,
   async exportLeads(){return L},async signOut(){location.reload()},
   async orgs(){return [{id:'o1',name:'Restaurant Demozaak',city:'Arnhem',business_type:'restaurant',kvk_number:'12345678',location_count:1}]},
-  async orgNotices(){return []},publishNotice:demoOnly,withdrawNotice:demoOnly,updateRequest:demoOnly,
+  async orgNotices(){return []},publishNotice:demoOnly,staffAddContract:demoOnly,withdrawNotice:demoOnly,updateRequest:demoOnly,
   async requests(){return [{id:'rq1',organization_id:'o1',notice_id:null,contract_id:null,origin:'notice',subject:'Je kosten voor elektra zijn gestegen',customer_message:'Graag bellen na 14:00',status:'new',created_at:d(0),updated_at:d(0)}]},
   async requestEvents(){return [{id:1,actor_role:'klant',event:'created',to_status:'new',note:'Graag bellen na 14:00',created_at:d(0)}]},
   async recentDocs(){return [{id:'dd1',organization_id:'o1',file_name:'factuur-afval-okt.pdf',category:'invoice',uploaded_at:d(0)}]},
@@ -403,7 +404,7 @@ async function renderCosts(){
   if(!S.costOrg||!S.orgs.find(o=>o.id===S.costOrg))S.costOrg=S.orgs[0].id;
   const o=S.costOrg;
   const [lines,cmp,docs,cons,notes]=await Promise.all([api.costLines(o),api.costCompare(o),api.orgDocs(o),api.orgContracts(o),api.orgNotices(o).catch(()=>[])]);
-  S.notices=notes||[];S.cmp=cmp||[];
+  S.notices=notes||[];S.cmp=cmp||[];S.costCons=cons||[];
   S.costLines=lines||[];S.costDocs=docs||[];
   const canEdit=S.role==='reviewer'||S.role==='admin';
   const recent=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
@@ -475,6 +476,101 @@ async function saveCost(){
 
 
 
+
+/* ---------- HUOS documentherkenning (gedeeld door klantomgeving en beheer; draait in de browser) ---------- */
+const DP_PDFJS='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/';
+let dpPdfLib=null;
+async function dpLoadPdf(){if(dpPdfLib)return dpPdfLib;const m=await import(DP_PDFJS+'pdf.min.mjs');m.GlobalWorkerOptions.workerSrc=DP_PDFJS+'pdf.worker.min.mjs';return dpPdfLib=m}
+async function dpPdfLines(buf){
+ const lib=await dpLoadPdf();const doc=await lib.getDocument({data:buf,isEvalSupported:false,disableFontFace:true}).promise;const out=[];
+ for(let p=1;p<=Math.min(doc.numPages,8);p++){const tc=await (await doc.getPage(p)).getTextContent();const rows=new Map();
+  for(const it of tc.items){if(!it.str||!it.str.trim())continue;const y=Math.round(it.transform[5]/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
+  [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
+ return out}
+const DP_M={jan:1,januari:1,feb:2,februari:2,mrt:3,maart:3,apr:4,april:4,mei:5,jun:6,juni:6,jul:7,juli:7,aug:8,augustus:8,sep:9,sept:9,september:9,okt:10,oktober:10,nov:11,november:11,dec:12,december:12};
+const DP_DATE=/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4}|\d{2})\b|(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|jan|feb|mrt|apr|jun|jul|aug|sept|sep|okt|nov|dec)\.?\s+(\d{4})/gi;
+const dpPad=n=>String(n).padStart(2,'0');
+function dpIso(m){let d,mo,y;if(m[1]){d=+m[1];mo=+m[2];y=+m[3];if(y<100)y+=2000}else{d=+m[4];mo=DP_M[m[5].toLowerCase()];y=+m[6]}
+ if(!(mo>=1&&mo<=12&&d>=1&&d<=31&&y>=2000&&y<=2100))return null;const dt=new Date(Date.UTC(y,mo-1,d));return dt.getUTCDate()===d?`${y}-${dpPad(mo)}-${dpPad(d)}`:null}
+function dpDates(str){return [...String(str).matchAll(DP_DATE)].map(dpIso).filter(Boolean)}
+function dpAmt(s){s=String(s).replace(/[€\s]/g,'');if(/,\d{2}$/.test(s))s=s.replace(/\./g,'').replace(',','.');else s=s.replace(/,(?=\d{3}\b)/g,'');const n=parseFloat(s);return isFinite(n)?n:null}
+function dpAddMonths(iso,m){const [y,mo,d]=iso.split('-').map(Number);const dt=new Date(Date.UTC(y,mo-1+m,d));dt.setUTCDate(dt.getUTCDate()-1);return dt.toISOString().slice(0,10)}
+const DP_SUP=[['Milieuservice Nederland','afval'],['Milieuservice','afval'],['Renewi','afval'],['PreZero','afval'],['Suez','afval'],['GP Groot','afval'],['Remondis','afval'],['Veolia','afval'],['HVC','afval'],
+ ['Vattenfall','elektra'],['Eneco','elektra'],['Essent','elektra'],['Greenchoice','elektra'],['Budget Energie','elektra'],['Engie','elektra'],['Vandebron','elektra'],['Energiedirect','elektra'],['Hezelaer','elektra'],['TotalEnergies','elektra'],
+ ['Vitens','water'],['Evides','water'],['Brabant Water','water'],['Waternet','water'],['Dunea','water'],['PWN','water'],['Oasen','water'],['WML','water'],
+ ['Heineken','bier'],['Grolsch','bier'],['Bavaria','bier'],['Swinkels','bier'],['AB InBev','bier'],['Coca-Cola','frisdrank'],['Vrumona','frisdrank'],
+ ['Sligro','groothandel'],['Hanos','groothandel'],['Makro','groothandel'],['Bidfood','groothandel'],['KPN','telecom'],['Ziggo','telecom'],['Odido','telecom'],['T-Mobile','telecom'],
+ ['Buma','muziekrechten'],['Sena','muziekrechten'],['CCV','betaalverkeer'],['Worldline','betaalverkeer'],['Adyen','betaalverkeer'],['SumUp','betaalverkeer'],
+ ['Interpolis','verzekeringen'],['Achmea','verzekeringen'],['Centraal Beheer','verzekeringen'],['Nationale-Nederlanden','verzekeringen'],['Allianz','verzekeringen'],['Ecolab','schoonmaak'],['Diversey','schoonmaak']];
+const DP_CATKW=[[/lediging|container|restafval|afvalstoffen|bedrijfsafval|swill/i,'afval'],[/kwh|elektriciteit|stroom/i,'elektra'],[/aardgas|\bgas\b/i,'gas'],[/drinkwater|\bwater\b/i,'water'],[/\bfust|pils|bier\b|tapbier|brouwerij/i,'bier'],[/frisdrank|\bfris\b/i,'frisdrank'],[/\bwijn/i,'wijn'],[/internet|telefonie|mobiel/i,'telecom'],[/verzekering|polis|premie/i,'verzekeringen'],[/buma|sena|muziek/i,'muziekrechten'],[/pin|betaalterminal|transactie/i,'betaalverkeer'],[/schoonmaak|reiniging/i,'schoonmaak'],[/huurovereenkomst|\bhuur\b/i,'huur']];
+function dpGuessType(lines){
+ const t=lines.join('\n'),why=[];let inv=0,con=0;
+ if(/factuur\s*(nummer|nr|no)/i.test(t)){inv+=2;why.push('factuurnummer')}
+ if(/factuurdatum|vervaldatum/i.test(t))inv+=1;
+ if(/te betalen|totaal te voldoen|totaalbedrag|totaal\s*incl/i.test(t)){inv+=1;why.push('te betalen bedrag')}
+ if(/(btw|b\.t\.w\.)\s*\d|\d+([.,]\d+)?\s*%\s*(btw|b\.t\.w)/i.test(t))inv+=1;
+ const cw=[];
+ if(/opzegtermijn|opzeggen|opzegging/i.test(t)){con+=2;cw.push('opzegtermijn')}
+ if(/looptijd|contractduur|duur van de overeenkomst/i.test(t)){con+=2;cw.push('looptijd')}
+ if(/overeenkomst|leveringsvoorwaarden|stilzwijgend|ingangsdatum|handtekening|ondertekening/i.test(t)){con+=1;cw.push('overeenkomst')}
+ if(inv>=2&&inv>con)return {type:'invoice',label:'een factuur',why:why.join(' en ')||'factuurgegevens'};
+ if(con>=2&&con>=inv)return {type:'contract',label:'een contract',why:cw.join(', ')};
+ return {type:null,label:'niet duidelijk',why:''}}
+function dpSupplier(lines,ownName){
+ const text=lines.join('\n'),lower=text.toLowerCase();
+ const own=String(ownName||'').toLowerCase().split(/[^a-z0-9à-ÿ]+/).filter(w=>w.length>=4&&!['restaurant','eetcafe','cafe','hotel','grand','brasserie','lunchroom','bistro'].includes(w));
+ const isOwn=x=>own.some(w=>x.toLowerCase().includes(w));
+ for(const [n,c] of DP_SUP)if(lower.includes(n.toLowerCase()))return {supplier:n,category:c};
+ const dm=[...text.matchAll(/(?:www\.|@)([a-z0-9-]{3,40})\.(?:nl|com|eu|be|de)\b/gi)].map(m=>m[1].toLowerCase()).find(d=>!['gmail','hotmail','outlook','live','icloud','yahoo','ziggo','kpnmail','xs4all'].includes(d)&&!isOwn(d));
+ if(dm)return {supplier:dm.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' '),category:null};
+ const ln=lines.slice(0,15).find(x=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b/.test(x)&&!isOwn(x));
+ if(ln)return {supplier:ln.replace(/^(tussen|en|de ondergetekenden:?)\s+/i,'').replace(/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b.*$/,'').trim().slice(0,120),category:null};
+ return {supplier:null,category:null}}
+function dpParseContract(lines,ownName){
+ const t=lines.join('\n'),find=re=>lines.find(l=>re.test(l)),r={found:[]};
+ const s=dpSupplier(lines,ownName);r.supplier=s.supplier;r.category=s.category;
+ if(!r.category){for(const [re,c] of DP_CATKW)if(re.test(t)){r.category=c;break}}
+ const title=lines.slice(0,6).find(l=>/(overeenkomst|contract|polis)/i.test(l)&&l.length<=120);if(title)r.description=title.replace(/\s{2,}.*$/,'').trim();
+ let l=find(/(ingangsdatum|startdatum|aanvangsdatum|met ingang van|ingaande|datum van ingang)/i);if(l)r.start_date=dpDates(l)[0]||null;
+ l=find(/(einddatum|eindigt op|loopt tot|tot en met|vervaldatum|expiratiedatum)/i);if(l){const ds=dpDates(l);r.end_date=ds[ds.length-1]||null}
+ let m=t.match(/(looptijd|contractduur|duur van de overeenkomst)[^\n\d]{0,40}(\d{1,3})\s*(maanden|maand|jaren|jaar)/i);
+ if(m){r.term_months=+m[2]*(/jaar/i.test(m[3])?12:1);if(r.start_date&&!r.end_date)r.end_date=dpAddMonths(r.start_date,r.term_months)}
+ m=t.match(/opzeg(?:termijn|gen|ging)[^\n\d]{0,60}(\d{1,2})\s*(maanden|maand|weken|week|dagen|dag)/i);
+ if(m){const n=+m[1],u=m[2].toLowerCase();r.notice_months=u.startsWith('maand')?n:u.startsWith('we')?Math.max(1,Math.ceil(n/4.345)):Math.max(0,Math.ceil(n/30.44));
+  const nl=lines.find(x=>/opzeg/i.test(x));if(nl&&!u.startsWith('maand'))r.notice_text=nl.trim().slice(0,200)}
+ if(/niet\s+(stilzwijgend|automatisch)\s+(verlengd|verlengen)|geen\s+stilzwijgende/i.test(t))r.auto_renews=false;
+ else if(/stilzwijgend|automatisch\s+verlengd|wordt\s+verlengd/i.test(t)){r.auto_renews=true;m=t.match(/verlengd\s+(?:met|voor)\s+(?:telkens\s+)?(?:een\s+periode\s+van\s+)?(\d{1,3})\s*(maanden|maand|jaren|jaar)/i);if(m)r.renewal_months=+m[1]*(/jaar/i.test(m[2])?12:1)}
+ if(/dagelijks opzegbaar|maandelijks opzegbaar|per maand opzegbaar|op elk moment opzeggen/i.test(t))r.flexible=true;
+ m=t.match(/€\s*([\d.]+,\d{2}|\d+(?:\.\d{2})?)\s*(?:excl\.?\s*btw\s*)?(?:per|\/|p\.?)\s*(maand|mnd|kwartaal|jaar)/i);
+ if(m){r.amount=dpAmt(m[1]);r.amount_period=/maand|mnd/i.test(m[2])?'month':/kwartaal/i.test(m[2])?'quarter':'year'}
+ const names={supplier:'leverancier',category:'categorie',start_date:'startdatum',end_date:'einddatum',notice_months:'opzegtermijn',auto_renews:'verlenging',amount:'bedrag'};
+ for(const k in names)if(r[k]!=null&&r[k]!=='')r.found.push(names[k]);
+ return r}
+const DP_CONTRACT_CATS=['bier','frisdrank','wijn','groothandel','elektra','gas','water','afval','verzekeringen','telecom','muziekrechten','betaalverkeer','schoonmaak','huur','overig'];
+const dpContractCat=c=>DP_CONTRACT_CATS.includes(c)?c:(c==='gedistilleerd'?'groothandel':'overig');
+
+/* Contract-document bij de klant zetten (Mijn contracten) */
+const CONTRACT_CATS=DP_CONTRACT_CATS;
+function contractBtnHtml(docId){const ex=(S.costCons||[]).find(c=>c.document_id===docId);
+ if(ex)return `<p class="hint" style="margin:8px 0 0">✓ Staat al bij Mijn contracten van de klant (${esc(ex.supplier)}${ex.added_by_staff?', toegevoegd door Horeca United':''}).</p>`;
+ return `<div style="margin-top:8px"><button class="btn small" id="cadd_btn">Toevoegen aan contracten van de klant…</button><div id="cadd_box"></div></div>`}
+function bindContractBtn(docId){const b=$('#cadd_btn');if(!b)return;b.onclick=()=>{b.hidden=true;const p=dpParseContract(S.lastLines||[],((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name);
+ const v=x=>x==null?'':esc(String(x));const cat=p.category?dpContractCat(p.category):'overig';
+ $('#cadd_box').innerHTML=`<div class="form" style="margin-top:8px"><div class="row"><select id="ca_cat">${CONTRACT_CATS.map(k=>`<option value="${k}" ${k===cat?'selected':''}>${esc(CCAT[k]||k)}</option>`).join('')}</select><input id="ca_sup" maxlength="160" placeholder="Leverancier *" value="${v(p.supplier)}"><input id="ca_desc" maxlength="500" placeholder="Omschrijving" value="${v(p.description)}"></div>
+ <div class="row"><label class="hint">Startdatum<input id="ca_start" type="date" value="${v(p.start_date)}"></label><label class="hint">Einddatum<input id="ca_end" type="date" value="${v(p.end_date)}"></label><label class="hint">Opzegtermijn (mnd)<input id="ca_nm" type="number" min="0" max="60" value="${v(p.notice_months)}"></label><label class="hint">Stilzwijgend verlengd<select id="ca_ren"><option value="">Onbekend</option><option value="yes" ${p.auto_renews===true?'selected':''}>Ja</option><option value="no" ${p.auto_renews===false?'selected':''}>Nee</option></select></label><label class="hint">Verlengd met (mnd)<input id="ca_rm" type="number" min="1" max="120" value="${v(p.renewal_months)}"></label></div>
+ <div class="row"><label class="hint">Bedrag (€)<input id="ca_amt" type="number" min="0" step="0.01" value="${p.amount!=null?p.amount.toFixed(2):''}"></label><label class="hint">Per<select id="ca_per"><option value="">—</option>${[['month','maand'],['quarter','kwartaal'],['year','jaar'],['total','hele looptijd']].map(([k,l])=>`<option value="${k}" ${p.amount_period===k?'selected':''}>${l}</option>`).join('')}</select></label><label class="hint">Opzegtermijn in woorden<input id="ca_nt" maxlength="200" value="${v(p.notice_text)}"></label></div>
+ <div class="row" style="flex:none"><button class="btn primary" id="ca_go">Toevoegen bij klant</button><button class="btn" id="ca_cancel">Annuleren</button></div><div class="msg" id="ca_msg"></div><span class="hint">De klant ziet dit bij Mijn contracten met het label "Toegevoegd door Horeca United" en kan het zelf aanpassen. Dit wordt vastgelegd in het logboek.</span></div>`;
+ $('#ca_cancel').onclick=()=>{$('#cadd_box').innerHTML='';b.hidden=false};
+ $('#ca_go').onclick=async()=>{const m=$('#ca_msg'),val=id=>$(id).value.trim(),num=id=>val(id)===''?null:Number(val(id));m.className='msg';
+  const sup=val('#ca_sup'),st=val('#ca_start')||null,en=val('#ca_end')||null;
+  if(sup.length<2){m.className='msg err';m.textContent='Vul de leverancier in.';return}
+  if(st&&en&&en<st){m.className='msg err';m.textContent='De einddatum ligt vóór de startdatum.';return}
+  if(num('#ca_amt')!=null&&!val('#ca_per')){m.className='msg err';m.textContent='Kies per maand, kwartaal, jaar of hele looptijd.';return}
+  $('#ca_go').disabled=true;m.textContent='Bezig…';
+  try{await api.staffAddContract({p_org:S.costOrg,p_document:docId,p_category:val('#ca_cat'),p_supplier:sup,p_description:val('#ca_desc')||null,p_start:st,p_end:en,p_dates_estimated:false,p_notice_months:num('#ca_nm'),p_notice_text:val('#ca_nt')||null,p_flexible:!!p.flexible,p_auto_renews:val('#ca_ren')===''?null:val('#ca_ren')==='yes',p_renewal_months:num('#ca_rm'),p_amount:num('#ca_amt'),p_amount_period:val('#ca_per')||null});
+   S.costCons=await api.orgContracts(S.costOrg)||S.costCons;$('#cadd_box').parentElement.innerHTML=contractBtnHtml(docId).replace('✓ Staat al','✓ Toegevoegd — staat nu')}
+  catch(e){m.className='msg err';m.textContent=errText(e);$('#ca_go').disabled=false}};
+}}
 
 /* ---------- Meldingen aan de klant (vanuit een stijging) ---------- */
 const fmtMonthLong=d=>d?new Date(d+'T12:00:00').toLocaleDateString('nl-NL',{month:'long',year:'numeric'}):'';
@@ -643,7 +739,8 @@ async function extractInvoice(docId,btn){
   if(DEMO){lines=DEMO_INVOICE}else{const url=await api.fileUrl(d.storage_path);const res=await fetch(url);if(!res.ok)throw new Error('Bestand ophalen mislukt ('+res.status+')');lines=await pdfLines(await res.arrayBuffer())}
   if(!lines.join('').trim()){show('<b>Deze PDF bevat geen leesbare tekst</b> (waarschijnlijk een scan). Vul de gegevens handmatig in; de factuur is al gekoppeld.');return}
   const g=guessDocType(lines),chosen=d.category;
-  const typeLine=g.type?(g.type===chosen?`<li>Soort document: lijkt ${g.label} (${esc(g.why)} gevonden) ✓ klopt met het label van de klant.</li>`:`<li style="color:var(--warn)"><b>Soort document: lijkt ${g.label}</b> (${esc(g.why)} gevonden), maar de klant koos "${esc(DOCCAT[chosen]||chosen||'onbekend')}".${g.type==='contract'?' Een contract hoort niet in de kostenregels: vraag de klant het in te vullen bij Mijn contracten.':''}</li>`):'<li>Soort document: niet duidelijk uit de tekst.</li>';
+  const typeLine=g.type?(g.type===chosen?`<li>Soort document: lijkt ${g.label} (${esc(g.why)} gevonden) ✓ klopt met het label van de klant.</li>`:`<li style="color:var(--warn)"><b>Soort document: lijkt ${g.label}</b> (${esc(g.why)} gevonden), maar de klant koos "${esc(DOCCAT[chosen]||chosen||'onbekend')}".${g.type==='contract'?' Een contract hoort niet in de kostenregels: zet het hieronder bij Mijn contracten van de klant.':''}</li>`):'<li>Soort document: niet duidelijk uit de tekst.</li>';
+  if(g.type==='contract'){S.lastLines=lines;show(`<b>${esc(d.file_name)}</b><ul>${typeLine}</ul>${contractBtnHtml(docId)}<details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary><pre>${esc(lines.join('\n').slice(0,6000))}</pre></details>`);bindContractBtn(docId);return}
   const r=parseInvoice(lines,S.costLines);
   const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
   const got=[];if(r.category&&set('#ccat',r.category))got.push('categorie');if(set('#csup',r.supplier))got.push('leverancier');if(set('#cprod',r.product))got.push('product');
@@ -652,7 +749,9 @@ async function extractInvoice(docId,btn){
   const miss=[!r.supplier&&'leverancier',!r.period_start&&'periode',r.amount_excl==null&&'bedrag excl. btw'].filter(Boolean);
   show(`<b>Uitgelezen: ${esc(d.file_name)}</b> — controleer de <span style="background:#fff6e5;border:1px solid #e3a33b;padding:0 4px;border-radius:4px">oranje</span> velden en klik op Opslaan.
    <ul>${typeLine}${got.length?`<li>Gevonden: ${esc(got.join(', '))}</li>`:''}${miss.length?`<li><b>Niet gevonden:</b> ${esc(miss.join(', '))} — vul dit zelf in.</li>`:''}${r.learned?'<li>Leverancier eerder gezien: categorie, product en eenheid overgenomen van de vorige factuur.</li>':''}${r.checks.map(c=>`<li>${esc(c)}</li>`).join('')}${r.warn.map(w=>`<li style="color:var(--bad)">${esc(w)}</li>`).join('')}${r.vat!=null?`<li>Btw op factuur: ${eur(r.vat)}${r.amount_incl!=null?' · totaal incl.: '+eur(r.amount_incl):''}</li>`:''}</ul>
+   ${chosen==='contract'?contractBtnHtml(docId):''}
    <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary><pre>${esc(lines.join('\n').slice(0,6000))}</pre></details>`);
+  S.lastLines=lines;bindContractBtn(docId);
  }catch(e){show('<b>Uitlezen mislukt:</b> '+esc(errText(e))+'. Vul de gegevens handmatig in; de factuur is al gekoppeld.')}
  finally{if(btn){btn.disabled=false;btn.textContent='Uitlezen → formulier'}}
 }
