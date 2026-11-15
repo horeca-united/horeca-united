@@ -171,7 +171,7 @@ function liveApi(){
   async costLines(o){return ok(await client.from('huos_cost_lines').select('*').eq('organization_id',o).order('period_end',{ascending:false}).limit(1000))},
   async costCompare(o){return ok(await client.from('huos_cost_comparison').select('*').eq('organization_id',o))},
   async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
-  async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,end_date,document_id,added_by_staff,amount,promo_end_date,amount_after_promo').eq('organization_id',o).limit(300))},
+  async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,start_date,end_date,status,document_id,added_by_staff,amount,amount_period,promo_end_date,amount_after_promo').eq('organization_id',o).limit(300))},
   async addCost(row){return ok(await client.from('huos_cost_lines').insert(row).select('id').single())},
   async updateCost(id,row){const r=ok(await client.from('huos_cost_lines').update(row).eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet bijgewerkt (geen rechten?)');return r},
   async deleteCost(id){const r=ok(await client.from('huos_cost_lines').delete().eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet verwijderd (geen rechten?)');return r},
@@ -410,14 +410,21 @@ async function renderCosts(){
   S.costLines=lines||[];S.costDocs=docs||[];
   const canEdit=S.role==='reviewer'||S.role==='admin';
   const recent=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
-  const perYear=recent.reduce((a,r)=>a+Number(r.latest_monthly||0)*12,0);
+  const fromInv=recent.reduce((a,r)=>a+Number(r.latest_monthly||0)*12,0);
+  const invSup=new Set(recent.map(r=>r.supplier.toLowerCase()));
+  const today=new Date().toISOString().slice(0,10);
+  const yearOf=c=>{const a=Number(c.amount);if(!isFinite(a))return 0;if(c.amount_period==='month')return a*12;if(c.amount_period==='quarter')return a*4;if(c.amount_period==='year')return a;
+   if(c.amount_period==='total'&&c.start_date&&c.end_date){const m=Math.max(1,(new Date(c.end_date)-new Date(c.start_date))/(30.44*864e5));return a/m*12}return 0};
+  const conOnly=(cons||[]).filter(c=>c.amount!=null&&c.status!=='terminated'&&(!c.end_date||c.end_date>=today)&&!invSup.has(String(c.supplier).toLowerCase()));
+  const fromCon=conOnly.reduce((a,c)=>a+yearOf(c),0);
+  const perYear=fromInv+fromCon;
   const sigs=(cmp||[]).filter(r=>r.is_signal).sort((a,b)=>b.extra_per_month-a.extra_per_month);
   const rows=(cmp||[]).slice().sort((a,b)=>(CCAT[a.category]||'').localeCompare(CCAT[b.category]||'')||a.supplier.localeCompare(b.supplier));
   const docName=id=>(S.costDocs.find(d=>d.id===id)||{}).file_name;
   v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="sub">Intern — de ondernemer ziet dit overzicht niet. Alle bedragen excl. btw. Elke nieuwe factuur wordt vergeleken met de eerste factuur van dat jaar, de oudste factuur en de vorige factuur.</p>
   ${newUploadsBox()}<div class="orgpick"><select id="corg">${S.orgs.map(x=>`<option value="${esc(x.id)}" ${x.id===o?'selected':''}>${esc(x.name)}${x.city?' — '+esc(x.city):''}</option>`).join('')}</select><span class="hint">${S.costDocs.length} document(en) aangeleverd</span></div>
   <div class="stats">
-   <div class="stat"><span>Vaste kosten per jaar</span><b>${eur(Math.round(perYear))}</b><small>geschat uit de laatste facturen (≤ 13 mnd oud)</small></div>
+   <div class="stat"><span>Vaste kosten per jaar</span><b>${eur(Math.round(perYear))}</b><small>${fromCon?`facturen ${eur(Math.round(fromInv))} + contracten ${eur(Math.round(fromCon))}`:'geschat uit de laatste facturen (≤ 13 mnd oud)'}</small></div>
    <div class="stat"><span>Kostenregels</span><b>${S.costLines.length}</b><small>${rows.length} product(en) / leverancier(s)</small></div>
    <div class="stat"><span>Stijgingen</span><b>${sigs.length}</b><small>t.o.v. begin dit jaar, of anders de oudste factuur</small></div>
   </div>
