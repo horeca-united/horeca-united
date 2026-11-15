@@ -498,7 +498,7 @@ let dpPdfLib=null;
 async function dpLoadPdf(){if(dpPdfLib)return dpPdfLib;const m=await import(DP_PDFJS+'pdf.min.mjs');m.GlobalWorkerOptions.workerSrc=DP_PDFJS+'pdf.worker.min.mjs';return dpPdfLib=m}
 async function dpPdfLines(buf){
  const lib=await dpLoadPdf();const doc=await lib.getDocument({data:buf,isEvalSupported:false,disableFontFace:true}).promise;const out=[];
- for(let p=1;p<=Math.min(doc.numPages,8);p++){const tc=await (await doc.getPage(p)).getTextContent();const rows=new Map();
+ for(let p=1;p<=Math.min(doc.numPages,40);p++){const tc=await (await doc.getPage(p)).getTextContent();const rows=new Map();
   for(const it of tc.items){if(!it.str||!it.str.trim())continue;const y=Math.round(it.transform[5]/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
   [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
  return out}
@@ -607,6 +607,33 @@ function bindContractBtn(docId){const b=$('#cadd_btn');if(!b)return;b.onclick=()
 
 function docStatusChip(id){const k=S.costLines.some(l=>l.document_id===id),c=(S.costCons||[]).some(x=>x.document_id===id);
  if(k&&c)return chip(['Verwerkt: kosten + contract','c-ok']);if(k)return chip(['Verwerkt in kosten','c-ok']);if(c)return chip(['Verwerkt als contract','c-ok']);return chip(['Nog te verwerken','c-warn'])}
+
+
+/* ---------- Inkoopoverzicht per artikel (bijv. 'Klant - Artikel Statistiek' van een groothandel) ---------- */
+function rawTextHtml(lines){return `<button type="button" class="btn ghost" data-copyraw style="margin:6px 0">Kopieer alle tekst</button><pre style="max-height:320px;overflow:auto">${esc(lines.join('\n'))}</pre>`}
+function bindCopyRaw(){document.querySelectorAll('[data-copyraw]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText((S.lastLines||[]).join('\n'));b.textContent='Gekopieerd ✓'}catch(e){b.textContent='Kopiëren lukt niet — selecteer de tekst handmatig'}})}
+function parseArticleStats(lines){
+ const t=lines.join('\n');if(!/(artikel\s*statistiek|artikeloverzicht|omzet per artikel|inkoopoverzicht)/i.test(t))return null;
+ const num=x=>Number(x.replace(/\./g,'').replace(',','.'));
+ const rows=[];
+ for(const l of lines){const m=l.match(/^\s*(\S+)\s+(.*?)\s+(\d+(?:,\d+)?)\s+(-?\d+)\s+€\s*(-?[\d.]+,\d{2})\s+€\s*([\d.]+,\d{2})\s*$/);
+  if(m)rows.push({code:m[1],name:m[2].replace(/\s+,/g,',').replace(/[\s,]+$/,'').trim(),qty:Number(m[4]),net:num(m[5]),price:num(m[6])})}
+ if(rows.length<3)return null;
+ const last=lines.filter(x=>x.trim()).slice(-1)[0]||'';const cut=/^\s*\d{3,}-\d{2,4}\s+\S/.test(last)&&!/€/.test(last);
+ const priced=rows.filter(r=>r.net>0&&r.qty>0),free=rows.filter(r=>r.net===0).length;
+ const total=Math.round(rows.reduce((a,r)=>a+r.net,0)*100)/100,qty=rows.reduce((a,r)=>a+r.qty,0);
+ let ps=null,pe=null;const pm=t.match(/(\d{2})-(\d{2})-(\d{2,4})\s*\.\.\s*(\d{2})-(\d{2})-(\d{2,4})/);
+ if(pm){const y=v=>v.length===2?'20'+v:v;ps=`${y(pm[3])}-${pm[2]}-${pm[1]}`;pe=`${y(pm[6])}-${pm[5]}-${pm[4]}`}
+ const own=(((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||'').toLowerCase().replace(/['’]/g,'');
+ let sup=(lines.slice(0,12).find(x=>/\b(B\.?V\.?|N\.?V\.?)\b/.test(x)&&!/klant/i.test(x)&&!(own&&x.toLowerCase().replace(/['’]/g,'').includes(own)))||'').replace(/\s+\b(B\.?V\.?|N\.?V\.?)\b.*$/,'').trim();
+ const cat=/wijn|wine|château|domaine|vignerons|weingut/i.test(t)?'wijn':/bier|brouwerij/i.test(t)?'bier':/frisdrank/i.test(t)?'frisdrank':'groothandel';
+ let pattern=null;const rs=priced.filter(r=>r.price>0).map(r=>Math.round((r.price/(r.net/r.qty)-1)*1000)/10);
+ if(rs.length>=5){const cnt={};rs.forEach(v=>cnt[v]=(cnt[v]||0)+1);const common=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,2).filter(e=>e[1]>=2);
+  const share=common.reduce((a,e)=>a+e[1],0)/rs.length;const w=priced.reduce((a,r)=>a+r.qty*r.price,0)/priced.reduce((a,r)=>a+r.net,0);
+  pattern=`Actuele prijs ligt gemiddeld ${((w-1)*100).toFixed(1).replace('.',',')}% boven wat er betaald is`+(share>=0.6?` — bij ${Math.round(share*100)}% van de artikelen precies ${common.map(e=>'+'+String(e[0]).replace('.',',')+'%').join(' of ')}: lijkt op een vaste klantkorting op de lijstprijs, niet per se een prijsstijging.`:'.')}
+ const yr=ps&&pe&&ps.slice(0,4)===pe.slice(0,4)?ps.slice(0,4):'';
+ return {rows,priced,free,total,qty,cut,period_start:ps,period_end:pe,supplier:sup||null,category:cat,
+  product:'Inkoop '+(yr||'periode')+' (artikeloverzicht)',note:`${rows.length} artikelen, ${qty} stuks${free?`, ${free} gratis/proef`:''}. Uit artikelstatistiek.`,pattern}}
 
 /* ---------- Periodes en ontbrekende facturen ---------- */
 const MND=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
@@ -717,7 +744,7 @@ let pdfjsLib=null;
 async function loadPdfjs(){if(pdfjsLib)return pdfjsLib;const m=await import(PDFJS+'pdf.min.mjs');m.GlobalWorkerOptions.workerSrc=PDFJS+'pdf.worker.min.mjs';return pdfjsLib=m}
 async function pdfLines(buf){
  const lib=await loadPdfjs();const doc=await lib.getDocument({data:buf,isEvalSupported:false,disableFontFace:true}).promise;const out=[];
- for(let p=1;p<=Math.min(doc.numPages,8);p++){const tc=await (await doc.getPage(p)).getTextContent();const rows=new Map();
+ for(let p=1;p<=Math.min(doc.numPages,40);p++){const tc=await (await doc.getPage(p)).getTextContent();const rows=new Map();
   for(const it of tc.items){if(!it.str||!it.str.trim())continue;const y=Math.round(it.transform[5]/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
   [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
  return out}
@@ -824,7 +851,20 @@ async function extractInvoice(docId,btn){
   if(!lines.join('').trim()){show('<b>Deze PDF bevat geen leesbare tekst</b> (waarschijnlijk een scan). Vul de gegevens handmatig in; de factuur is al gekoppeld.');return}
   const g=guessDocType(lines),chosen=d.category;
   const typeLine=g.type?(g.type===chosen?`<li>Soort document: lijkt ${g.label} (${esc(g.why)} gevonden) ✓ klopt met het label van de klant.</li>`:`<li style="color:var(--warn)"><b>Soort document: lijkt ${g.label}</b> (${esc(g.why)} gevonden), maar de klant koos "${esc(DOCCAT[chosen]||chosen||'onbekend')}".${g.type==='contract'?' Een contract hoort niet in de kostenregels: zet het hieronder bij Mijn contracten van de klant.':''}</li>`):'<li>Soort document: niet duidelijk uit de tekst.</li>';
-  if(g.type==='contract'){S.lastLines=lines;show(`<b>${esc(d.file_name)}</b><ul>${typeLine}</ul>${contractBtnHtml(docId)}<details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary><pre>${esc(lines.join('\n').slice(0,6000))}</pre></details>`);bindContractBtn(docId);return}
+  const st=parseArticleStats(lines);
+  if(st){S.lastLines=lines;
+   const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
+   set('#ccat',st.category);set('#csup',st.supplier);set('#cprod',st.product);set('#cfrom',st.period_start);set('#cto',st.period_end);set('#camt',st.total.toFixed(2));set('#cnote',st.note);
+   const top=st.priced.slice().sort((a,b)=>b.net-a.net).slice(0,8);
+   show(`<b>${esc(d.file_name)}</b><ul><li>Soort document: <b>inkoopoverzicht per artikel</b> (artikelstatistiek)${d.category==='contract'?' — de klant zette het bij contracten, maar het hoort bij de kosten':''}.</li>
+    <li>${st.rows.length} artikelen · ${st.qty.toLocaleString('nl-NL')} stuks · totaal ${eur(st.total)} excl. btw${st.free?` · ${st.free} regels à € 0,00 (proef/gratis) niet meegeteld`:''}${st.period_start?` · periode ${fmtDate(st.period_start)} – ${fmtDate(st.period_end)}`:''}</li>
+    ${st.pattern?`<li>${esc(st.pattern)}</li>`:''}
+    ${st.cut?`<li style="color:var(--warn)">Let op: de laatste regel lijkt onvolledig. Controleer het totaal met de PDF.</li>`:''}
+    <li>Het formulier hieronder is ingevuld als <b>één kostenregel voor de hele periode</b>. Controleer en klik op Opslaan.</li></ul>
+    <details><summary class="hint">Grootste artikelen</summary><table class="t"><tr><th>Artikel</th><th class="num">Aantal</th><th class="num">Betaald</th><th class="num">Gem. per stuk</th><th class="num">Actuele prijs</th></tr>${top.map(x=>`<tr><td>${esc(x.name)}</td><td class="num">${x.qty}</td><td class="num">${eur(x.net)}</td><td class="num">${eur(x.net/x.qty)}</td><td class="num">${eur(x.price)}</td></tr>`).join('')}</table></details>
+    <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);
+   bindCopyRaw();return}
+  if(g.type==='contract'){S.lastLines=lines;show(`<b>${esc(d.file_name)}</b><ul>${typeLine}</ul>${contractBtnHtml(docId)}<details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);bindContractBtn(docId);bindCopyRaw();return}
   const r=parseInvoice(lines,S.costLines);
   const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
   const got=[];if(r.category&&set('#ccat',r.category))got.push('categorie');if(set('#csup',r.supplier))got.push('leverancier');if(set('#cprod',r.product))got.push('product');
@@ -835,8 +875,8 @@ async function extractInvoice(docId,btn){
   show(`<b>Uitgelezen: ${esc(d.file_name)}</b> — controleer de <span style="background:#fff6e5;border:1px solid #e3a33b;padding:0 4px;border-radius:4px">oranje</span> velden en klik op Opslaan.
    <ul>${typeLine}${got.length?`<li>Gevonden: ${esc(got.join(', '))}</li>`:''}${miss.length?`<li><b>Niet gevonden:</b> ${esc(miss.join(', '))} — vul dit zelf in.</li>`:''}${r.learned?'<li>Leverancier eerder gezien: categorie, product en eenheid overgenomen van de vorige factuur.</li>':''}${r.checks.map(c=>`<li>${esc(c)}</li>`).join('')}${r.warn.map(w=>`<li style="color:var(--bad)">${esc(w)}</li>`).join('')}${S.pendingSurcharges?`<li><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="csplit" checked style="width:auto"> Heffing apart opslaan als eigen kostenregel: ${S.pendingSurcharges.map(x=>esc(x.label)+' '+eur(x.amount)).join(', ')} (subtotaal ${eur(r.amount_excl)})</label></li>`:''}${r.vat!=null?`<li>Btw op factuur: ${eur(r.vat)}${r.amount_incl!=null?' · totaal incl.: '+eur(r.amount_incl):''}</li>`:''}</ul>
    ${chosen==='contract'?contractBtnHtml(docId):''}
-   <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary><pre>${esc(lines.join('\n').slice(0,6000))}</pre></details>`);
-  S.lastLines=lines;bindContractBtn(docId);
+   <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);
+  S.lastLines=lines;bindContractBtn(docId);bindCopyRaw();
  }catch(e){show('<b>Uitlezen mislukt:</b> '+esc(errText(e))+'. Vul de gegevens handmatig in; de factuur is al gekoppeld.')}
  finally{if(btn){btn.disabled=false;btn.textContent='Uitlezen → formulier'}}
 }
