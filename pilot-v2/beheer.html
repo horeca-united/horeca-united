@@ -774,7 +774,16 @@ function parseInvoice(lines,prev){
   const pl=prev.find(p=>p.supplier&&r.supplier&&p.supplier.toLowerCase()===r.supplier.toLowerCase()&&p.product&&/(heffing|toeslag)/i.test(p.product)&&(p.product.toLowerCase().includes(label.toLowerCase().slice(0,8))||label.toLowerCase().includes(p.product.toLowerCase().slice(0,8))));
   if(pl)label=pl.product;if(label.length<3)label='Heffing / toeslag';
   if(!r.surcharges.some(s=>s.label===label))r.surcharges.push({label:label.slice(0,160),amount:a})}
- if(r.surcharges.length&&r.amount_excl!=null){const h=r.surcharges.reduce((t,s)=>t+s.amount,0);if(h<r.amount_excl){r.amount_main=Math.round((r.amount_excl-h)*100)/100}else r.surcharges=[]}
+ // totaal excl. btw: 'BTW over € X' of het laatste subtotaal; het eerste subtotaal kan alleen het abonnement zijn
+ const subs=lines.filter(x=>/^\s*(sub)?totaal\b(?!.*(incl|te voldoen|te betalen))/i.test(x)).map(lastAmt).filter(v=>v!=null);
+ const bm=text.match(/(btw|b\.t\.w\.?)\s*over\s*€?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/i);const base=bm?parseAmt(bm[2]):(subs.length?subs[subs.length-1]:null);
+ if(base!=null&&r.amount_excl!=null&&base>r.amount_excl+0.009&&!r.surcharges.length)r.amount_excl=base;
+ if(r.surcharges.length){const h=Math.round(r.surcharges.reduce((t,s)=>t+s.amount,0)*100)/100,tot=base??r.amount_excl;
+  const first=subs.length?subs[0]:null;
+  if(tot!=null&&first!=null&&Math.abs(first+h-tot)<0.02){r.amount_main=first;r.amount_excl=tot;r.surcharge_on_top=true}       // heffing bovenop abonnement
+  else if(tot!=null&&h<tot){r.amount_main=Math.round((tot-h)*100)/100;r.amount_excl=tot}                                  // heffing zit in het subtotaal
+  else r.surcharges=[];
+  if(r.surcharges.length&&r.vat!=null&&r.amount_incl!=null){r.checks=r.checks.filter(c=>!/excl/.test(c));r.warn=r.warn.filter(w=>!/Excl\. \+ btw/.test(w));if(Math.abs(tot+r.vat-r.amount_incl)<0.05)r.checks.push('excl. + btw = totaal incl. ✓')}}
  if(r.unit_hint&&r.unit&&r.unit_hint!==r.unit)r.warn.push(`Vorige keer was de eenheid "${r.unit_hint}", nu "${r.unit}". Gebruik dezelfde eenheid om eerlijk te vergelijken.`);
  if(r.unit_hint&&!r.unit)r.unit=r.unit_hint;
  if(r.invoice_number&&sup&&prev.some(x=>x.invoice_number&&x.invoice_number.toLowerCase()===r.invoice_number.toLowerCase()&&x.supplier.toLowerCase()===sup.toLowerCase()))r.warn.push('Let op: dit factuurnummer van deze leverancier is al eerder ingevoerd (dubbele factuur?).');
