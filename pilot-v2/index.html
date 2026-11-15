@@ -626,12 +626,14 @@ async function dpPdfLines(buf){
   [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
  return out}
 const DP_M={jan:1,januari:1,feb:2,februari:2,mrt:3,maart:3,apr:4,april:4,mei:5,jun:6,juni:6,jul:7,juli:7,aug:8,augustus:8,sep:9,sept:9,september:9,okt:10,oktober:10,nov:11,november:11,dec:12,december:12};
-const DP_DATE=/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4}|\d{2})\b|(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|jan|feb|mrt|apr|jun|jul|aug|sept|sep|okt|nov|dec)\.?\s+(\d{4})/gi;
+const DP_DATE=/(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{4}|\d{2})\b|(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|jan|feb|mrt|apr|jun|jul|aug|sept|sep|okt|nov|dec)\.?\s+(\d{4})/gi;
 const dpPad=n=>String(n).padStart(2,'0');
 function dpIso(m){let d,mo,y;if(m[1]){d=+m[1];mo=+m[2];y=+m[3];if(y<100)y+=2000}else{d=+m[4];mo=DP_M[m[5].toLowerCase()];y=+m[6]}
  if(!(mo>=1&&mo<=12&&d>=1&&d<=31&&y>=2000&&y<=2100))return null;const dt=new Date(Date.UTC(y,mo-1,d));return dt.getUTCDate()===d?`${y}-${dpPad(mo)}-${dpPad(d)}`:null}
 function dpDates(str){return [...String(str).matchAll(DP_DATE)].map(dpIso).filter(Boolean)}
 function dpAmt(s){s=String(s).replace(/[€\s]/g,'');if(/,\d{2}$/.test(s))s=s.replace(/\./g,'').replace(',','.');else s=s.replace(/,(?=\d{3}\b)/g,'');const n=parseFloat(s);return isFinite(n)?n:null}
+const DP_NUM={een:1,'één':1,twee:2,drie:3,vier:4,vijf:5,zes:6,zeven:7,acht:8,negen:9,tien:10,elf:11,twaalf:12,achttien:18,'vierentwintig':24,'zesendertig':36};
+function dpNum(s){s=String(s).toLowerCase().trim();return /^\d+$/.test(s)?+s:(DP_NUM[s]??null)}
 function dpAddMonths(iso,m){const [y,mo,d]=iso.split('-').map(Number);const dt=new Date(Date.UTC(y,mo-1+m,d));dt.setUTCDate(dt.getUTCDate()-1);return dt.toISOString().slice(0,10)}
 const DP_SUP=[['Milieuservice Nederland','afval'],['Milieuservice','afval'],['Renewi','afval'],['PreZero','afval'],['Suez','afval'],['GP Groot','afval'],['Remondis','afval'],['Veolia','afval'],['HVC','afval'],
  ['Vattenfall','elektra'],['Eneco','elektra'],['Essent','elektra'],['Greenchoice','elektra'],['Budget Energie','elektra'],['Engie','elektra'],['Vandebron','elektra'],['Energiedirect','elektra'],['Hezelaer','elektra'],['TotalEnergies','elektra'],
@@ -669,15 +671,17 @@ function dpParseContract(lines,ownName){
  const s=dpSupplier(lines,ownName);r.supplier=s.supplier;r.category=s.category;
  if(!r.category){for(const [re,c] of DP_CATKW)if(re.test(t)){r.category=c;break}}
  const title=lines.slice(0,6).find(l=>/(overeenkomst|contract|polis)/i.test(l)&&l.length<=120);if(title)r.description=title.replace(/\s{2,}.*$/,'').trim();
+ if(!r.description||/^(overeenkomst|contract|polis)$/i.test(r.description)){const pl=lines.find(x=>/(internet|abonnement|energie|stroom|elektriciteit|aardgas|verzekering|bedrijfsafval|container|telefonie|tv)/i.test(x)&&x.length<=70&&!/(odido\.nl|www\.|voorwaarden|snelheid)/i.test(x));if(pl)r.description=pl.replace(/\s*(voor\s*)?€[\s\S]*$/,'').replace(/\s{2,}.*$/,'').trim().slice(0,120)||r.description}
  let l=find(/(ingangsdatum|startdatum|aanvangsdatum|met ingang van|ingaande|datum van ingang)/i);if(l)r.start_date=dpDates(l)[0]||null;
+ if(!r.start_date){l=find(/(datum bestelling|besteldatum|datum ondertekening|getekend op|datum aanvraag|afsluitdatum)/i);if(l){r.start_date=dpDates(l)[0]||null;if(r.start_date)r.dates_estimated=true}}
  l=find(/(einddatum|eindigt op|loopt tot|tot en met|vervaldatum|expiratiedatum)/i);if(l){const ds=dpDates(l);r.end_date=ds[ds.length-1]||null}
- let m=t.match(/(looptijd|contractduur|duur van de overeenkomst)[^\n\d]{0,40}(\d{1,3})\s*(maanden|maand|jaren|jaar)/i);
- if(m){r.term_months=+m[2]*(/jaar/i.test(m[3])?12:1);if(r.start_date&&!r.end_date)r.end_date=dpAddMonths(r.start_date,r.term_months)}
- m=t.match(/opzeg(?:termijn|gen|ging)[^\n\d]{0,60}(\d{1,2})\s*(maanden|maand|weken|week|dagen|dag)/i);
- if(m){const n=+m[1],u=m[2].toLowerCase();r.notice_months=u.startsWith('maand')?n:u.startsWith('we')?Math.max(1,Math.ceil(n/4.345)):Math.max(0,Math.ceil(n/30.44));
+ let m=t.match(/(looptijd|contractduur|duur van de overeenkomst)[^\n\d]{0,40}?(\d{1,3}|één|een|twee|drie|vier|vijf)\s*(?:\(\d+\)\s*)?(maanden|maand|jaren|jaar)/i);
+ if(m&&dpNum(m[2])){r.term_months=dpNum(m[2])*(/jaar/i.test(m[3])?12:1);if(r.start_date&&!r.end_date)r.end_date=dpAddMonths(r.start_date,r.term_months)}
+ m=t.match(/opzeg(?:termijn|gen|ging)[^\n\d]{0,60}?(\d{1,2}|één|een|twee|drie|vier|zes|twaalf)\s*(?:\(\d+\)\s*)?(maanden|maand|weken|week|dagen|dag)\b/i);
+ if(m&&dpNum(m[1])!=null){const n=dpNum(m[1]),u=m[2].toLowerCase();r.notice_months=u.startsWith('maand')?n:u.startsWith('we')?Math.max(1,Math.ceil(n/4.345)):Math.max(0,Math.ceil(n/30.44));
   const nl=lines.find(x=>/opzeg/i.test(x));if(nl&&!u.startsWith('maand'))r.notice_text=nl.trim().slice(0,200)}
  if(/niet\s+(stilzwijgend|automatisch)\s+(verlengd|verlengen)|geen\s+stilzwijgende/i.test(t))r.auto_renews=false;
- else if(/stilzwijgend|automatisch\s+verlengd|wordt\s+verlengd/i.test(t)){r.auto_renews=true;m=t.match(/verlengd\s+(?:met|voor)\s+(?:telkens\s+)?(?:een\s+periode\s+van\s+)?(\d{1,3})\s*(maanden|maand|jaren|jaar)/i);if(m)r.renewal_months=+m[1]*(/jaar/i.test(m[2])?12:1)}
+ else if(/stilzwijgend|automatisch\s+(verlengd|voortgezet)|wordt\s+verlengd|voor onbepaalde (tijd|duur)/i.test(t)){r.auto_renews=true;if(/voor onbepaalde (tijd|duur)/i.test(t)&&!r.notice_text)r.notice_text='Na de minimale looptijd voor onbepaalde tijd, opzegbaar met de opzegtermijn';m=t.match(/verlengd\s+(?:met|voor)\s+(?:telkens\s+)?(?:een\s+periode\s+van\s+)?(\d{1,3})\s*(maanden|maand|jaren|jaar)/i);if(m)r.renewal_months=+m[1]*(/jaar/i.test(m[2])?12:1)}
  if(/dagelijks opzegbaar|maandelijks opzegbaar|per maand opzegbaar|op elk moment opzeggen/i.test(t))r.flexible=true;
  m=t.match(/€\s*([\d.]+,\d{2}|\d+(?:\.\d{2})?)\s*(?:excl\.?\s*btw\s*)?(?:per|\/|p\.?)\s*(maand|mnd|kwartaal|jaar)/i);
  if(m){r.amount=dpAmt(m[1]);r.amount_period=/maand|mnd/i.test(m[2])?'month':/kwartaal/i.test(m[2])?'quarter':'year'}
@@ -700,7 +704,7 @@ function fillContractFromDoc(docId,parsed){
  const p=parsed===undefined?contractSuggest[docId]:parsed;const box=el('cs_'+docId);if(box)box.remove();
  tab('contracts');openContractForm();el('c_doc').value=docId;
  const got=[];const set=(id,v,label)=>{if(v==null||v==='')return;el(id).value=v;el(id).classList.add('prefill');if(label&&!got.includes(label))got.push(label)};
- if(p){set('c_cat',p.category?dpContractCat(p.category):null,'categorie');set('c_sup',p.supplier,'leverancier');set('c_desc',p.description);set('c_start',p.start_date,'startdatum');set('c_end',p.end_date,'einddatum');
+ if(p){set('c_cat',p.category?dpContractCat(p.category):null,'categorie');set('c_sup',p.supplier,'leverancier');set('c_desc',p.description);set('c_start',p.start_date,'startdatum');if(p.dates_estimated)el('c_est').checked=true;set('c_end',p.end_date,'einddatum');
   set('c_nmonths',p.notice_months,'opzegtermijn');set('c_ntext',p.notice_text);if(p.flexible){el('c_flex').checked=true}
   if(p.auto_renews!=null)set('c_renew',p.auto_renews?'yes':'no','verlenging');set('c_rmonths',p.renewal_months);set('c_amount',p.amount!=null?p.amount.toFixed(2):null,'bedrag');set('c_aper',p.amount_period)}
  document.querySelectorAll('#contractFormBlock input,#contractFormBlock select').forEach(x=>x.addEventListener('input',()=>x.classList.remove('prefill'),{once:true}));
