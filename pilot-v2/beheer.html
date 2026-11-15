@@ -465,7 +465,7 @@ async function renderCosts(){
   if(S.costEdit)fillCostForm(S.costLines.find(l=>l.id===S.costEdit));
  }catch(e){v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="msg err">${esc(errText(e))}</p>`}
 }
-function fillCostForm(l){if(!l)return;S.costEdit=l.id;
+function fillCostForm(l){if(!l)return;S.costEdit=l.id;S.pendingSurcharges=null;
  const set=(id,val)=>{$(id).value=val??''};
  set('#ccat',l.category);set('#csup',l.supplier);set('#cprod',l.product);set('#cfrom',l.period_start);set('#cto',l.period_end);set('#cidate',l.invoice_date);set('#cinr',l.invoice_number);set('#camt',l.amount_excl_vat);set('#cqty',l.quantity);set('#cunit',l.unit);set('#cdoc',l.document_id);set('#ccon',l.contract_id);set('#cnote',l.note);
  $('#cformh').textContent='Kostenregel wijzigen';$('#cgo').textContent='Wijziging opslaan';$('#ccancel').hidden=false;$('#cformh').scrollIntoView({behavior:'smooth'})}
@@ -481,7 +481,9 @@ async function saveCost(){
   if((qty==='')!==(unit===''))throw new Error('Vul aantal én eenheid in, of laat beide leeg.');
   const row={category:$('#ccat').value,supplier:sup,product:val('#cprod')||null,period_start:from,period_end:to,invoice_date:val('#cidate')||null,invoice_number:val('#cinr')||null,amount_excl_vat:Number(amt),quantity:qty===''?null:Number(qty),unit:unit||null,document_id:$('#cdoc').value||null,contract_id:$('#ccon').value||null,note:val('#cnote')||null};
   b.disabled=true;m.textContent='Bezig…';
-  if(S.costEdit)await api.updateCost(S.costEdit,row);else await api.addCost({...row,organization_id:S.costOrg});
+  if(S.costEdit)await api.updateCost(S.costEdit,row);else{await api.addCost({...row,organization_id:S.costOrg});
+   if(S.pendingSurcharges&&$('#csplit')&&$('#csplit').checked){for(const x of S.pendingSurcharges)await api.addCost({...row,organization_id:S.costOrg,product:x.label,amount_excl_vat:x.amount,quantity:null,unit:null,contract_id:null,note:'Afgesplitst van factuursubtotaal'})}}
+  S.pendingSurcharges=null;
   S.costEdit=null;await renderCosts();const m2=$('#cmsg');if(m2){m2.className='msg ok';m2.textContent='Opgeslagen.'}
  }catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}
 }
@@ -764,6 +766,15 @@ function parseInvoice(lines,prev){
  if(ql){const qm=ql.match(UNIT_RE);r.quantity=parseAmt(qm[1].includes('.')&&!qm[1].includes(',')?qm[1].replace(/\./g,''):qm[1]);r.unit=UNIT_NORM[qm[2].toLowerCase()]||qm[2];
   if(!r.product){const desc=ql.slice(0,ql.toLowerCase().indexOf(qm[0].toLowerCase())).replace(/\s{2,}.*$/,'').trim();if(desc.length>=3)r.product=desc.slice(0,80)}}
  if(!r.product){const hi=lines.findIndex(x=>/omschrijving/i.test(x));if(hi>=0){const pl=lines.slice(hi+1,hi+8).find(x=>/[a-z]{4}/i.test(x)&&lastAmt(x)==null&&!/^(locatie|adres|datum|periode|subtotaal|totaal|btw)\b/i.test(x.trim()));if(pl)r.product=pl.replace(/\s+\d+\s*x\s*per\s*\w*$/i,'').replace(/\s{2,}.*$/,'').trim().slice(0,80)}}
+ // heffingen/toeslagen apart (bijv. 'CO2- en brandstofheffing € 32,68')
+ r.surcharges=[];
+ for(const x of lines){if(!/(heffing|toeslag|surcharge)/i.test(x)||/(btw|b\.t\.w|subtotaal|totaal|incl)/i.test(x))continue;const a=lastAmt(x);if(a==null||a<=0)continue;
+  let label=x.replace(/€?\s*-?\d{1,3}(?:\.\d{3})*,\d{2}|€?\s*-?\d+\.\d{2}/g,'').replace(/\b\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}\b/g,'').replace(/\s{2,}.*$/,'').replace(/[€\s]+$/,'').trim();
+  if(/co2/i.test(label)&&/brandstof/i.test(label))label='CO2- en brandstofheffing';
+  const pl=prev.find(p=>p.supplier&&r.supplier&&p.supplier.toLowerCase()===r.supplier.toLowerCase()&&p.product&&/(heffing|toeslag)/i.test(p.product)&&(p.product.toLowerCase().includes(label.toLowerCase().slice(0,8))||label.toLowerCase().includes(p.product.toLowerCase().slice(0,8))));
+  if(pl)label=pl.product;if(label.length<3)label='Heffing / toeslag';
+  if(!r.surcharges.some(s=>s.label===label))r.surcharges.push({label:label.slice(0,160),amount:a})}
+ if(r.surcharges.length&&r.amount_excl!=null){const h=r.surcharges.reduce((t,s)=>t+s.amount,0);if(h<r.amount_excl){r.amount_main=Math.round((r.amount_excl-h)*100)/100}else r.surcharges=[]}
  if(r.unit_hint&&r.unit&&r.unit_hint!==r.unit)r.warn.push(`Vorige keer was de eenheid "${r.unit_hint}", nu "${r.unit}". Gebruik dezelfde eenheid om eerlijk te vergelijken.`);
  if(r.unit_hint&&!r.unit)r.unit=r.unit_hint;
  if(r.invoice_number&&sup&&prev.some(x=>x.invoice_number&&x.invoice_number.toLowerCase()===r.invoice_number.toLowerCase()&&x.supplier.toLowerCase()===sup.toLowerCase()))r.warn.push('Let op: dit factuurnummer van deze leverancier is al eerder ingevoerd (dubbele factuur?).');
@@ -771,7 +782,7 @@ function parseInvoice(lines,prev){
  return r}
 async function extractInvoice(docId,btn){
  const d=S.costDocs.find(x=>x.id===docId);if(!d)return;
- S.costEdit=null;$('#cformh').textContent='Kostenregel toevoegen';$('#cgo').textContent='Opslaan';$('#ccancel').hidden=false;
+ S.costEdit=null;S.pendingSurcharges=null;$('#cformh').textContent='Kostenregel toevoegen';$('#cgo').textContent='Opslaan';$('#ccancel').hidden=false;
  ['#csup','#cprod','#cfrom','#cto','#cidate','#cinr','#camt','#cqty','#cunit','#cnote'].forEach(id=>{$(id).value='';$(id).classList.remove('auto')});$('#ccat').value='overig';$('#ccat').classList.remove('auto');
  $('#cdoc').value=docId;const box=$('#cxtr');$('#cmsg').textContent='';
  const show=html=>{box.innerHTML=`<div class="xbox">${html}</div>`;$('#cformh').scrollIntoView({behavior:'smooth'})};
@@ -788,10 +799,11 @@ async function extractInvoice(docId,btn){
   const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
   const got=[];if(r.category&&set('#ccat',r.category))got.push('categorie');if(set('#csup',r.supplier))got.push('leverancier');if(set('#cprod',r.product))got.push('product');
   if(set('#cfrom',r.period_start)&&set('#cto',r.period_end))got.push('periode');if(set('#cidate',r.invoice_date))got.push('factuurdatum');if(set('#cinr',r.invoice_number))got.push('factuurnummer');
-  if(set('#camt',r.amount_excl!=null?r.amount_excl.toFixed(2):null))got.push('bedrag excl. btw');if(r.quantity!=null&&set('#cqty',r.quantity)&&set('#cunit',r.unit))got.push('aantal + eenheid');
+  S.pendingSurcharges=r.surcharges&&r.surcharges.length&&r.amount_main!=null?r.surcharges:null;
+  if(set('#camt',(S.pendingSurcharges?r.amount_main:r.amount_excl)!=null?(S.pendingSurcharges?r.amount_main:r.amount_excl).toFixed(2):null))got.push(S.pendingSurcharges?'bedrag excl. btw (zonder heffing)':'bedrag excl. btw');if(r.quantity!=null&&set('#cqty',r.quantity)&&set('#cunit',r.unit))got.push('aantal + eenheid');
   const miss=[!r.supplier&&'leverancier',!r.period_start&&'periode',r.amount_excl==null&&'bedrag excl. btw'].filter(Boolean);
   show(`<b>Uitgelezen: ${esc(d.file_name)}</b> — controleer de <span style="background:#fff6e5;border:1px solid #e3a33b;padding:0 4px;border-radius:4px">oranje</span> velden en klik op Opslaan.
-   <ul>${typeLine}${got.length?`<li>Gevonden: ${esc(got.join(', '))}</li>`:''}${miss.length?`<li><b>Niet gevonden:</b> ${esc(miss.join(', '))} — vul dit zelf in.</li>`:''}${r.learned?'<li>Leverancier eerder gezien: categorie, product en eenheid overgenomen van de vorige factuur.</li>':''}${r.checks.map(c=>`<li>${esc(c)}</li>`).join('')}${r.warn.map(w=>`<li style="color:var(--bad)">${esc(w)}</li>`).join('')}${r.vat!=null?`<li>Btw op factuur: ${eur(r.vat)}${r.amount_incl!=null?' · totaal incl.: '+eur(r.amount_incl):''}</li>`:''}</ul>
+   <ul>${typeLine}${got.length?`<li>Gevonden: ${esc(got.join(', '))}</li>`:''}${miss.length?`<li><b>Niet gevonden:</b> ${esc(miss.join(', '))} — vul dit zelf in.</li>`:''}${r.learned?'<li>Leverancier eerder gezien: categorie, product en eenheid overgenomen van de vorige factuur.</li>':''}${r.checks.map(c=>`<li>${esc(c)}</li>`).join('')}${r.warn.map(w=>`<li style="color:var(--bad)">${esc(w)}</li>`).join('')}${S.pendingSurcharges?`<li><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="csplit" checked style="width:auto"> Heffing apart opslaan als eigen kostenregel: ${S.pendingSurcharges.map(x=>esc(x.label)+' '+eur(x.amount)).join(', ')} (subtotaal ${eur(r.amount_excl)})</label></li>`:''}${r.vat!=null?`<li>Btw op factuur: ${eur(r.vat)}${r.amount_incl!=null?' · totaal incl.: '+eur(r.amount_incl):''}</li>`:''}</ul>
    ${chosen==='contract'?contractBtnHtml(docId):''}
    <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary><pre>${esc(lines.join('\n').slice(0,6000))}</pre></details>`);
   S.lastLines=lines;bindContractBtn(docId);
