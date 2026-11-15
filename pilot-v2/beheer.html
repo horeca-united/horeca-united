@@ -635,6 +635,13 @@ function docLabel(id){const L=(S.costLines||[]).filter(l=>l.document_id===id),C=
  for(const c of C)parts.push((c.description||CCAT[c.category]||'Contract')+' (contract)');
  if(!sups.length&&!parts.length)return '';
  return ` <span class="s" style="display:inline;color:inherit">· <b>${esc(sups.join(', '))}</b>${parts.length?' · '+esc(parts.filter(Boolean).join(' · ')):''}</span>`}
+// kies automatisch het passende contract: eerst het contract van dit document, anders hetzelfde leverancier (actief)
+function autoContract(docId,supplier){const cs=(S.costCons||[]).filter(c=>c.status!=='terminated');
+ const n=x=>String(x||'').toLowerCase().replace(/[^a-z0-9]/g,'');const sp=n(supplier);
+ const same=c=>{const cn=n(c.supplier);return cn&&sp.length>=3&&(cn===sp||cn.includes(sp)||sp.includes(cn))};
+ const byDoc=cs.find(c=>c.document_id===docId&&(!sp||same(c)));if(byDoc)return byDoc.id;
+ const m=cs.filter(same);return m.length===1?m[0].id:''}
+function setAutoContract(docId){const v=autoContract(docId,$('#csup').value);if(v&&$('#ccon')){$('#ccon').value=v;$('#ccon').classList.add('auto')}}
 function docStatusChip(id){const k=S.costLines.some(l=>l.document_id===id),c=(S.costCons||[]).some(x=>x.document_id===id);
  if(k&&c)return chip(['Verwerkt: kosten + contract','c-ok']);if(k)return chip([S.costLines.filter(l=>l.document_id===id).every(l=>l.cost_kind==='inkoop')?'Verwerkt als inkoop':'Verwerkt in kosten','c-ok']);if(c)return chip(['Verwerkt als contract','c-ok']);return chip(['Nog te verwerken','c-warn'])}
 
@@ -870,7 +877,7 @@ function parseInvoice(lines,prev){
 async function extractInvoice(docId,btn){
  const d=S.costDocs.find(x=>x.id===docId);if(!d)return;
  S.costEdit=null;S.pendingSurcharges=null;$('#cformh').textContent='Kostenregel toevoegen';$('#cgo').textContent='Opslaan';$('#ccancel').hidden=false;
- ['#csup','#cprod','#cfrom','#cto','#cidate','#cinr','#camt','#cqty','#cunit','#cnote'].forEach(id=>{$(id).value='';$(id).classList.remove('auto')});$('#ccat').value='overig';$('#ccat').classList.remove('auto');$('#ckind').value='vast';delete $('#ckind').dataset.manual;$('#ckind').classList.remove('auto');
+ ['#csup','#cprod','#cfrom','#cto','#cidate','#cinr','#camt','#cqty','#cunit','#cnote'].forEach(id=>{$(id).value='';$(id).classList.remove('auto')});$('#ccat').value='overig';$('#ccat').classList.remove('auto');$('#ckind').value='vast';delete $('#ckind').dataset.manual;$('#ckind').classList.remove('auto');$('#ccon').value='';$('#ccon').classList.remove('auto');
  $('#cdoc').value=docId;const box=$('#cxtr');$('#cmsg').textContent='';
  const show=html=>{box.innerHTML=`<div class="xbox">${html}</div>`;$('#cformh').scrollIntoView({behavior:'smooth'})};
  if(!/pdf$/i.test(d.file_name)&&!/pdf/.test(d.storage_path||'')){show('<b>Dit is een afbeelding (foto of scan).</b> Automatisch uitlezen werkt alleen bij digitale PDF\'s. Open het bestand en vul de gegevens handmatig in. De factuur is al gekoppeld.');return}
@@ -904,11 +911,12 @@ async function extractInvoice(docId,btn){
     set('#ckind','vast');set('#ccat',cc.category);set('#csup',cc.supplier);set('#cprod',(cc.description||'').slice(0,160));
     if(from&&to){set('#cfrom',from);set('#cto',to)}set('#camt',amt.toFixed(2));
     set('#cnote',(`${{month:'Per maand',quarter:'Per kwartaal',year:'Per jaar'}[cc.amount_period]} ${eur(cc.amount)}`+(cc.amount_note?'; '+cc.amount_note:'')+'. Uit contract/polis.').slice(0,1000));
+    setAutoContract(docId);
     costInfo=`<li>Kostenregel ingevuld: ${eur(cc.amount)} ${{month:'per maand',quarter:'per kwartaal',year:'per jaar'}[cc.amount_period]} × ${months/per} = <b>${eur(amt)}</b>${from&&to?` voor ${fmtDate(from)} – ${fmtDate(to)}`:''}. Controleer en klik op Opslaan.</li>`}
    show(`<b>${esc(d.file_name)}</b><ul>${typeLine}${costInfo}</ul>${contractBtnHtml(docId)}<details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);bindContractBtn(docId);bindCopyRaw();return}
   const r=parseInvoice(lines,S.costLines);
   const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
-  const got=[];if(r.category&&set('#ccat',r.category))got.push('categorie');$('#ckind').value=kindOfCat($('#ccat').value);if(set('#csup',r.supplier))got.push('leverancier');if(set('#cprod',r.product))got.push('product');
+  const got=[];if(r.category&&set('#ccat',r.category))got.push('categorie');$('#ckind').value=kindOfCat($('#ccat').value);setTimeout(()=>setAutoContract(docId),0);if(set('#csup',r.supplier))got.push('leverancier');if(set('#cprod',r.product))got.push('product');
   if(set('#cfrom',r.period_start)&&set('#cto',r.period_end))got.push('periode');if(set('#cidate',r.invoice_date))got.push('factuurdatum');if(set('#cinr',r.invoice_number))got.push('factuurnummer');
   S.pendingSurcharges=r.surcharges&&r.surcharges.length&&r.amount_main!=null?r.surcharges:null;
   if(set('#camt',(S.pendingSurcharges?r.amount_main:r.amount_excl)!=null?(S.pendingSurcharges?r.amount_main:r.amount_excl).toFixed(2):null))got.push(S.pendingSurcharges?'bedrag excl. btw (zonder heffing)':'bedrag excl. btw');if(r.quantity!=null&&set('#cqty',r.quantity)&&set('#cunit',r.unit))got.push('aantal + eenheid');
