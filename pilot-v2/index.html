@@ -699,6 +699,22 @@ function dpParseContract(lines,ownName){
    r.amount_note=`Actieprijs eerste ${months} maanden; daarna € ${after.toFixed(2).replace('.',',')} p/m`+(/inflatie|cpi|prijsindex/i.test(t)?' (+ jaarlijkse indexatie)':'');}
   else if(disc>0){r.promo_months=months;r.promo_discount=disc;r.amount_note=`Tijdelijke korting € ${disc.toFixed(2).replace('.',',')} p/m gedurende ${months} maanden`;if(r.start_date)r.promo_end_date=dpAddMonths(r.start_date,months)}
  }
+ // verzekeringen (polisblad): verzekeraar, premie, lopende termijn
+ if(/polis(blad|nummer)|assurantiebelasting|premie\s+per/i.test(t)){r.category='verzekeringen';
+  const INS=[[/goudse/i,'De Goudse'],[/nationale.?nederlanden/i,'Nationale-Nederlanden'],[/interpolis/i,'Interpolis'],[/centraal beheer/i,'Centraal Beheer'],[/achmea/i,'Achmea'],[/a\.s\.r\.|\basr\b/i,'a.s.r.'],[/allianz/i,'Allianz'],[/univ[eé]/i,'Univé'],[/klaverblad/i,'Klaverblad'],[/nh1816/i,'NH1816'],[/av[eé]ro/i,'Avéro Achmea'],[/aegon/i,'Aegon'],[/de vereniging/i,'De Vereniging'],[/zurich/i,'Zurich'],[/hiscox/i,'Hiscox']];
+  const hit=INS.find(([re])=>re.test(t));const nv=lines.find(x=>/(verzekering(en)?|assurantie(n)?|insurance)\s+N\.?V\.?/i.test(x));
+  if(hit)r.supplier=hit[1];else if(nv)r.supplier=nv.replace(/\s+N\.?V\.?.*$/,'').trim().slice(0,120);
+  const adv=t.match(/uw\s+adviseur\s+(.+?)(?:\n|$)/i);if(adv)r.advisor=adv[1].replace(/\s{2,}.*$/,'').trim();
+  const pk=lines.slice(0,10).find(x=>/verzeker/i.test(x)&&!/polisblad|verzekeringen voor|^wij /i.test(x)&&x.length<=90);
+  const pn=t.match(/polisnummer\s*:?\s*([A-Z0-9-]{4,})/i);
+  if(pk)r.description=pk.replace(/\s+-\s*$/,'').replace(/\s{2,}/g,' ').trim()+(pn?', polis '+pn[1]:'')+(r.advisor?', via '+r.advisor:'');
+  const pm=t.match(/(?:uw|totale?|totaal)\s+premie\s+per\s+(maand|kwartaal|jaar)[^\d\n]*?([\d.]+,\d{2})/i);
+  if(pm){r.amount=Number(pm[2].replace(/\./g,'').replace(',','.'));r.amount_period=pm[1].toLowerCase()==='maand'?'month':pm[1].toLowerCase()==='jaar'?'year':'quarter';
+   const ab=t.match(/assurantiebelasting[^\d\n]*([\d.]+,\d{2})/i);if(ab)r.amount_note=`Incl. assurantiebelasting € ${ab[1]}`}
+  if(/dagelijks\s+opzegbaar/i.test(t)){r.flexible=true;r.notice_months=null;r.notice_text='Dagelijks opzegbaar'}
+  const ren=[...t.matchAll(/(?:automatische\s+)?verlenging\s+(\d{1,2}\s*-\s*\d{1,2}\s*-\s*\d{2,4})/gi)].map(m=>dpDates(m[1])[0]).filter(Boolean).sort();
+  if(ren.length){r.auto_renews=true;r.renewal_months=12;r.term_start=ren[ren.length-1];r.end_date=dpAddMonths(r.term_start,12)}
+  else if(r.start_date&&!r.end_date){r.term_start=r.start_date;r.end_date=dpAddMonths(r.start_date,12)}}
  const names={supplier:'leverancier',category:'categorie',start_date:'startdatum',end_date:'einddatum',notice_months:'opzegtermijn',auto_renews:'verlenging',amount:'bedrag',promo_end_date:'einde actie'};
  for(const k in names)if(r[k]!=null&&r[k]!=='')r.found.push(names[k]);
  return r}
