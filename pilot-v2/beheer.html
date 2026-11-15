@@ -170,7 +170,7 @@ function liveApi(){
   async costLines(o){return ok(await client.from('huos_cost_lines').select('*').eq('organization_id',o).order('period_end',{ascending:false}).limit(1000))},
   async costCompare(o){return ok(await client.from('huos_cost_comparison').select('*').eq('organization_id',o))},
   async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
-  async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,end_date,document_id,added_by_staff').eq('organization_id',o).limit(300))},
+  async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,end_date,document_id,added_by_staff,amount,promo_end_date,amount_after_promo').eq('organization_id',o).limit(300))},
   async addCost(row){return ok(await client.from('huos_cost_lines').insert(row).select('id').single())},
   async updateCost(id,row){const r=ok(await client.from('huos_cost_lines').update(row).eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet bijgewerkt (geen rechten?)');return r},
   async deleteCost(id){const r=ok(await client.from('huos_cost_lines').delete().eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet verwijderd (geen rechten?)');return r},
@@ -419,6 +419,8 @@ async function renderCosts(){
    <div class="stat"><span>Kostenregels</span><b>${S.costLines.length}</b><small>${rows.length} product(en) / leverancier(s)</small></div>
    <div class="stat"><span>Stijgingen</span><b>${sigs.length}</b><small>t.o.v. begin dit jaar, of anders de oudste factuur</small></div>
   </div>
+  ${(()=>{const pr=(S.costCons||[]).filter(c=>c.promo_end_date).map(c=>({c,d:Math.round((new Date(c.promo_end_date+'T12:00:00')-Date.now())/864e5)})).filter(x=>x.d>=-30&&x.d<=120).sort((a,b)=>a.d-b.d);
+   return pr.length?`<h3>Acties die aflopen</h3>${pr.map(({c,d})=>`<div class="sig" style="border-left-color:var(--warn)"><b>${esc(CCAT[c.category]||c.category)} · ${esc(c.supplier)}</b>Actieprijs t/m ${esc(fmtDate(c.promo_end_date))} (${d>=0?'nog '+d+' dagen':'verlopen'})${c.amount_after_promo!=null?` — daarna ${eur(c.amount_after_promo)} p/m`+(c.amount!=null?` (+${eur(c.amount_after_promo-c.amount)})`:''):''}<span class="s hint">De klant ziet vanaf 60 dagen vooraf automatisch een melding.</span></div>`).join('')}`:''})()}
   <h3>Stijgingen</h3>${sigs.length?sigs.map(r=>`<div class="sig"><b>${esc(CCAT[r.category]||r.category)} · ${esc(r.supplier)}${r.product?' · '+esc(r.product):''}</b>${r.signal_reference==='year_start'?`${pctCell(r.pct_since_year_start)} sinds ${esc(fmtMonth(r.ytd_start))}`:`${pctCell(r.pct_since_oldest)} sinds ${esc(fmtMonth(r.oldest_start))}`} — <b style="display:inline">${eur(r.extra_per_month)}</b> per maand meer (≈ ${eur(Math.round(r.extra_per_month*12))} per jaar)${r.signal_reference==='year_start'&&r.pct_since_oldest!=null&&r.oldest_start!==r.ytd_start?` · sinds ${esc(fmtMonth(r.oldest_start))}: ${pctCell(r.pct_since_oldest)}`:''}${noticeControls(r,canEdit)}</div>`).join(''):'<p class="hint">Nog geen stijgingen gevonden.</p>'}
   <h3>Vergelijking per product</h3>
   <div class="card" style="overflow:auto"><table><thead><tr><th>Categorie</th><th>Leverancier / product</th><th>Laatste factuur</th><th class="num">Per maand</th><th class="num hide-m">Per eenheid</th><th class="num">t.o.v. begin jaar</th><th class="num">t.o.v. oudste</th><th class="num hide-m">t.o.v. vorige</th></tr></thead><tbody>
@@ -547,7 +549,19 @@ function dpParseContract(lines,ownName){
  if(/dagelijks opzegbaar|maandelijks opzegbaar|per maand opzegbaar|op elk moment opzeggen/i.test(t))r.flexible=true;
  m=t.match(/€\s*([\d.]+,\d{2}|\d+(?:\.\d{2})?)\s*(?:excl\.?\s*btw\s*)?(?:per|\/|p\.?)\s*(maand|mnd|kwartaal|jaar)/i);
  if(m){r.amount=dpAmt(m[1]);r.amount_period=/maand|mnd/i.test(m[2])?'month':/kwartaal/i.test(m[2])?'quarter':'year'}
- const names={supplier:'leverancier',category:'categorie',start_date:'startdatum',end_date:'einddatum',notice_months:'opzegtermijn',auto_renews:'verlenging',amount:'bedrag'};
+ // Actie / tijdelijke korting (bijv. 'Eerste 12 maanden € -6,50', 'Actie: eerste maand gratis € -2,50', 'Totaal € 32,50')
+ const pm=t.match(/eerste\s+(\d{1,2}|twaalf|zes|drie|vierentwintig)\s+maanden[\s\S]{0,60}?€\s*-\s*(\d+(?:[.,]\d{2})?)/i);
+ if(pm&&dpNum(pm[1])){
+  const months=dpNum(pm[1]),disc=dpAmt(pm[2]);
+  const fm=t.match(/eerste\s+maand\s+gratis[\s\S]{0,40}?-\s*(\d+(?:[.,]\d{2})?)/i);const firstFree=fm?dpAmt(fm[1]):0;
+  const tm=t.match(/\btotaal\b[^\n€]{0,20}€\s*(\d+(?:[.,]\d{2})?)/i);
+  if(tm&&disc>0){const total=dpAmt(tm[1]);const during=Math.round((total+(firstFree||0))*100)/100,after=Math.round((during+disc)*100)/100;
+   r.amount=during;r.amount_period='month';r.amount_after_promo=after;r.promo_months=months;
+   if(r.start_date)r.promo_end_date=dpAddMonths(r.start_date,months);
+   r.amount_note=`Actieprijs eerste ${months} maanden; daarna € ${after.toFixed(2).replace('.',',')} p/m`+(/inflatie|cpi|prijsindex/i.test(t)?' (+ jaarlijkse indexatie)':'');}
+  else if(disc>0){r.promo_months=months;r.promo_discount=disc;r.amount_note=`Tijdelijke korting € ${disc.toFixed(2).replace('.',',')} p/m gedurende ${months} maanden`;if(r.start_date)r.promo_end_date=dpAddMonths(r.start_date,months)}
+ }
+ const names={supplier:'leverancier',category:'categorie',start_date:'startdatum',end_date:'einddatum',notice_months:'opzegtermijn',auto_renews:'verlenging',amount:'bedrag',promo_end_date:'einde actie'};
  for(const k in names)if(r[k]!=null&&r[k]!=='')r.found.push(names[k]);
  return r}
 const DP_CONTRACT_CATS=['bier','frisdrank','wijn','groothandel','elektra','gas','water','afval','verzekeringen','telecom','muziekrechten','betaalverkeer','schoonmaak','huur','overig'];
@@ -563,6 +577,7 @@ function bindContractBtn(docId){const b=$('#cadd_btn');if(!b)return;b.onclick=()
  $('#cadd_box').innerHTML=`<div class="form" style="margin-top:8px"><div class="row"><select id="ca_cat">${CONTRACT_CATS.map(k=>`<option value="${k}" ${k===cat?'selected':''}>${esc(CCAT[k]||k)}</option>`).join('')}</select><input id="ca_sup" maxlength="160" placeholder="Leverancier *" value="${v(p.supplier)}"><input id="ca_desc" maxlength="500" placeholder="Omschrijving" value="${v(p.description)}"></div>
  <div class="row"><label class="hint">Startdatum${p.dates_estimated?' (geschat: besteldatum)':''}<input id="ca_start" type="date" value="${v(p.start_date)}"></label><label class="hint">Einddatum<input id="ca_end" type="date" value="${v(p.end_date)}"></label><label class="hint">Opzegtermijn (mnd)<input id="ca_nm" type="number" min="0" max="60" value="${v(p.notice_months)}"></label><label class="hint">Stilzwijgend verlengd<select id="ca_ren"><option value="">Onbekend</option><option value="yes" ${p.auto_renews===true?'selected':''}>Ja</option><option value="no" ${p.auto_renews===false?'selected':''}>Nee</option></select></label><label class="hint">Verlengd met (mnd)<input id="ca_rm" type="number" min="1" max="120" value="${v(p.renewal_months)}"></label></div>
  <div class="row"><label class="hint">Bedrag (€)<input id="ca_amt" type="number" min="0" step="0.01" value="${p.amount!=null?p.amount.toFixed(2):''}"></label><label class="hint">Per<select id="ca_per"><option value="">—</option>${[['month','maand'],['quarter','kwartaal'],['year','jaar'],['total','hele looptijd']].map(([k,l])=>`<option value="${k}" ${p.amount_period===k?'selected':''}>${l}</option>`).join('')}</select></label><label class="hint">Opzegtermijn in woorden<input id="ca_nt" maxlength="200" value="${v(p.notice_text)}"></label></div>
+ <div class="row"><label class="hint">Toelichting bedrag<input id="ca_an" maxlength="200" value="${v(p.amount_note)}"></label><label class="hint">Actie loopt t/m<input id="ca_pe" type="date" value="${v(p.promo_end_date)}"></label><label class="hint">Bedrag na actie (€)<input id="ca_aa" type="number" min="0" step="0.01" value="${p.amount_after_promo!=null?p.amount_after_promo.toFixed(2):''}"></label></div>
  <div class="row" style="flex:none"><button class="btn primary" id="ca_go">Toevoegen bij klant</button><button class="btn" id="ca_cancel">Annuleren</button></div><div class="msg" id="ca_msg"></div><span class="hint">De klant ziet dit bij Mijn contracten met het label "Toegevoegd door Horeca United" en kan het zelf aanpassen. Dit wordt vastgelegd in het logboek.</span></div>`;
  $('#ca_cancel').onclick=()=>{$('#cadd_box').innerHTML='';b.hidden=false};
  $('#ca_go').onclick=async()=>{const m=$('#ca_msg'),val=id=>$(id).value.trim(),num=id=>val(id)===''?null:Number(val(id));m.className='msg';
@@ -571,7 +586,7 @@ function bindContractBtn(docId){const b=$('#cadd_btn');if(!b)return;b.onclick=()
   if(st&&en&&en<st){m.className='msg err';m.textContent='De einddatum ligt vóór de startdatum.';return}
   if(num('#ca_amt')!=null&&!val('#ca_per')){m.className='msg err';m.textContent='Kies per maand, kwartaal, jaar of hele looptijd.';return}
   $('#ca_go').disabled=true;m.textContent='Bezig…';
-  try{await api.staffAddContract({p_org:S.costOrg,p_document:docId,p_category:val('#ca_cat'),p_supplier:sup,p_description:val('#ca_desc')||null,p_start:st,p_end:en,p_dates_estimated:!!p.dates_estimated,p_notice_months:num('#ca_nm'),p_notice_text:val('#ca_nt')||null,p_flexible:!!p.flexible,p_auto_renews:val('#ca_ren')===''?null:val('#ca_ren')==='yes',p_renewal_months:num('#ca_rm'),p_amount:num('#ca_amt'),p_amount_period:val('#ca_per')||null});
+  try{await api.staffAddContract({p_org:S.costOrg,p_document:docId,p_category:val('#ca_cat'),p_supplier:sup,p_description:val('#ca_desc')||null,p_start:st,p_end:en,p_dates_estimated:!!p.dates_estimated,p_notice_months:num('#ca_nm'),p_notice_text:val('#ca_nt')||null,p_flexible:!!p.flexible,p_auto_renews:val('#ca_ren')===''?null:val('#ca_ren')==='yes',p_renewal_months:num('#ca_rm'),p_amount:num('#ca_amt'),p_amount_period:val('#ca_per')||null,p_amount_note:val('#ca_an')||null,p_promo_end:val('#ca_pe')||null,p_amount_after_promo:num('#ca_aa')});
    S.costCons=await api.orgContracts(S.costOrg)||S.costCons;$('#cadd_box').parentElement.innerHTML=contractBtnHtml(docId).replace('✓ Staat al','✓ Toegevoegd — staat nu')}
   catch(e){m.className='msg err';m.textContent=errText(e);$('#ca_go').disabled=false}};
 }}
