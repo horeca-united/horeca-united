@@ -628,7 +628,7 @@ function coverageHtml(p){const c=p.c,eu=v=>v==null?'—':'€ '+Math.round(v).to
   (p.checks.length?'<p><strong>Goed om na te gaan</strong></p><ul>'+p.checks.map(x=>'<li>'+safe(x)+'</li>').join('')+'</ul>':'')+
   '<small class="muted">Automatisch samengevat uit je polisblad. De polisvoorwaarden van je verzekeraar zijn leidend.</small></div>'}
 /* ---------- Vergrendelde contracten (verzekeringen / door Horeca United ingevuld) ---------- */
-const cLocked=c=>c.category==='verzekeringen'||!!c.added_by_staff;
+const cLocked=c=>c.category==='verzekeringen';
 function uploadNewForContract(id){const t=document.querySelector('button.tab[data-tab=documents]');if(t)t.click();setTimeout(()=>{const sel=el('docCategory');if(sel)sel.value='contract';const d=el('docDrop');if(d)d.scrollIntoView({behavior:'smooth',block:'center'});const f=el('docFile');if(f)f.click()},150)}
 function toggleCorrection(id){const r=el('corr-'+id);if(!r)return;r.classList.toggle('hide');if(!r.classList.contains('hide')){const t=el('corrt-'+id);if(t)t.focus()}}
 async function sendCorrection(id){const c=contracts.find(x=>x.id===id),t=(el('corrt-'+id).value||'').trim(),m=el('corrm-'+id),b=el('corrb-'+id);
