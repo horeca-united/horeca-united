@@ -171,7 +171,7 @@ function liveApi(){
   async costLines(o){return ok(await client.from('huos_cost_lines').select('*').eq('organization_id',o).order('period_end',{ascending:false}).limit(1000))},
   async costCompare(o){return ok(await client.from('huos_cost_comparison').select('*').eq('organization_id',o))},
   async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
-  async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,start_date,end_date,status,document_id,added_by_staff,amount,amount_period,promo_end_date,amount_after_promo').eq('organization_id',o).limit(300))},
+  async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,start_date,end_date,status,document_id,added_by_staff,amount,amount_period,promo_end_date,amount_after_promo,flexible_cancellation,notice_period_months,cancel_by_date,auto_renews').eq('organization_id',o).limit(300))},
   async addCost(row){return ok(await client.from('huos_cost_lines').insert(row).select('id').single())},
   async updateCost(id,row){const r=ok(await client.from('huos_cost_lines').update(row).eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet bijgewerkt (geen rechten?)');return r},
   async deleteCost(id){const r=ok(await client.from('huos_cost_lines').delete().eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet verwijderd (geen rechten?)');return r},
@@ -431,6 +431,7 @@ async function renderCosts(){
    <div class="stat"><span>Kostenregels</span><b>${S.costLines.length}</b><small>${rows.length} product(en) / leverancier(s)</small></div>
    <div class="stat"><span>Stijgingen</span><b>${sigs.length}</b><small>t.o.v. begin dit jaar, of anders de oudste factuur</small></div>
   </div>
+  <h3>Advies <span class="hint" style="text-transform:none;letter-spacing:0">(alleen voor jou — kies zelf wat je aan de klant doorgeeft)</span></h3><div id="advbox">${adviceHtml(adviceSync(),canEdit,true)}</div>
   ${(()=>{const pr=(S.costCons||[]).filter(c=>c.promo_end_date).map(c=>({c,d:Math.round((new Date(c.promo_end_date+'T12:00:00')-Date.now())/864e5)})).filter(x=>x.d>=-30&&x.d<=120).sort((a,b)=>a.d-b.d);
    return pr.length?`<h3>Acties die aflopen</h3>${pr.map(({c,d})=>`<div class="sig" style="border-left-color:var(--warn)"><b>${esc(CCAT[c.category]||c.category)} · ${esc(c.supplier)}</b>Actieprijs t/m ${esc(fmtDate(c.promo_end_date))} (${d>=0?'nog '+d+' dagen':'verlopen'})${c.amount_after_promo!=null?` — daarna ${eur(c.amount_after_promo)} p/m`+(c.amount!=null?` (+${eur(c.amount_after_promo-c.amount)})`:''):''}<span class="s hint">De klant ziet vanaf 60 dagen vooraf automatisch een melding.</span></div>`).join('')}`:''})()}
   <h3>Stijgingen</h3>${sigs.length?sigs.map(r=>`<div class="sig"><b>${esc(CCAT[r.category]||r.category)} · ${esc(r.supplier)}${r.product?' · '+esc(r.product):''}</b>${r.signal_reference==='year_start'?`${pctCell(r.pct_since_year_start)} sinds ${esc(fmtMonth(r.ytd_start))}`:`${pctCell(r.pct_since_oldest)} sinds ${esc(fmtMonth(r.oldest_start))}`} — <b style="display:inline">${eur(r.extra_per_month)}</b> per maand meer (≈ ${eur(Math.round(r.extra_per_month*12))} per jaar)${r.signal_reference==='year_start'&&r.pct_since_oldest!=null&&r.oldest_start!==r.ytd_start?` · sinds ${esc(fmtMonth(r.oldest_start))}: ${pctCell(r.pct_since_oldest)}`:''}${noticeControls(r,canEdit)}</div>`).join(''):'<p class="hint">Nog geen stijgingen gevonden.</p>'}
@@ -456,7 +457,7 @@ async function renderCosts(){
 `;
   $('#corg').onchange=e=>{S.costOrg=e.target.value;S.costEdit=null;renderCosts()};
   document.querySelectorAll('[data-goorg]').forEach(a=>a.onclick=ev=>{ev.preventDefault();S.costOrg=a.dataset.goorg;S.costEdit=null;renderCosts()});
-  bindNoticeControls();
+  bindNoticeControls();bindAdvice();adviceAsync(canEdit);
   if($('#seenall'))$('#seenall').onclick=()=>{try{localStorage.setItem(seenKey(),new Date().toISOString())}catch(_){}render()};
   document.querySelectorAll('[data-file]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();const d=S.costDocs.find(x=>x.id===a.dataset.file);if(!d)return;const w=window.open('','_blank');try{const u=await api.fileUrl(d.storage_path);if(w)w.location=u;else location.href=u}catch(e){if(w)w.close();alert('Openen mislukt: '+errText(e))}});
   if(!canEdit)return;
@@ -767,6 +768,68 @@ function policySummaryHtml(p){if(!p||!p.secs.length)return '';const c=p.c;
   ${p.checks.length?`<p style="margin:8px 0 2px"><b>Om te controleren met de klant</b></p><ul>${p.checks.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
   <p class="hint">Automatisch uit het polisblad gehaald; controleer bij twijfel het document zelf.</p></details>`}
 
+
+
+/* ---------- Advies achter de schermen (per subgroep) ---------- */
+const ADV_GROUP={energie:'Energie',verzekeringen:'Verzekeringen',afval:'Afval & milieu',inkoop:'Inkoop',telecom:'Telecom',contracten:'Contracten',overig:'Overig'};
+const advGroupOf=cat=>['elektra','gas','water'].includes(cat)?'energie':cat==='verzekeringen'?'verzekeringen':cat==='afval'?'afval':['wijn','bier','frisdrank','gedistilleerd','food','groothandel'].includes(cat)?'inkoop':cat==='telecom'?'telecom':'contracten';
+const dDays=x=>x?Math.round((new Date(x+'T12:00:00')-Date.now())/864e5):null;
+function adviceSync(){const out=[],cons=(S.costCons||[]).filter(c=>c.status!=='terminated');
+ const yr=c=>{const a=Number(c.amount);if(!isFinite(a))return null;return c.amount_period==='month'?a*12:c.amount_period==='quarter'?a*4:c.amount_period==='year'?a:null};
+ for(const c of cons){const g=advGroupOf(c.category),nm=esc(c.supplier)+(c.description?' · '+esc(String(c.description).slice(0,60)):'');
+  const pd=dDays(c.promo_end_date);
+  if(pd!=null&&pd>=0&&pd<=180&&c.amount_after_promo!=null&&c.amount!=null){const ex=(c.amount_after_promo-c.amount)*(c.amount_period==='month'?12:c.amount_period==='quarter'?4:1);
+   out.push({key:'promo:'+c.id,group:g,level:'risico',title:`Actieprijs ${esc(c.supplier)} stopt op ${fmtDate(c.promo_end_date)}`,why:`${nm}: van ${eur(c.amount)} naar ${eur(c.amount_after_promo)} per ${c.amount_period==='month'?'maand':'periode'} (nog ${pd} dagen).`,impact:ex>0?`≈ ${eur(Math.round(ex))} per jaar meer`:null,
+    cTitle:`Je actieprijs bij ${c.supplier} stopt binnenkort`,cBody:`Op ${fmtDate(c.promo_end_date)} stopt je actieprijs bij ${c.supplier}. Daarna betaal je ${eur(c.amount_after_promo)} in plaats van ${eur(c.amount)}. Dit is een goed moment om te kijken of het voordeliger kan.`})}
+  const act=c.cancel_by_date||(c.end_date&&c.notice_period_months!=null?dpAddMonths(c.end_date,-c.notice_period_months):null),ad=dDays(act);
+  if(!c.flexible_cancellation&&ad!=null&&ad>=0&&ad<=120)out.push({key:'opzeg:'+c.id,group:g,level:'kans',title:`Heronderhandelen ${esc(c.supplier)} vóór ${fmtDate(act)}`,why:`${nm}: daarna wordt het contract${c.auto_renews?' automatisch verlengd':' afgesloten'} (nog ${ad} dagen).`,impact:yr(c)?`contractwaarde ≈ ${eur(Math.round(yr(c)))} per jaar`:null,
+   cTitle:`Je contract bij ${c.supplier} loopt af`,cBody:`Je contract bij ${c.supplier} moet uiterlijk ${fmtDate(act)} worden opgezegd${c.auto_renews?', anders wordt het automatisch verlengd':''}. Wij kunnen voor je kijken of het voordeliger kan.`});
+  if(c.flexible_cancellation&&c.amount!=null&&yr(c)>=600)out.push({key:'flex:'+c.id,group:g,level:'kans',title:`${esc(c.supplier)} is direct opzegbaar`,why:`${nm}: geen opzegdatum om op te wachten — een beter aanbod kan meteen ingaan.`,impact:`contractwaarde ≈ ${eur(Math.round(yr(c)))} per jaar`,cTitle:null});
+  if(!c.flexible_cancellation&&(c.amount==null||!c.end_date))out.push({key:'leeg:'+c.id,group:g,level:'info',title:`${esc(c.supplier)}: gegevens aanvullen`,why:`Bij dit contract ontbreekt ${[c.amount==null&&'het bedrag',!c.end_date&&'de einddatum'].filter(Boolean).join(' en ')}. Zonder deze gegevens kan HUOS geen opzegdatum of kosten berekenen.`,impact:null,cTitle:null})}
+ // energie: aandeel netbeheer per jaarafrekening
+ const byDoc={};for(const l of S.costLines||[])if(['elektra','gas'].includes(l.category)&&l.document_id)(byDoc[l.document_id]=byDoc[l.document_id]||[]).push(l);
+ for(const id in byDoc){const L=byDoc[id],tot=L.reduce((a,l)=>a+Number(l.amount_excl_vat),0),nb=L.filter(l=>/netbeheer/i.test(l.product||'')).reduce((a,l)=>a+Number(l.amount_excl_vat),0);
+  if(tot>0&&nb/tot>0.25){const l0=L[0];out.push({key:'netbeheer:'+id,group:'energie',level:'kans',title:`Netbeheer is ${Math.round(nb/tot*100)}% van de ${l0.category==='gas'?'gaskosten':'stroomkosten'}`,why:`${eur(nb)} per jaar aan netbeheer (${esc(l0.supplier)}, ${periodLabel(l0.period_start,l0.period_end)}). Dit hangt af van de grootte van de aansluiting, niet van het verbruik. Laat controleren of de aansluiting (capaciteit) groter is dan nodig.`,impact:'kan honderden tot duizenden euro per jaar schelen',
+   cTitle:'Je netbeheerkosten zijn hoog',cBody:`Van je ${l0.category==='gas'?'gaskosten':'stroomkosten'} gaat ${Math.round(nb/tot*100)}% (${eur(nb)} per jaar) naar de netbeheerder. Die kosten hangen af van de grootte van je aansluiting. Wij kunnen voor je laten nagaan of een kleinere aansluiting mogelijk is.`})}}
+ return out}
+S.advAsync={};
+async function adviceAsync(canEdit){const o=S.costOrg,own=((S.orgs||[]).find(x=>x.id===o)||{}).name||'';const extra=[];
+ const docsById=Object.fromEntries((S.costDocs||[]).map(d=>[d.id,d]));
+ const read=async d=>{const k=d.id;if(S.advAsync[k])return S.advAsync[k];const url=await api.fileUrl(d.storage_path);const res=await fetch(url);if(!res.ok)throw new Error('ophalen mislukt');return S.advAsync[k]=await pdfLines(await res.arrayBuffer())};
+ const jobs=[];
+ for(const c of (S.costCons||[]).filter(c=>c.category==='verzekeringen'&&c.document_id&&docsById[c.document_id]))jobs.push((async()=>{const p=dpPolicySummary(await read(docsById[c.document_id]),own);if(!p)return;
+  if(p.deadline&&dDays(p.deadline)>=-30)extra.push({key:'polis-deadline:'+c.id,group:'verzekeringen',level:'risico',title:`Keuringsrapport vóór ${fmtDate(p.deadline)} (${esc(c.supplier)})`,why:'Zonder rapport is brandschade vanaf die datum niet gedekt.',impact:'risico: brandschade niet verzekerd',altKey:'contract:'+c.id.slice(0,8)+':elektrakeuring',cTitle:`Keuring elektrische installatie vóór ${fmtDate(p.deadline)}`,cBody:`Je bedrijfsverzekering bij ${c.supplier} vraagt een keuringsrapport van de elektrische installatie (SCIOS Scope 10). Dit rapport moet uiterlijk ${fmtDate(p.deadline)} via je adviseur bij de verzekeraar binnen zijn. Komt het niet op tijd, dan is brandschade vanaf die datum niet meer verzekerd. Upload het rapport daarna in HUOS, dan houden wij het voor je bij.`});
+  if(p.checks.length)extra.push({key:'polis-check:'+c.id,group:'verzekeringen',level:'info',title:`Verzekerde bedragen nalopen (${esc(c.supplier)})`,why:p.checks.map(esc).join(' '),impact:'voorkomt onderverzekering',cTitle:'Kloppen je verzekerde bedragen nog?',cBody:`Op je polis bij ${c.supplier} staan bedragen die bepalen hoeveel je bij schade vergoed krijgt. ${p.checks.join(' ')} Laat het ons weten als er iets veranderd is, dan kijken we met je mee.`});
+  if(p.missing.length)extra.push({key:'polis-mist:'+c.id,group:'verzekeringen',level:'kans',title:`Niet in het pakket: ${p.missing.slice(0,4).map(esc).join(', ')}`,why:`Staat niet op het polisblad van ${esc(c.supplier)}. Navragen of dit elders geregeld is.`,impact:null,cTitle:'Ben je hier ook voor verzekerd?',cBody:`In je pakket bij ${c.supplier} zien we geen ${p.missing.slice(0,4).join(', ').toLowerCase()}. Misschien heb je dit elders geregeld. Zo niet, dan kijken we graag met je mee of het nodig is.`})})().catch(()=>{}));
+ const enDocs=new Set((S.costLines||[]).filter(l=>['elektra','gas'].includes(l.category)&&l.document_id).map(l=>l.document_id));
+ for(const d of (S.costDocs||[]).filter(d=>enDocs.has(d.id)||/(jaar|eind)\s*-?afrekening/i.test(d.file_name||'')))jobs.push((async()=>{const en=parseEnergyAnnual(await read(d),own);if(!en||!en.newTerm)return;
+  const months=en.period_start&&en.period_end?Math.max(1,Math.round((new Date(en.period_end)-new Date(en.period_start))/(30.4375*864e5))):12,need=en.total*1.21/months,diff=(need-en.newTerm)*12;
+  if(diff>300)extra.push({key:'voorschot:'+d.id,group:'energie',level:'risico',title:`Voorschot ${en.comm==='gas'?'gas':'stroom'} te laag: ≈ ${eur(Math.round(diff))} bijbetalen`,why:`Nieuw voorschot ${eur(en.newTerm)} p/m, bij hetzelfde verbruik nodig ≈ ${eur(Math.round(need))} p/m (incl. btw).`,impact:`≈ ${eur(Math.round(diff))} nabetaling`,cTitle:'Houd rekening met bijbetalen',cBody:`Je nieuwe voorschot voor ${en.comm==='gas'?'gas':'stroom'} is ${eur(en.newTerm)} per maand. Bij hetzelfde verbruik kost het je ongeveer ${eur(Math.round(need))} per maand. Houd rekening met ongeveer ${eur(Math.round(diff))} bijbetalen bij de volgende jaarafrekening, of vraag je leverancier het voorschot te verhogen.`})})().catch(()=>{}));
+ const inkDocs=new Set((S.costLines||[]).filter(l=>l.cost_kind==='inkoop'&&l.document_id).map(l=>l.document_id));
+ for(const d of (S.costDocs||[]).filter(d=>inkDocs.has(d.id)))jobs.push((async()=>{const st=parseArticleStats(await read(d));if(!st)return;
+  const rs=st.priced.filter(r=>r.price>0).map(r=>({r,disc:Math.round((1-(r.net/r.qty)/r.price)*100)}));const cnt={};rs.forEach(x=>cnt[x.disc]=(cnt[x.disc]||0)+1);
+  const tiers=Object.entries(cnt).filter(e=>e[1]>=3&&+e[0]>0).map(e=>+e[0]).sort((a,b)=>a-b);
+  if(tiers.length>=2){const lo=tiers[0],hi=tiers[tiers.length-1],netLo=rs.filter(x=>x.disc===lo).reduce((a,x)=>a+x.r.net,0),save=netLo*(1-(1-hi/100)/(1-lo/100));
+   const top=rs.filter(x=>x.disc===lo).sort((a,b)=>b.r.net-a.r.net).slice(0,3).map(x=>x.r.name.split(',')[0]);
+   extra.push({key:'korting:'+d.id,group:'inkoop',level:'kans',title:`${esc(st.supplier||'Leverancier')}: ${hi}% korting vragen op de ${lo}%-artikelen`,why:`Nu ${lo}% korting op ${eur(Math.round(netLo))} aan inkoop, ${hi}% op andere artikelen. Grootste ${lo}%-artikelen: ${top.map(esc).join(', ')}.`,impact:`≈ ${eur(Math.round(save))} per jaar`,cTitle:null})}})().catch(()=>{}));
+ await Promise.all(jobs);if(S.costOrg!==o||!$('#advbox'))return;$('#advbox').innerHTML=adviceHtml(adviceSync().concat(extra),canEdit,false);bindAdvice()}
+function adviceHtml(list,canEdit,loading){S.advList=list;const LV={risico:['Risico','c-bad'],kans:['Kans','c-ok'],info:['Nalopen','c-info']};
+ const order={risico:0,kans:1,info:2};const groups={};for(const a of list.sort((a,b)=>order[a.level]-order[b.level]))(groups[a.group]=groups[a.group]||[]).push(a);
+ const pub=(k,alt)=>(S.notices||[]).find(n=>n.status==='published'&&(n.source_key==='advies:'+k||(alt&&String(n.source_key||'').startsWith(alt))));
+ const item=a=>{const n=pub(a.key,a.altKey);return `<div class="sig" style="border-left-color:${a.level==='risico'?'var(--bad,#b42318)':a.level==='kans'?'var(--ok,#2e7d32)':'#94a3b8'}">${chip(LV[a.level])} <b style="display:inline">${a.title}</b><span class="s">${a.why}${a.impact?` · <b style="display:inline">${esc(a.impact)}</b>`:''}</span>
+  ${n?`<span class="s">✓ Getoond aan klant op ${esc(fmtDT(n.published_at))} · ${n.read_at?'gelezen':'nog niet gelezen'}${canEdit?` · <a href="#" data-nwd="${esc(n.id)}">intrekken</a>`:''}</span>`:a.cTitle&&canEdit?`<span class="s"><button class="btn small" data-apub="${esc(a.key)}">Tonen aan klant…</button></span><div class="neditor" data-aed="${esc(a.key)}" hidden></div>`:a.cTitle?'':'<span class="s hint">Intern — voor jouw gesprek met de klant.</span>'}</div>`};
+ const keys=Object.keys(groups);
+ return (keys.length?keys.map(g=>`<p style="margin:10px 0 4px"><b>${esc(ADV_GROUP[g]||g)}</b></p>${groups[g].map(item).join('')}`).join(''):'<p class="hint">Nog geen adviezen.</p>')+(loading?'<p class="hint">Documenten worden doorgelicht voor meer adviezen…</p>':'')}
+function bindAdvice(){
+ document.querySelectorAll('[data-apub]').forEach(b=>b.onclick=()=>{const a=(S.advList||[]).find(x=>x.key===b.dataset.apub);if(!a)return;const box=document.querySelector('[data-aed="'+CSS.escape(a.key)+'"]');box.hidden=false;b.hidden=true;
+  box.innerHTML=`<div class="form" style="margin-top:10px"><label class="hint">Titel<input class="nt" maxlength="140" value="${esc(a.cTitle)}"></label><label class="hint">Tekst<textarea class="nb" rows="4" maxlength="1500">${esc(a.cBody||'')}</textarea></label><label class="hint">Persoonlijke noot (optioneel)<textarea class="nn" rows="2" maxlength="1000" placeholder="Bijvoorbeeld: Ik kijk graag met je mee. – Hui"></textarea></label><label class="hint" style="flex-direction:row;align-items:center;gap:8px;display:flex"><input type="checkbox" class="ncta" style="width:auto"> Toon de knop “Stuur mij een voorstel” — alleen als je zeker weet dat je een beter voorstel kunt doen</label><div class="row" style="flex:none"><button class="btn primary ngo">Publiceren bij klant</button><button class="btn ncancel">Annuleren</button></div><div class="msg nmsg"></div></div>`;
+  box.querySelector('.ncancel').onclick=()=>{box.hidden=true;box.innerHTML='';b.hidden=false};
+  box.querySelector('.ngo').onclick=async()=>{const m=box.querySelector('.nmsg'),t=box.querySelector('.nt').value.trim(),bd=box.querySelector('.nb').value.trim(),nt=box.querySelector('.nn').value.trim();
+   if(t.length<3||bd.length<3){m.className='msg nmsg err';m.textContent='Vul een titel en tekst in.';return}
+   const go=box.querySelector('.ngo');go.disabled=true;m.className='msg nmsg';m.textContent='Bezig…';
+   try{await api.publishNotice({p_org:S.costOrg,p_kind:'custom',p_source_key:'advies:'+a.key,p_source:{advice:a.key,group:a.group,level:a.level},p_title:t,p_body:bd,p_note:nt||null,p_cta:box.querySelector('.ncta').checked?'proposal':'upload'});await renderCosts()}
+   catch(e){m.className='msg nmsg err';m.textContent=errText(e);go.disabled=false}}});
+ document.querySelectorAll('#advbox [data-nwd]').forEach(x=>x.onclick=async ev=>{ev.preventDefault();if(!confirm('Deze melding intrekken? De klant ziet hem dan niet meer.'))return;try{await api.withdrawNotice(x.dataset.nwd);await renderCosts()}catch(e){alert(errText(e))}})}
 
 /* ---------- Periodes en ontbrekende facturen ---------- */
 const MND=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
