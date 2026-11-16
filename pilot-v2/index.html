@@ -589,7 +589,8 @@ function energyHtml(en,prev){const C=en.comm==='gas'?'gas':'stroom',yr=en.period
  if(en.qty)li.push('Verbruik: <strong>'+nl(en.qty)+' '+en.unit+'</strong>');
  if(en.allin)li.push('Gemiddelde prijs: <strong>'+pk(en.allin)+' per '+en.unit+'</strong>, alles inbegrepen');
  if(en.splitOk)li.push('Waar het geld heen gaat: levering '+pct(en.parts.levering,en.total)+'% · netbeheer'+(en.netbeheerder?' ('+safe(en.netbeheerder)+')':'')+' '+pct(en.parts.netbeheer,en.total)+'% · energiebelasting '+pct(en.parts.belasting,en.total)+'%');
- if(en.settle)li.push('Verrekening over deze periode: '+(en.settle.refund?'je kreeg <strong>'+cEuro(en.settle.amount)+' terug</strong>':'je betaalde <strong>'+cEuro(en.settle.amount)+' bij</strong>')+' (incl. btw), na aftrek van je voorschotten');
+ if(en.paid&&en.totalIncl)li.push('Je <strong>werkelijke kosten</strong> waren '+cEuro(en.totalIncl)+' incl. btw. Je betaalde '+cEuro(en.paid)+' aan voorschotten, dus '+(en.settle&&en.settle.refund?'je krijgt <strong>'+cEuro(en.settle.amount)+' terug</strong>':'je betaalt <strong>'+cEuro(en.settle?en.settle.amount:en.totalIncl-en.paid)+' bij</strong>')+'.');
+ else if(en.settle)li.push('Verrekening over deze periode: '+(en.settle.refund?'je kreeg <strong>'+cEuro(en.settle.amount)+' terug</strong>':'je betaalde <strong>'+cEuro(en.settle.amount)+' bij</strong>')+' (incl. btw), na aftrek van je voorschotten');
  if(en.newTerm){const need=en.total*1.21/months,diff=(need-en.newTerm)*12;
   li.push(Math.abs(diff)<120?'Je nieuwe voorschot ('+cEuro(en.newTerm)+' per maand) past goed bij je kosten van dit jaar.':diff>0?'<span class="cov-warn"><strong>Let op je voorschot:</strong> je nieuwe voorschot is '+cEuro(en.newTerm)+' per maand. Bij hetzelfde verbruik en dezelfde prijzen kost '+C+' je ongeveer '+cEuro(Math.round(need))+' per maand (incl. btw). Houd rekening met ongeveer <strong>€ '+nl(diff)+' bijbetalen</strong>.</span>':'Je nieuwe voorschot ('+cEuro(en.newTerm)+' per maand) is hoger dan nodig bij hetzelfde verbruik: je krijgt waarschijnlijk ongeveer € '+nl(-diff)+' terug.')}
  let cmp='';if(prev){const d=(a,b)=>{const p=Math.round((a/b-1)*1000)/10;return (p>0?'+':'')+String(p).replace('.',',')+'%'};
@@ -849,7 +850,10 @@ function parseEnergyAnnual(lines,ownName){
  // verrekening (bijbetalen / terugkrijgen) na aftrek van de voorschotten
  let settle=null;const sl=lines.find(x=>/(restant|te betalen|terug te ontvangen|te ontvangen|tegoed|verrekening)/i.test(x)&&/€/.test(x)&&!/termijnbedrag/i.test(x));
  if(sl){const am=[...sl.matchAll(/€\s*(-?[\d.]+,\d{2})/g)].map(m=>num(m[1]));if(am.length){const v=am[am.length-1];settle={amount:Math.abs(v),refund:v<0||/terug|tegoed|ontvangen/i.test(sl)}}}
- const r={comm,unit,supplier:sup,total,period_start:ps,period_end:pe,qty,parts,netbeheerder:nb?nb.replace(/\s+N\.?V\.?$/,''):null,splitOk,newTerm:term?num(term):null,settle};
+ const lastEur=x=>{const am=[...String(x||'').matchAll(/€\s*(-?[\d.]+,\d{2})/g)].map(m=>num(m[1]));return am.length?am[am.length-1]:null};
+ const pl2=lines.find(x=>/^\s*(termijnfacturen|voorschotten|betaalde termijnen|reeds gefactureerd)/i.test(x));const paid=pl2!=null?Math.abs(lastEur(pl2)||0)||null:null;
+ const il=lines.find(x=>/totaal\s+inclusief\s+btw|totaal\s+incl\.?\s+btw/i.test(x));const totalIncl=il?lastEur(il):null;
+ const r={comm,unit,supplier:sup,total,period_start:ps,period_end:pe,qty,parts,netbeheerder:nb?nb.replace(/\s+N\.?V\.?$/,''):null,splitOk,newTerm:term?num(term):null,settle,paid,totalIncl};
  r.allin=qty?total/qty:null;r.levPer=qty&&splitOk?parts.levering/qty:null;return r}
 
 const dpContractCat=c=>DP_CONTRACT_CATS.includes(c)?c:(c==='gedistilleerd'?'groothandel':'overig');

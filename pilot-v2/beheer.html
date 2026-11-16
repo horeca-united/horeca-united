@@ -678,7 +678,10 @@ function parseEnergyAnnual(lines,ownName){
  // verrekening (bijbetalen / terugkrijgen) na aftrek van de voorschotten
  let settle=null;const sl=lines.find(x=>/(restant|te betalen|terug te ontvangen|te ontvangen|tegoed|verrekening)/i.test(x)&&/€/.test(x)&&!/termijnbedrag/i.test(x));
  if(sl){const am=[...sl.matchAll(/€\s*(-?[\d.]+,\d{2})/g)].map(m=>num(m[1]));if(am.length){const v=am[am.length-1];settle={amount:Math.abs(v),refund:v<0||/terug|tegoed|ontvangen/i.test(sl)}}}
- const r={comm,unit,supplier:sup,total,period_start:ps,period_end:pe,qty,parts,netbeheerder:nb?nb.replace(/\s+N\.?V\.?$/,''):null,splitOk,newTerm:term?num(term):null,settle};
+ const lastEur=x=>{const am=[...String(x||'').matchAll(/€\s*(-?[\d.]+,\d{2})/g)].map(m=>num(m[1]));return am.length?am[am.length-1]:null};
+ const pl2=lines.find(x=>/^\s*(termijnfacturen|voorschotten|betaalde termijnen|reeds gefactureerd)/i.test(x));const paid=pl2!=null?Math.abs(lastEur(pl2)||0)||null:null;
+ const il=lines.find(x=>/totaal\s+inclusief\s+btw|totaal\s+incl\.?\s+btw/i.test(x));const totalIncl=il?lastEur(il):null;
+ const r={comm,unit,supplier:sup,total,period_start:ps,period_end:pe,qty,parts,netbeheerder:nb?nb.replace(/\s+N\.?V\.?$/,''):null,splitOk,newTerm:term?num(term):null,settle,paid,totalIncl};
  r.allin=qty?total/qty:null;r.levPer=qty&&splitOk?parts.levering/qty:null;return r}
 
 const dpContractCat=c=>DP_CONTRACT_CATS.includes(c)?c:(c==='gedistilleerd'?'groothandel':'overig');
@@ -1050,6 +1053,19 @@ async function extractInvoice(docId,btn){
   if(!lines.join('').trim()){show('<b>Deze PDF bevat geen leesbare tekst</b> (waarschijnlijk een scan). Vul de gegevens handmatig in; de factuur is al gekoppeld.');return}
   const g=guessDocType(lines),chosen=d.category;
   const typeLine=g.type?(g.type===chosen?`<li>Soort document: lijkt ${g.label} (${esc(g.why)} gevonden) ✓ klopt met het label van de klant.</li>`:`<li style="color:var(--warn)"><b>Soort document: lijkt ${g.label}</b> (${esc(g.why)} gevonden), maar de klant koos "${esc(DOCCAT[chosen]||chosen||'onbekend')}".${g.type==='contract'?' Een contract hoort niet in de kostenregels: zet het hieronder bij Mijn contracten van de klant.':''}</li>`):'<li>Soort document: niet duidelijk uit de tekst.</li>';
+  // voorschot-/termijnfactuur (energie): geen echte kosten
+  if(!/jaarafrekening|jaarnota|eindafrekening/i.test(lines.join(' '))&&/(termijnfactuur|voorschotfactuur|voorschotnota|termijnbedrag|maandtermijn)/i.test(lines.join(' '))&&/(kwh|m3|m³|elektriciteit|\bgas\b|energie)/i.test(lines.join(' '))){S.lastLines=lines;
+   show(`<b>${esc(d.file_name)}</b><ul><li>Soort document: <b>voorschot- of termijnfactuur</b> (energie).</li><li>Dit zijn <b>geen echte kosten</b>: het is een voorschot dat in de jaarafrekening wordt verrekend. Niet als kostenregel opslaan; de jaarafrekening bepaalt de werkelijke kosten.</li></ul><details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);bindCopyRaw();return}
+  // creditnota: nooit als extra kosten; bijbehorende factuur verlagen
+  if(/^\s*(credit\s*nota|creditfactuur|credit\s*factuur)\b|\b(credit\s*nota|creditfactuur)\s*(nummer|nr|:)/im.test(lines.slice(0,25).join('\n'))){S.lastLines=lines;const T=lines.join('\n');
+   const am=(T.match(/(?:totaal|subtotaal)[^\n€]*(?:excl\.?|exclusief)[^\n€]*€\s*-?\s*([\d.]+,\d{2})/i)||T.match(/btw\s*over\s*€?\s*-?\s*([\d.]+,\d{2})/i)||[])[1];const credit=am?Number(am.replace(/\./g,'').replace(',','.')):null;
+   const ref=(S.costLines||[]).find(l=>l.invoice_number&&String(l.invoice_number).length>=4&&T.includes(l.invoice_number));
+   show(`<b>${esc(d.file_name)}</b><ul><li>Soort document: <b>creditnota</b>. Wordt nooit als extra kosten opgeslagen.</li>${credit!=null?`<li>Creditbedrag: <b>${eur(credit)}</b> excl. btw.</li>`:''}
+    ${ref&&credit!=null?`<li>Hoort bij factuur <b>${esc(ref.invoice_number)}</b>: ${esc(ref.supplier)}${ref.product?' · '+esc(ref.product):''} (${esc(periodLabel(ref.period_start,ref.period_end))}), nu ${eur(ref.amount_excl_vat)}.</li><li><button class="btn small" id="crgo">Verlaag naar ${eur(Math.max(0,ref.amount_excl_vat-credit))}</button> <span class="hint">wordt vastgelegd in het logboek</span></li>`:'<li>Geen bijbehorende factuur gevonden in de kostenregels. Is het een terugbetaling van voorschot (energie), dan veranderen de kosten niet. Anders: pas de betreffende kostenregel handmatig aan.</li>'}</ul>
+    <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);bindCopyRaw();
+   if(ref&&credit!=null&&$('#crgo'))$('#crgo').onclick=async()=>{if(!confirm(`Kostenregel ${ref.supplier} (${ref.invoice_number}) verlagen van ${eur(ref.amount_excl_vat)} naar ${eur(Math.max(0,ref.amount_excl_vat-credit))}?`))return;
+    try{await api.updateCost(ref.id,{amount_excl_vat:Math.round(Math.max(0,ref.amount_excl_vat-credit)*100)/100,note:((ref.note?ref.note+' · ':'')+`Gecrediteerd ${eur(credit)} (${d.file_name})`).slice(0,1000)});await renderCosts()}catch(e){alert(errText(e))}};
+   return}
   const en=parseEnergyAnnual(lines,((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||'');
   if(en){S.lastLines=lines;
    const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
@@ -1068,6 +1084,9 @@ async function extractInvoice(docId,btn){
     ${en.splitOk?`<li>Opbouw: levering ${eur(en.parts.levering)} · netbeheer ${eur(en.parts.netbeheer)} · energiebelasting ${eur(en.parts.belasting)}.</li>
      <li><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="csplit" checked style="width:auto"> Opslaan als 3 kostenregels (levering met verbruik, netbeheer, energiebelasting), zodat je per onderdeel de ontwikkeling ziet</label></li>`:''}
     ${en.qty?`<li>Alles-in prijs: ${pk(en.allin)} per ${en.unit}${en.levPer?` · alleen levering: ${pk(en.levPer)} per ${en.unit}`:''}.</li>`:''}
+    ${(()=>{const same=(S.costLines||[]).filter(l=>l.document_id===docId);if(same.length)return `<li style="color:var(--warn)"><b>Let op: deze afrekening is al verwerkt</b> (${same.length} kostenregel${same.length>1?'s':''}). Niet nog eens opslaan.</li>`;
+      const ov=(S.costLines||[]).filter(l=>l.category===en.comm&&l.document_id!==docId&&String(l.supplier).toLowerCase()===String(en.supplier||'').toLowerCase()&&en.period_start&&l.period_start<=en.period_end&&l.period_end>=en.period_start);
+      return ov.length?`<li style="color:var(--warn)"><b>Let op: er staan al ${ov.length} kostenregel${ov.length>1?'s':''} van ${esc(en.supplier)} in deze periode</b> (bijv. voorschot- of termijnfacturen): ${ov.slice(0,4).map(l=>esc(periodLabel(l.period_start,l.period_end))+' '+eur(l.amount_excl_vat)).join(', ')}. De jaarafrekening vervangt die; verwijder ze in de lijst onderaan, anders tellen ze dubbel.</li>`:''})()}
     ${en.settle?`<li>Verrekening: ${en.settle.refund?'klant krijgt '+eur(en.settle.amount)+' terug':'klant betaalt '+eur(en.settle.amount)+' bij'} (incl. btw) — niet als kosten meegeteld.</li>`:''}
     ${en.newTerm?`<li>Nieuw voorschot: ${eur(en.newTerm)} per maand (incl. btw).</li>`:''}
     <li>Controleer en klik op Opslaan.</li></ul>
