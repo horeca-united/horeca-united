@@ -672,6 +672,72 @@ function parseArticleStats(lines){
  return {rows,priced,free,total,qty,cut,period_start:ps,period_end:pe,supplier:sup||null,category:cat,
   product:'Inkoop '+(yr||'periode')+' (artikeloverzicht)',note:`${rows.length} artikelen, ${qty} stuks${free?`, ${free} gratis/proef`:''}. Uit artikelstatistiek.`,pattern}}
 
+
+/* ---------- Samenvatting dekking (polisblad) — alleen beheer ---------- */
+function dpPolicySummary(lines){
+ const t=lines.join('\n');if(!/polis(blad|nummer)|verzekerd bedrag|eigen risico/i.test(t))return null;
+ const amt=x=>{const m=String(x).match(/€\s*([\d.]+)(?:,\s*(\d{2}|-))?/);if(!m)return null;return Number(m[1].replace(/\./g,''))+(m[2]&&m[2]!=='-'?Number(m[2])/100:0)};
+ const c=dpParseContract(lines,((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||'');
+ const clean=x=>x.replace(/\s{2,}/g,' ').replace(/\s+-\s*$/,'').trim();
+ const skip=/^(aanvullende voorwaarden|productvoorwaarden|branchevoorwaarden|bijzondere voorwaarden|vindt deze|ingangsdatum|reden van afgifte|verzekerde adressen|adres\s+postcode|uw verzekeringen|\(exclusief|'t volk|.*pag\s+\d+\s*\/\s*\d+|.*download pdf)/i;
+ const KEY=/^(verzekerd bedrag|eigen risico|uitkeringstermijn|jaaromzet[^€]*|brutowinst|aantal [a-z]+|maximaal|verzekerd adres|bouwaard[^€]*|dakbedekking|eigenaar bedrijfsgebouw|aantal zonnepanelen|uiterlijke aanleverdatum)\b/i;
+ const SECRE=/^(.{3,60}?)\s+\d{8,}\s+€\s*([\d.]+,\d{2})\s+per\s+(maand|jaar|kwartaal)/i;const firstSec=lines.findIndex(x=>SECRE.test(clean(x)));
+ const secs=[];let cur=null,sub=null,desc=null;
+ const endIdx=lines.findIndex((x,i)=>i>firstSec&&firstSec>=0&&/^\s*overzicht bijzondere voorwaarden\s*$/i.test(x));
+ const body=endIdx>0?lines.slice(0,endIdx):lines;
+ const perOf=x=>{const m=x.match(/per\s+(aanspraak|gebeurtenis|verzekeringsjaar|jaar)/i);return m?m[1].toLowerCase():null};
+ for(const raw of body){const x=clean(raw);if(!x)continue;
+  const sm=x.match(SECRE);
+  if(sm){cur={name:sm[1],premium:amt('€'+sm[2]),per:sm[3].toLowerCase(),items:[],facts:[]};secs.push(cur);sub=null;desc=null;continue}
+  if(!cur||skip.test(x))continue;
+  const km=x.match(KEY);
+  if(km){const k=km[1].toLowerCase();
+   if(/^verzekerd bedrag|^maximaal/.test(k)){const v=amt(x),pr=perOf(x),std=/standaard/i.test(x);
+    if(/^verzekerd bedrag/.test(k)&&sub&&sub.fromLabel&&sub.amount==null){sub.amount=v;if(std)sub.extra='standaard'}
+    else{const label=desc?desc.replace(/^voor\s+/i,'').replace(/\s+als gevolg van.*$/i,'').replace(/^./,c=>c.toUpperCase()):(pr?'Maximaal per '+(pr==='aanspraak'?'schadegeval':pr==='verzekeringsjaar'?'jaar':pr):cur.name);
+     cur.items.push(sub={label,amount:v,er:null,extra:std?'standaard':'',fromLabel:false});desc=null}}
+   else if(/^eigen risico/.test(k)){const v=/geen/i.test(x)?'geen':amt(x);
+    if(sub&&sub.fromLabel)sub.er=v;else cur.facts.push(['Eigen risico',v==='geen'?'geen':eurInt(v)+' '+clean(x.replace(/^eigen risico\s*€\s*[\d.,\s-]+/i,''))])}
+   else if(/^brutowinst/.test(k)){cur.items.push(sub={label:'Brutowinst',amount:amt(x),er:null,extra:'',fromLabel:true})}
+   else if(/^aantal ruiten/.test(k)){const n=(x.match(/ruiten\s+(\d+)/i)||[])[1];if(sub&&/glas/i.test(sub.label)&&n)sub.extra=n+' ruiten'}
+   else if(/^(jaaromzet|uitkeringstermijn)/.test(k))cur.facts.push([clean(km[1]),clean(x.slice(km[1].length)).replace(/,\s*$/,'')]);
+   continue}
+  const lm=x.match(/^([A-ZÀ-Ý][A-Za-zÀ-ÿ\/ ]{2,39}?)\s+€\s*([\d.]+)(?:,\s*(?:\d{2}|-))?\s*(\(standaard\))?/);
+  if(lm&&!/per\s+maand$/i.test(x)){cur.items.push(sub={label:lm[1],amount:amt(x),er:null,extra:lm[3]?'standaard':'',fromLabel:true});continue}
+  if(/^aanvullende dekkingen$/i.test(x)){sub=null;continue}
+  if(/^[A-ZÀ-Ý][A-Za-zÀ-ÿ\/ ]{2,39}$/.test(x)){cur.items.push(sub={label:x,amount:null,er:null,extra:'',fromLabel:true});desc=null;continue}
+  if(/^[A-ZÀ-Ý]/.test(x)&&!/€/.test(x))desc=x}
+ secs.forEach(s=>s.items=s.items.filter(i=>i.amount!=null||i.er!=null||i.extra));
+ // bijzondere voorwaarden / verplichtingen
+ const tail=endIdx>0?lines.slice(endIdx).map(clean):[];const conds=[];
+ const COND=[[/skg/i,'Inbraakwerende sloten (SKG**) op buitendeuren en ramen op de begane grond'],[/doormelding|alarmcentrale/i,'Inbraakalarm met doormelding naar een meldkamer; iemand altijd telefonisch bereikbaar'],[/onderhoudscontract.*(alarm|borg|veb)|borg|veb/i,'Onderhoudscontract voor het inbraakalarm (BORG/VEB), alarm aan als er niemand is'],
+  [/scope\s*10|nen\s*3140|elektra(keuring)?|elektrische installatie/i,'Keuring elektrische installatie (SCIOS Scope 10), elke 5 jaar'],[/technische inspectie|voorlopige polis/i,'Voorlopige polis: er volgt nog een technische inspectie'],[/sprinkler/i,'Sprinklerinstallatie moet werken en onderhouden worden'],[/brandblus|blusmiddel/i,'Brandblusmiddelen aanwezig en gekeurd'],[/frituur|afzuig|vetvang/i,'Eisen aan frituur/afzuiginstallatie (reinigen, blussysteem)']];
+ const tt=tail.join('\n');for(const [re,txt] of COND)if(re.test(tt)&&!conds.includes(txt))conds.push(txt);
+ const dl=t.match(/uiterlijke aanleverdatum\s*(\d{1,2}\s*-\s*\d{1,2}\s*-\s*\d{2,4})/i);const deadline=dl?dpDates(dl[1])[0]:null;
+ const excl=[];for(const x of tail)if(/(vergoeden geen|niet verzekerd|is uitgesloten|geen dekking)/i.test(x))excl.push(x.replace(/^(wij\s+)?vergoeden\s+geen\s+/i,'Geen vergoeding voor ').replace(/\.$/,'').replace(/^./,c=>c.toUpperCase()));
+ if(/verval van uitkering|vervalt het recht op uitkering/i.test(tt))conds.push('Let op: voldoet de klant hier niet aan, dan kan de uitkering vervallen');
+ // ontbrekende dekkingen
+ const has=re=>re.test(secs.map(s=>s.name).join(' ')+' '+t.slice(0,4000));
+ const missing=[['Rechtsbijstand',/rechtsbijstand/i],['Cyber',/cyber/i],['Verzuim / arbeidsongeschiktheid',/verzuim|arbeidsongeschikt|aov\b/i],['Ongevallen',/ongevallen/i],['Bedrijfsauto',/bedrijfsauto|motorrijtuig|wagenpark|autoverzekering/i]].filter(([,re])=>!has(re)).map(([n])=>n);
+ if(!/eigenaar bedrijfsgebouw\s+nee/i.test(t)&&!has(/opstal/i))missing.push('Opstal (als de klant eigenaar van het pand is)');
+ const checks=[];const om=t.match(/jaaromzet[^€\n]*€\s*([\d.]+)/i);if(om)checks.push(`Klopt de jaaromzet van € ${om[1]} nog? Te laag opgegeven kan dekking kosten.`);
+ const bw=secs.flatMap(s=>s.items).find(i=>/brutowinst/i.test(i.label));if(bw)checks.push(`Klopt de brutowinst van ${eurInt(bw.amount)} nog? Hoger dan verzekerd betekent onderverzekering.`);
+ const inv=secs.flatMap(s=>s.items).find(i=>/^inventaris$/i.test(i.label));if(inv)checks.push(`Is de inventariswaarde van ${eurInt(inv.amount)} nog actueel (nieuwe apparatuur, verbouwing)?`);
+ return {c,secs,conds,deadline,excl,missing,checks}}
+const eurInt=v=>v==null?'—':'€ '+Math.round(v).toLocaleString('nl-NL');
+function policySummaryHtml(p){if(!p||!p.secs.length)return '';const c=p.c;
+ const sec=s=>`<div style="margin:8px 0"><b>${esc(s.name)}</b> <span class="hint">${eur(s.premium)} per ${esc(s.per)}</span>
+  ${s.items.length?`<table class="t" style="margin-top:4px"><tr><th>Onderdeel</th><th class="num">Verzekerd tot</th><th class="num">Eigen risico</th></tr>${s.items.map(i=>`<tr><td>${esc(i.label)}${i.extra?` <span class="hint">(${esc(i.extra)})</span>`:''}</td><td class="num">${eurInt(i.amount)}</td><td class="num">${i.er==='geen'?'geen':i.er!=null?eurInt(i.er):'—'}</td></tr>`).join('')}</table>`:''}
+  ${s.facts.length?`<div class="hint">${s.facts.map(([k,v])=>esc(k)+': '+esc(v)).join(' · ')}</div>`:''}</div>`;
+ return `<details open style="margin-top:8px"><summary><b>Samenvatting dekking</b> <span class="hint">(alleen zichtbaar in beheer)</span></summary>
+  <p style="margin:6px 0"><b>${esc(c.supplier||'Verzekeraar onbekend')}</b>${c.description?' · '+esc(c.description):''}${c.amount!=null?` · <b>${eur(c.amount)} per ${c.amount_period==='year'?'jaar':c.amount_period==='quarter'?'kwartaal':'maand'}</b>`:''}${c.flexible?' · dagelijks opzegbaar':''}${c.auto_renews&&c.term_start?' · verlengd op '+fmtDate(c.term_start):''}</p>
+  ${p.secs.map(sec).join('')}
+  ${p.conds.length||p.deadline?`<p style="margin:8px 0 2px"><b>Verplichtingen</b></p><ul>${p.deadline?`<li style="color:var(--warn)"><b>Deadline ${fmtDate(p.deadline)}:</b> keuringsrapport aanleveren bij de verzekeraar.</li>`:''}${p.conds.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+  ${p.excl.length?`<p style="margin:8px 0 2px"><b>Uitgesloten</b></p><ul>${p.excl.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+  ${p.missing.length?`<p style="margin:8px 0 2px"><b>Staat niet op dit polisblad</b> <span class="hint">(kan elders verzekerd zijn)</span></p><p class="hint" style="margin:0">${p.missing.map(esc).join(' · ')}</p>`:''}
+  ${p.checks.length?`<p style="margin:8px 0 2px"><b>Om te controleren met de klant</b></p><ul>${p.checks.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+  <p class="hint">Automatisch uit het polisblad gehaald; controleer bij twijfel het document zelf.</p></details>`}
+
 /* ---------- Periodes en ontbrekende facturen ---------- */
 const MND=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
 const dP=x=>{const [y,m,d]=x.split('-').map(Number);return {y,m,d}};
@@ -913,7 +979,8 @@ async function extractInvoice(docId,btn){
     set('#cnote',(`${{month:'Per maand',quarter:'Per kwartaal',year:'Per jaar'}[cc.amount_period]} ${eur(cc.amount)}`+(cc.amount_note?'; '+cc.amount_note:'')+'. Uit contract/polis.').slice(0,1000));
     setAutoContract(docId);
     costInfo=`<li>Kostenregel ingevuld: ${eur(cc.amount)} ${{month:'per maand',quarter:'per kwartaal',year:'per jaar'}[cc.amount_period]} × ${months/per} = <b>${eur(amt)}</b>${from&&to?` voor ${fmtDate(from)} – ${fmtDate(to)}`:''}. Controleer en klik op Opslaan.</li>`}
-   show(`<b>${esc(d.file_name)}</b><ul>${typeLine}${costInfo}</ul>${contractBtnHtml(docId)}<details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);bindContractBtn(docId);bindCopyRaw();return}
+   const pol=dpPolicySummary(lines);
+   show(`<b>${esc(d.file_name)}</b><ul>${typeLine}${costInfo}</ul>${policySummaryHtml(pol)}${contractBtnHtml(docId)}<details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);bindContractBtn(docId);bindCopyRaw();return}
   const r=parseInvoice(lines,S.costLines);
   const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
   const got=[];if(r.category&&set('#ccat',r.category))got.push('categorie');$('#ckind').value=kindOfCat($('#ccat').value);setTimeout(()=>setAutoContract(docId),0);if(set('#csup',r.supplier))got.push('leverancier');if(set('#cprod',r.product))got.push('product');
