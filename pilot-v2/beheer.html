@@ -675,7 +675,10 @@ function parseEnergyAnnual(lines,ownName){
  const sum=parts.levering+parts.netbeheer+parts.belasting;const splitOk=sum>0&&Math.abs(sum-total)<1&&parts.levering>0;if(splitOk)parts.levering=Math.round((total-parts.netbeheer-parts.belasting)*100)/100;
  const sup=dpSupplier(lines,ownName||'').supplier;
  const term=(t.match(/termijnbedrag[^€\n]*€\s*([\d.]+,\d{2})/i)||[])[1];
- const r={comm,unit,supplier:sup,total,period_start:ps,period_end:pe,qty,parts,netbeheerder:nb?nb.replace(/\s+N\.?V\.?$/,''):null,splitOk,newTerm:term?num(term):null};
+ // verrekening (bijbetalen / terugkrijgen) na aftrek van de voorschotten
+ let settle=null;const sl=lines.find(x=>/(restant|te betalen|terug te ontvangen|te ontvangen|tegoed|verrekening)/i.test(x)&&/€/.test(x)&&!/termijnbedrag/i.test(x));
+ if(sl){const am=[...sl.matchAll(/€\s*(-?[\d.]+,\d{2})/g)].map(m=>num(m[1]));if(am.length){const v=am[am.length-1];settle={amount:Math.abs(v),refund:v<0||/terug|tegoed|ontvangen/i.test(sl)}}}
+ const r={comm,unit,supplier:sup,total,period_start:ps,period_end:pe,qty,parts,netbeheerder:nb?nb.replace(/\s+N\.?V\.?$/,''):null,splitOk,newTerm:term?num(term):null,settle};
  r.allin=qty?total/qty:null;r.levPer=qty&&splitOk?parts.levering/qty:null;return r}
 
 const dpContractCat=c=>DP_CONTRACT_CATS.includes(c)?c:(c==='gedistilleerd'?'groothandel':'overig');
@@ -1065,6 +1068,7 @@ async function extractInvoice(docId,btn){
     ${en.splitOk?`<li>Opbouw: levering ${eur(en.parts.levering)} · netbeheer ${eur(en.parts.netbeheer)} · energiebelasting ${eur(en.parts.belasting)}.</li>
      <li><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="csplit" checked style="width:auto"> Opslaan als 3 kostenregels (levering met verbruik, netbeheer, energiebelasting), zodat je per onderdeel de ontwikkeling ziet</label></li>`:''}
     ${en.qty?`<li>Alles-in prijs: ${pk(en.allin)} per ${en.unit}${en.levPer?` · alleen levering: ${pk(en.levPer)} per ${en.unit}`:''}.</li>`:''}
+    ${en.settle?`<li>Verrekening: ${en.settle.refund?'klant krijgt '+eur(en.settle.amount)+' terug':'klant betaalt '+eur(en.settle.amount)+' bij'} (incl. btw) — niet als kosten meegeteld.</li>`:''}
     ${en.newTerm?`<li>Nieuw voorschot: ${eur(en.newTerm)} per maand (incl. btw).</li>`:''}
     <li>Controleer en klik op Opslaan.</li></ul>
     <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);bindCopyRaw();return}

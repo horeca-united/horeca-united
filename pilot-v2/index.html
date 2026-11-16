@@ -589,12 +589,13 @@ function energyHtml(en,prev){const C=en.comm==='gas'?'gas':'stroom',yr=en.period
  if(en.qty)li.push('Verbruik: <strong>'+nl(en.qty)+' '+en.unit+'</strong>');
  if(en.allin)li.push('Gemiddelde prijs: <strong>'+pk(en.allin)+' per '+en.unit+'</strong>, alles inbegrepen');
  if(en.splitOk)li.push('Waar het geld heen gaat: levering '+pct(en.parts.levering,en.total)+'% · netbeheer'+(en.netbeheerder?' ('+safe(en.netbeheerder)+')':'')+' '+pct(en.parts.netbeheer,en.total)+'% · energiebelasting '+pct(en.parts.belasting,en.total)+'%');
+ if(en.settle)li.push('Verrekening over deze periode: '+(en.settle.refund?'je kreeg <strong>'+cEuro(en.settle.amount)+' terug</strong>':'je betaalde <strong>'+cEuro(en.settle.amount)+' bij</strong>')+' (incl. btw), na aftrek van je voorschotten');
  if(en.newTerm){const need=en.total*1.21/months,diff=(need-en.newTerm)*12;
   li.push(Math.abs(diff)<120?'Je nieuwe voorschot ('+cEuro(en.newTerm)+' per maand) past goed bij je kosten van dit jaar.':diff>0?'<span class="cov-warn"><strong>Let op je voorschot:</strong> je nieuwe voorschot is '+cEuro(en.newTerm)+' per maand. Bij hetzelfde verbruik en dezelfde prijzen kost '+C+' je ongeveer '+cEuro(Math.round(need))+' per maand (incl. btw). Houd rekening met ongeveer <strong>€ '+nl(diff)+' bijbetalen</strong>.</span>':'Je nieuwe voorschot ('+cEuro(en.newTerm)+' per maand) is hoger dan nodig bij hetzelfde verbruik: je krijgt waarschijnlijk ongeveer € '+nl(-diff)+' terug.')}
  let cmp='';if(prev){const d=(a,b)=>{const p=Math.round((a/b-1)*1000)/10;return (p>0?'+':'')+String(p).replace('.',',')+'%'};
   cmp='<p><strong>Vergeleken met de vorige afrekening</strong></p><ul><li>Kosten: € '+nl(prev.total)+' → € '+nl(en.total)+' ('+d(en.total,prev.total)+')</li>'+(prev.qty&&en.qty?'<li>Verbruik: '+nl(prev.qty)+' → '+nl(en.qty)+' '+en.unit+' ('+d(en.qty,prev.qty)+')</li><li>Prijs per '+en.unit+': '+pk(prev.allin)+' → '+pk(en.allin)+' ('+d(en.allin,prev.allin)+')</li>':'')+'</ul>'}
  return '<div class="cov"><p><strong>Je '+C+' in '+yr+'</strong>'+(en.supplier?' <span class="muted">('+safe(en.supplier)+')</span>':'')+'</p><ul>'+li.map(x=>'<li>'+x+'</li>').join('')+'</ul>'+cmp+
-  (prev?'':'<p class="muted">Upload volgend jaar je nieuwe jaarafrekening, dan zie je hier wat er veranderd is.</p>')+'<small class="muted">Automatisch samengevat uit je jaarafrekening. Het restant of terug te ontvangen bedrag is niet meegeteld: dat is alleen het verschil met je voorschotten.</small></div>'}
+  (prev?'':'<p class="muted">Upload volgend jaar je nieuwe jaarafrekening, dan zie je hier wat er veranderd is.</p>')+'<p class="muted">Krijg je na afloop van het jaar een aparte factuur of creditnota voor de verrekening (bijbetalen of terugkrijgen)? Upload die ook bij Documenten, dan zie je precies wat je over het jaar hebt betaald.</p>'+'<small class="muted">Automatisch samengevat uit je jaarafrekening. Het restant of terug te ontvangen bedrag is niet meegeteld: dat is alleen het verschil met je voorschotten.</small></div>'}
 /* ---------- Wat is gedekt? (samenvatting polisblad voor de ondernemer) ---------- */
 const covCache={};
 async function toggleCoverage(id){const row=el('cov-'+id);if(!row)return;const box=row.querySelector('.cov-box');
@@ -845,7 +846,10 @@ function parseEnergyAnnual(lines,ownName){
  const sum=parts.levering+parts.netbeheer+parts.belasting;const splitOk=sum>0&&Math.abs(sum-total)<1&&parts.levering>0;if(splitOk)parts.levering=Math.round((total-parts.netbeheer-parts.belasting)*100)/100;
  const sup=dpSupplier(lines,ownName||'').supplier;
  const term=(t.match(/termijnbedrag[^€\n]*€\s*([\d.]+,\d{2})/i)||[])[1];
- const r={comm,unit,supplier:sup,total,period_start:ps,period_end:pe,qty,parts,netbeheerder:nb?nb.replace(/\s+N\.?V\.?$/,''):null,splitOk,newTerm:term?num(term):null};
+ // verrekening (bijbetalen / terugkrijgen) na aftrek van de voorschotten
+ let settle=null;const sl=lines.find(x=>/(restant|te betalen|terug te ontvangen|te ontvangen|tegoed|verrekening)/i.test(x)&&/€/.test(x)&&!/termijnbedrag/i.test(x));
+ if(sl){const am=[...sl.matchAll(/€\s*(-?[\d.]+,\d{2})/g)].map(m=>num(m[1]));if(am.length){const v=am[am.length-1];settle={amount:Math.abs(v),refund:v<0||/terug|tegoed|ontvangen/i.test(sl)}}}
+ const r={comm,unit,supplier:sup,total,period_start:ps,period_end:pe,qty,parts,netbeheerder:nb?nb.replace(/\s+N\.?V\.?$/,''):null,splitOk,newTerm:term?num(term):null,settle};
  r.allin=qty?total/qty:null;r.levPer=qty&&splitOk?parts.levering/qty:null;return r}
 
 const dpContractCat=c=>DP_CONTRACT_CATS.includes(c)?c:(c==='gedistilleerd'?'groothandel':'overig');
