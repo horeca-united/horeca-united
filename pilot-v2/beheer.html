@@ -650,6 +650,33 @@ function dpPolicySummary(lines,ownName){
  const bw=secs.flatMap(s=>s.items).find(i=>/brutowinst/i.test(i.label));if(bw)checks.push(`Klopt de brutowinst van ${eurInt(bw.amount)} nog? Hoger dan verzekerd betekent onderverzekering.`);
  const inv=secs.flatMap(s=>s.items).find(i=>/^inventaris$/i.test(i.label));if(inv)checks.push(`Is de inventariswaarde van ${eurInt(inv.amount)} nog actueel (nieuwe apparatuur, verbouwing)?`);
  return {c,secs,conds,deadline,excl,missing,checks}}
+/* ---------- Energie-jaarafrekening (elektra / gas) ---------- */
+function parseEnergyAnnual(lines,ownName){
+ const t=lines.join('\n');if(!/jaarafrekening|jaarnota|eindafrekening/i.test(t)||!/(kwh|m3|m³)/i.test(t))return null;
+ const num=x=>Number(String(x).replace(/\./g,'').replace(',','.'));
+ const gas=/\b(m3|m³)\b/i.test(t)&&!/\bkwh\b/i.test(t.replace(/omrekenfactor.*kwh/ig,''))||/jaarafrekening\s+gas/i.test(t);
+ const comm=gas?'gas':'elektra',unit=gas?'m³':'kWh';
+ // totaal excl. btw van het jaar (niet het restant/te betalen)
+ let total=null;const tl=lines.find(x=>/totaal\s+(elektriciteit|gas|energie|levering)?\s*(exclusief|excl\.?)\s*btw/i.test(x));if(tl){const m=tl.match(/€\s*(-?[\d.]+,\d{2})/);if(m)total=num(m[1])}
+ if(total==null){const jl=lines.find(x=>/^\s*jaarafrekening\s+(elektriciteit|gas)\s+€/i.test(x));if(jl){const m=jl.match(/€\s*(-?[\d.]+,\d{2})/);if(m)total=num(m[1])}}
+ if(total==null)return null;
+ // periode
+ let ps=null,pe=null;const pl=lines.find(x=>/(leverings|afreken|verbruiks)periode/i.test(x));if(pl){const ds=dpDates(pl);if(ds.length>=2){ps=ds[0];pe=ds[1];const st=new Date(ps+'T12:00:00Z'),en=new Date(pe+'T12:00:00Z');if(en.getUTCDate()===st.getUTCDate()){en.setUTCDate(en.getUTCDate()-1);pe=en.toISOString().slice(0,10)}}}
+ // verbruik
+ let qty=null;const ml=lines.find(x=>/^\s*totaal\s+[\d.]+(?:[.,]\d+)?\s*$/i.test(x));if(ml)qty=Number(ml.replace(/[^\d.,]/g,'').replace(',','.'));
+ if(!qty){const eb=lines.filter(x=>/energie\s*belasting/i.test(x)&&new RegExp('\\b(kwh|m3|m³)\\b','i').test(x)).map(x=>Number((x.match(/([\d.]+)\s*(kwh|m3|m³)/i)||[])[1]));if(eb.length)qty=eb.reduce((a,b)=>a+(b||0),0)}
+ // onderdelen
+ const parts={levering:0,netbeheer:0,belasting:0};let nb=null;
+ for(const x of lines){const m=x.match(/^\s*totaal\s+(.+?)\s+€\s*(-?[\d.]+,\d{2})\s*$/i);if(!m)continue;const k=m[1].toLowerCase();
+  if(!/^[a-zà-ÿ .()\-]+$/.test(k)||/exclusief|inclusief|btw|te betalen|termijn/.test(k))continue;const v=num(m[2]);
+  if(/overheid|energiebelasting|belasting/.test(k))parts.belasting+=v;else if(/netbeheer|transport|aansluit|systeembeheer/.test(k))parts.netbeheer+=v;else parts.levering+=v}
+ const nl=lines.find(x=>/netbeheer(kosten)?\s*\(/i.test(x));if(nl)nb=(nl.match(/\(([^)]+)\)/)||[])[1];
+ const sum=parts.levering+parts.netbeheer+parts.belasting;const splitOk=sum>0&&Math.abs(sum-total)<1&&parts.levering>0;if(splitOk)parts.levering=Math.round((total-parts.netbeheer-parts.belasting)*100)/100;
+ const sup=dpSupplier(lines,ownName||'').supplier;
+ const term=(t.match(/termijnbedrag[^€\n]*€\s*([\d.]+,\d{2})/i)||[])[1];
+ const r={comm,unit,supplier:sup,total,period_start:ps,period_end:pe,qty,parts,netbeheerder:nb?nb.replace(/\s+N\.?V\.?$/,''):null,splitOk,newTerm:term?num(term):null};
+ r.allin=qty?total/qty:null;r.levPer=qty&&splitOk?parts.levering/qty:null;return r}
+
 const dpContractCat=c=>DP_CONTRACT_CATS.includes(c)?c:(c==='gedistilleerd'?'groothandel':'overig');
 
 /* Contract-document bij de klant zetten (Mijn contracten) */
@@ -740,33 +767,6 @@ function policySummaryHtml(p){if(!p||!p.secs.length)return '';const c=p.c;
   ${p.checks.length?`<p style="margin:8px 0 2px"><b>Om te controleren met de klant</b></p><ul>${p.checks.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
   <p class="hint">Automatisch uit het polisblad gehaald; controleer bij twijfel het document zelf.</p></details>`}
 
-
-/* ---------- Energie-jaarafrekening (elektra / gas) ---------- */
-function parseEnergyAnnual(lines){
- const t=lines.join('\n');if(!/jaarafrekening|jaarnota|eindafrekening/i.test(t)||!/(kwh|m3|m³)/i.test(t))return null;
- const num=x=>Number(String(x).replace(/\./g,'').replace(',','.'));
- const gas=/\b(m3|m³)\b/i.test(t)&&!/\bkwh\b/i.test(t.replace(/omrekenfactor.*kwh/ig,''))||/jaarafrekening\s+gas/i.test(t);
- const comm=gas?'gas':'elektra',unit=gas?'m³':'kWh';
- // totaal excl. btw van het jaar (niet het restant/te betalen)
- let total=null;const tl=lines.find(x=>/totaal\s+(elektriciteit|gas|energie|levering)?\s*(exclusief|excl\.?)\s*btw/i.test(x));if(tl){const m=tl.match(/€\s*(-?[\d.]+,\d{2})/);if(m)total=num(m[1])}
- if(total==null){const jl=lines.find(x=>/^\s*jaarafrekening\s+(elektriciteit|gas)\s+€/i.test(x));if(jl){const m=jl.match(/€\s*(-?[\d.]+,\d{2})/);if(m)total=num(m[1])}}
- if(total==null)return null;
- // periode
- let ps=null,pe=null;const pl=lines.find(x=>/(leverings|afreken|verbruiks)periode/i.test(x));if(pl){const ds=dpDates(pl);if(ds.length>=2){ps=ds[0];pe=ds[1];const st=new Date(ps+'T12:00:00Z'),en=new Date(pe+'T12:00:00Z');if(en.getUTCDate()===st.getUTCDate()){en.setUTCDate(en.getUTCDate()-1);pe=en.toISOString().slice(0,10)}}}
- // verbruik
- let qty=null;const ml=lines.find(x=>/^\s*totaal\s+[\d.]+(?:[.,]\d+)?\s*$/i.test(x));if(ml)qty=Number(ml.replace(/[^\d.,]/g,'').replace(',','.'));
- if(!qty){const eb=lines.filter(x=>/energie\s*belasting/i.test(x)&&new RegExp('\\b(kwh|m3|m³)\\b','i').test(x)).map(x=>Number((x.match(/([\d.]+)\s*(kwh|m3|m³)/i)||[])[1]));if(eb.length)qty=eb.reduce((a,b)=>a+(b||0),0)}
- // onderdelen
- const parts={levering:0,netbeheer:0,belasting:0};let nb=null;
- for(const x of lines){const m=x.match(/^\s*totaal\s+(.+?)\s+€\s*(-?[\d.]+,\d{2})\s*$/i);if(!m)continue;const k=m[1].toLowerCase();
-  if(!/^[a-zà-ÿ .()\-]+$/.test(k)||/exclusief|inclusief|btw|te betalen|termijn/.test(k))continue;const v=num(m[2]);
-  if(/overheid|energiebelasting|belasting/.test(k))parts.belasting+=v;else if(/netbeheer|transport|aansluit|systeembeheer/.test(k))parts.netbeheer+=v;else parts.levering+=v}
- const nl=lines.find(x=>/netbeheer(kosten)?\s*\(/i.test(x));if(nl)nb=(nl.match(/\(([^)]+)\)/)||[])[1];
- const sum=parts.levering+parts.netbeheer+parts.belasting;const splitOk=sum>0&&Math.abs(sum-total)<1&&parts.levering>0;if(splitOk)parts.levering=Math.round((total-parts.netbeheer-parts.belasting)*100)/100;
- const sup=dpSupplier(lines,((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||'').supplier;
- const term=(t.match(/termijnbedrag[^€\n]*€\s*([\d.]+,\d{2})/i)||[])[1];
- const r={comm,unit,supplier:sup,total,period_start:ps,period_end:pe,qty,parts,netbeheerder:nb?nb.replace(/\s+N\.?V\.?$/,''):null,splitOk,newTerm:term?num(term):null};
- r.allin=qty?total/qty:null;r.levPer=qty&&splitOk?parts.levering/qty:null;return r}
 
 /* ---------- Periodes en ontbrekende facturen ---------- */
 const MND=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
@@ -984,7 +984,7 @@ async function extractInvoice(docId,btn){
   if(!lines.join('').trim()){show('<b>Deze PDF bevat geen leesbare tekst</b> (waarschijnlijk een scan). Vul de gegevens handmatig in; de factuur is al gekoppeld.');return}
   const g=guessDocType(lines),chosen=d.category;
   const typeLine=g.type?(g.type===chosen?`<li>Soort document: lijkt ${g.label} (${esc(g.why)} gevonden) ✓ klopt met het label van de klant.</li>`:`<li style="color:var(--warn)"><b>Soort document: lijkt ${g.label}</b> (${esc(g.why)} gevonden), maar de klant koos "${esc(DOCCAT[chosen]||chosen||'onbekend')}".${g.type==='contract'?' Een contract hoort niet in de kostenregels: zet het hieronder bij Mijn contracten van de klant.':''}</li>`):'<li>Soort document: niet duidelijk uit de tekst.</li>';
-  const en=parseEnergyAnnual(lines);
+  const en=parseEnergyAnnual(lines,((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||'');
   if(en){S.lastLines=lines;
    const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
    const C=en.comm==='gas'?'Gas':'Elektriciteit';
