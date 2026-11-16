@@ -411,8 +411,10 @@ async function renderCosts(){
   const canEdit=S.role==='reviewer'||S.role==='admin';
   const recentAll=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
   const recent=recentAll.filter(r=>kindOfLine(r.latest_id)!=='inkoop');
-  const inkRows=(cmp||[]).filter(r=>kindOfLine(r.latest_id)==='inkoop');const inkYear=inkRows.reduce((a,r)=>a+Number(r.latest_monthly||0)*12,0);
-  const fromInv=recent.reduce((a,r)=>a+Number(r.latest_monthly||0)*12,0);
+  // per jaar exact: hele kalendermaanden → bedrag × 12 / maanden (geen afrondingsverschil); anders per maand × 12
+  const yearlyOf=r=>{const a=Number(r.latest_amount),s0=r.latest_start,e0=r.latest_end;if(isFinite(a)&&s0&&e0){const S0=dP(s0),E0=dP(e0);if(S0.d===1&&E0.d===lastDay(E0.y,E0.m)){const m=(E0.y*12+E0.m)-(S0.y*12+S0.m)+1;return a*12/m}}return Number(r.latest_monthly||0)*12};
+  const inkRows=(cmp||[]).filter(r=>kindOfLine(r.latest_id)==='inkoop');const inkYear=inkRows.reduce((a,r)=>a+yearlyOf(r),0);
+  const fromInv=recent.reduce((a,r)=>a+yearlyOf(r),0);
   const invSup=new Set(recent.map(r=>r.supplier.toLowerCase()));
   const today=new Date().toISOString().slice(0,10);
   const yearOf=c=>{const a=Number(c.amount);if(!isFinite(a))return 0;if(c.amount_period==='month')return a*12;if(c.amount_period==='quarter')return a*4;if(c.amount_period==='year')return a;
