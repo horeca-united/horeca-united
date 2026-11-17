@@ -170,7 +170,7 @@ function liveApi(){
   async orgs(){return ok(await client.from('huos_pilot_organizations').select('id,name,city,business_type,kvk_number,location_count').order('name'))},
   async costLines(o){return ok(await client.from('huos_cost_lines').select('*').eq('organization_id',o).order('period_end',{ascending:false}).limit(1000))},
   async costCompare(o){return ok(await client.from('huos_cost_comparison').select('*').eq('organization_id',o))},
-  async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
+  async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path,supplier_hint').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
   async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,start_date,end_date,status,document_id,added_by_staff,amount,amount_period,promo_end_date,amount_after_promo,flexible_cancellation,notice_period_months,cancel_by_date,auto_renews').eq('organization_id',o).limit(300))},
   async addCost(row){return ok(await client.from('huos_cost_lines').insert(row).select('id').single())},
   async updateCost(id,row){const r=ok(await client.from('huos_cost_lines').update(row).eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet bijgewerkt (geen rechten?)');return r},
@@ -721,7 +721,7 @@ function docLabel(id){const L=(S.costLines||[]).filter(l=>l.document_id===id),C=
  const main=L.filter(l=>!/(heffing|toeslag)/i.test(l.product||''))[0]||L[0];
  if(main)parts.push((main.cost_kind==='inkoop'?(main.product||'Inkoop'):(main.product||CCAT[main.category]||''))+(main.period_start&&!(main.product||'').includes(periodLabel(main.period_start,main.period_end))?' · '+periodLabel(main.period_start,main.period_end):''));
  for(const c of C)parts.push((c.description||CCAT[c.category]||'Contract')+' (contract)');
- if(!sups.length&&!parts.length)return '';
+ if(!sups.length&&!parts.length){const d=(S.costDocs||[]).find(x=>x.id===id);return d&&d.supplier_hint?` <span class="s" style="display:inline;color:inherit">· <b>${esc(d.supplier_hint)}</b> <span class="hint">(herkend bij upload)</span></span>`:''}
  return ` <span class="s" style="display:inline;color:inherit">· <b>${esc(sups.join(', '))}</b>${parts.length?' · '+esc(parts.filter(Boolean).join(' · ')):''}</span>`}
 // kies automatisch het passende contract: eerst het contract van dit document, anders hetzelfde leverancier (actief)
 function autoContract(docId,supplier){const cs=(S.costCons||[]).filter(c=>c.status!=='terminated');
