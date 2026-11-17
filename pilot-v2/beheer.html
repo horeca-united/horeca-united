@@ -405,8 +405,8 @@ async function renderCosts(){
   if(!S.orgs.length){v.innerHTML='<h1>Kosten per bedrijf</h1><div class="card empty">Er zijn nog geen klantbedrijven waar jij toegang toe hebt.</div>';return}
   if(!S.costOrg||!S.orgs.find(o=>o.id===S.costOrg))S.costOrg=S.orgs[0].id;
   const o=S.costOrg;
-  const [lines,cmp,docs,cons,notes,caudit]=await Promise.all([api.costLines(o),api.costCompare(o),api.orgDocs(o),api.orgContracts(o),api.orgNotices(o).catch(()=>[]),api.contractAudit(o).catch(()=>[])]);
-  S.notices=notes||[];S.cmp=cmp||[];S.costCons=cons||[];S.caudit=caudit||[];
+  const [lines,cmp,docs,cons,notes,caudit,invs]=await Promise.all([api.costLines(o),api.costCompare(o),api.orgDocs(o),api.orgContracts(o),api.orgNotices(o).catch(()=>[]),api.contractAudit(o).catch(()=>[]),client.from('huos_investments').select('id,document_id,description,amount_excl_vat,invested_on').eq('organization_id',o).then(r=>r.error?[]:(r.data||[]),()=>[])]);
+  S.notices=notes||[];S.cmp=cmp||[];S.costCons=cons||[];S.caudit=caudit||[];S.costInv=invs||[];
   S.costLines=lines||[];S.costDocs=docs||[];
   const canEdit=S.role==='reviewer'||S.role==='admin';
   const recentAll=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
@@ -779,7 +779,7 @@ function policySummaryHtml(p){if(!p||!p.secs.length)return '';const c=p.c;
 
 
 /* ---------- Advies achter de schermen (per subgroep) ---------- */
-const ADV_GROUP={energie:'Energie',verzekeringen:'Verzekeringen',afval:'Afval & milieu',inkoop:'Inkoop',telecom:'Telecom',contracten:'Contracten',overig:'Overig'};
+const ADV_GROUP={investeringen:'Investeringen & KIA',energie:'Energie',verzekeringen:'Verzekeringen',afval:'Afval & milieu',inkoop:'Inkoop',telecom:'Telecom',contracten:'Contracten',overig:'Overig'};
 const advGroupOf=cat=>['elektra','gas','water'].includes(cat)?'energie':cat==='verzekeringen'?'verzekeringen':cat==='afval'?'afval':['wijn','bier','frisdrank','gedistilleerd','food','groothandel'].includes(cat)?'inkoop':cat==='telecom'?'telecom':'contracten';
 const dDays=x=>x?Math.round((new Date(x+'T12:00:00')-Date.now())/864e5):null;
 function adviceSync(){const out=[],cons=(S.costCons||[]).filter(c=>c.status!=='terminated');
@@ -794,6 +794,12 @@ function adviceSync(){const out=[],cons=(S.costCons||[]).filter(c=>c.status!=='t
    cTitle:`Je contract bij ${c.supplier} loopt af`,cBody:`Je contract bij ${c.supplier} moet uiterlijk ${fmtDate(act)} worden opgezegd${c.auto_renews?', anders wordt het automatisch verlengd':''}. Wij kunnen voor je kijken of het voordeliger kan.`});
   if(c.flexible_cancellation&&c.amount!=null&&yr(c)>=600)out.push({key:'flex:'+c.id,group:g,level:'kans',title:`${esc(c.supplier)} is direct opzegbaar`,why:`${nm}: geen opzegdatum om op te wachten — een beter aanbod kan meteen ingaan.`,impact:`contractwaarde ≈ ${eur(Math.round(yr(c)))} per jaar`,cTitle:null});
   if(!c.flexible_cancellation&&(c.amount==null||!c.end_date))out.push({key:'leeg:'+c.id,group:g,level:'info',title:`${esc(c.supplier)}: gegevens aanvullen`,why:`Bij dit contract ontbreekt ${[c.amount==null&&'het bedrag',!c.end_date&&'de einddatum'].filter(Boolean).join(' en ')}. Zonder deze gegevens kan HUOS geen opzegdatum of kosten berekenen.`,impact:null,cTitle:null})}
+ // investeringen / KIA (indicatie tabel 2026)
+ {const y=new Date().getFullYear(),L=(S.costInv||[]).filter(i=>String(i.invested_on).startsWith(String(y))&&Number(i.amount_excl_vat)>=450),tot=L.reduce((a,i)=>a+Number(i.amount_excl_vat),0);
+  const kia=t=>t<2901?0:t<=71683?t*0.28:t<=132746?20072:t<=398236?Math.max(0,20072-0.0756*(t-132746)):0;
+  if(tot>0&&tot<2901)out.push({key:'kia-drempel:'+y,group:'investeringen',level:'kans',title:`Nog ${eur(Math.round(2901-tot))} investeren voor KIA ${y}`,why:`Investeringen ${y}: ${eur(Math.round(tot))} (${L.length} bedrijfsmiddel${L.length===1?'':'en'} vanaf € 450). Vanaf € 2.901 geldt 28% kleinschaligheidsinvesteringsaftrek.`,impact:`bij € 2.901: ≈ ${eur(Math.round(kia(2901)))} aftrek`,
+   cTitle:`Bijna recht op investeringsaftrek (KIA) over ${y}`,cBody:`Je hebt in ${y} voor ${eur(Math.round(tot))} geïnvesteerd. Vanaf € 2.901 aan investeringen heb je recht op de kleinschaligheidsinvesteringsaftrek (28% van het bedrag). Staat er nog een investering op de planning, dan kan het lonen die vóór 31 december te doen. Overleg dit met je boekhouder.`});
+  if(tot>=2901)out.push({key:'kia:'+y,group:'investeringen',level:'info',title:`KIA ${y}: ≈ ${eur(Math.round(kia(tot)))} aftrek`,why:`Investeringen ${y}: ${eur(Math.round(tot))} (${L.length} bedrijfsmiddel${L.length===1?'':'en'}). Indicatie belastingvoordeel bij 19% vpb: ≈ ${eur(Math.round(kia(tot)*0.19))}. Check met de klant of de boekhouder dit meeneemt.`,impact:null,cTitle:null})}
  // energie: aandeel netbeheer per jaarafrekening
  const byDoc={};for(const l of S.costLines||[])if(['elektra','gas'].includes(l.category)&&l.document_id)(byDoc[l.document_id]=byDoc[l.document_id]||[]).push(l);
  for(const id in byDoc){const L=byDoc[id],tot=L.reduce((a,l)=>a+Number(l.amount_excl_vat),0),nb=L.filter(l=>/netbeheer/i.test(l.product||'')).reduce((a,l)=>a+Number(l.amount_excl_vat),0);
