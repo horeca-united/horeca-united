@@ -67,6 +67,7 @@ td .s{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 @media(max-width:1100px){.layout.open{grid-template-columns:1fr}.detail{position:static;max-height:none}}
 @media(max-width:700px){.hide-m{display:none}.filters input{min-width:0;flex:1}}
 .ptlist{border:1px solid var(--line,#e3e0d5);border-radius:10px;overflow:hidden}.ptrow{border-bottom:1px solid var(--line,#e3e0d5)}.ptrow:last-child{border-bottom:0}.ptrow>summary,.pttotal{display:grid;grid-template-columns:minmax(150px,1.2fr) 2fr 110px 60px;gap:12px;align-items:center;padding:8px 12px;cursor:pointer;list-style:none}.ptrow>summary::-webkit-details-marker{display:none}.ptrow>summary .ptname::before{content:'▸ ';color:#94a3b8}.ptrow[open]>summary .ptname::before{content:'▾ '}.pttotal{cursor:default;background:#f6f5f1}.ptbar{height:8px;background:#eef0ec;border-radius:4px;overflow:hidden}.ptbar i{display:block;height:100%;background:#2f6b4c}
+.ptwarn{margin:4px 0 8px;padding:7px 10px;border-radius:8px;background:#fff6e5;border:1px solid #f3d29a;color:#7a4b00;font-size:13px}
 </style>
 </head>
 <body>
@@ -749,26 +750,33 @@ function bindCopyRaw(){document.querySelectorAll('[data-copyraw]').forEach(b=>b.
 /* ---------- Inkoop per productsoort (alleen beheer) ---------- */
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='ptYear'){S.ptYear=e.target.value;const b=$('#ptbox');if(b)b.innerHTML=productTypeHtml()}});
 const PTYPE={vlees:'Vlees',vis:'Vis',agf:'AGF (groente & fruit)',zuivel:'Zuivel & koeling',diepvries:'Diepvries & frites',brood:'Brood & patisserie',droog:'Droge & overige food',wijn:'Wijn',bier:'Bier',frisdrank:'Frisdrank',gedistilleerd:'Gedistilleerd',nonfood:'Non-food',overig:'Overig'};
-function ptypeOf(name,cat){const n=String(name||'').toLowerCase();
- if(/papier|servies|glas|porselein|porcelein|huishoud|textiel|elektro|schoonmaak|verzorging|kantoor|bedrijfsbenodig|vrije\s*tijd|luxe artikel|verpakking|disposable/.test(n))return 'nonfood';
- if(/\bvis\b|^vis|zalm|garnaal|kabeljauw|schaal|mossel|oester/.test(n))return 'vis';
- if(/slager|poelier|vleeswaren|vlees|kip|rund|varken|kalf|lam|steak|tartaar|haas|ribeye|ribfinger|spek|ham|worst|gehakt|buik naturel|nekken|\bnek\b|filet/.test(n))return 'vlees';
- if(/^agf|groente|fruit|aardappel|salade|kruiden vers/.test(n))return 'agf';
- if(/zuivel|koeling|kaas|melk|room|boter|yoghurt|eieren/.test(n))return 'zuivel';
- if(/diepvries|frites|friet/.test(n))return 'diepvries';
- if(/brood|patisserie|banket|gebak|zoetwaren/.test(n))return 'brood';
- if(/wijn|champagne|cava|prosecco|port\b/.test(n))return 'wijn';
- if(/\bbier|brouwerij|pils/.test(n))return 'bier';
- if(/frisdrank|\bfris\b|water|sap|limonade|tonic|cola/.test(n))return 'frisdrank';
- if(/gedistilleerd|sterke drank|whisky|gin\b|rum\b|vodka|likeur|jenever/.test(n))return 'gedistilleerd';
- return {wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd'}[cat]||((cat==='food'||cat==='groothandel')&&n?'droog':null)}
+/* Productsoort bij een naam. sure=false: niet herkend, voorlopig ingedeeld -> wordt gemeld als bijzonderheid. */
+function ptypeGuess(name,cat){const n=String(name||'').toLowerCase(),S1=t=>({t,sure:true});
+ if(/papier|servies|glas|porselein|porcelein|huishoud|textiel|elektro|schoonmaak|verzorging|kantoor|bedrijfsbenodig|vrije\s*tijd|luxe artikel|verpakking|disposable/.test(n))return S1('nonfood');
+ if(/\bvis\b|^vis|zalm|garnaal|kabeljauw|schaal|mossel|oester/.test(n))return S1('vis');
+ if(/slager|poelier|vleeswaren|vlees|kip|rund|varken|kalf|lam|steak|tartaar|haas|ribeye|ribfinger|spek|ham|worst|gehakt|buik naturel|nekken|\bnek\b|filet/.test(n))return S1('vlees');
+ if(/^agf|groente|fruit|aardappel|salade|kruiden vers/.test(n))return S1('agf');
+ if(/zuivel|koeling|kaas|melk|room|boter|yoghurt|eieren/.test(n))return S1('zuivel');
+ if(/diepvries|frites|friet/.test(n))return S1('diepvries');
+ if(/brood|patisserie|banket|gebak|zoetwaren/.test(n))return S1('brood');
+ if(/wijn|champagne|cava|prosecco|port\b/.test(n))return S1('wijn');
+ if(/\bbier|brouwerij|pils/.test(n))return S1('bier');
+ if(/frisdrank|\bfris\b|water|sap|limonade|tonic|cola/.test(n))return S1('frisdrank');
+ if(/gedistilleerd|sterke drank|whisky|gin\b|rum\b|vodka|likeur|jenever/.test(n))return S1('gedistilleerd');
+ if(/conserven|grutters|margarine|vetten|soep|sauz|suiker|zout|koffie|thee|zuren|olie|azijn|specerij|rijst|pasta|meel|bloem|noten|ijsbenodig|chips|snack/.test(n))return S1('droog');
+ const one={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd'}[cat];if(one)return S1(one);
+ if(cat==='food'||cat==='groothandel')return {t:'droog',sure:!n};
+ return {t:null,sure:!n}}
+const ptypeOf=(name,cat)=>ptypeGuess(name,cat).t;
 /* Voorstel verdeling uit een uitgelezen inkoopoverzicht: per productgroep/artikel een productsoort; som = totaal. */
+function unsureOf(st){const m=new Map();for(const r of (st.rows||[])){if(!r.net)continue;const g=ptypeGuess(r.name,st.category);if(!g.sure){const k=r.name;const x=m.get(k)||{name:r.name,amount:0,type:g.t||'overig'};x.amount+=r.net;m.set(k,x)}}return [...m.values()].sort((a,b)=>b.amount-a.amount)}
 function splitFromStats(st){const by={};for(const r of (st.rows||[])){if(!r.net)continue;const t=ptypeOf(r.name,st.category)||'overig';(by[t]=by[t]||{amount:0,names:[]});by[t].amount+=r.net;if(by[t].names.length<6&&!by[t].names.includes(r.name))by[t].names.push(r.name)}
  let rows=Object.entries(by).map(([type,x])=>({type,amount:Math.round(x.amount*100)/100,source:x.names.join(', ')+(x.names.length>=6?' …':'')})).filter(r=>r.amount>0);
  const diff=Math.round((st.total-rows.reduce((a,r)=>a+r.amount,0))*100)/100;if(rows.length&&Math.abs(diff)>0)rows.sort((a,b)=>b.amount-a.amount)[0].amount=Math.round((rows[0].amount+diff)*100)/100;
  return rows.sort((a,b)=>b.amount-a.amount)}
-function splitEditorHtml(rows){if(!rows||!rows.length)return '';
- return `<details open style="margin-top:6px"><summary><b>Verdeling per productsoort</b> <span class="hint">(wordt bij Opslaan meegeslagen; pas bedragen aan als het niet klopt)</span></summary><table class="t" id="splitTbl"><tr><th>Productsoort</th><th>Komt van</th><th class="num">Bedrag</th></tr>${rows.map(r=>`<tr><td>${esc(PTYPE[r.type]||r.type)}</td><td class="hint">${esc(r.source||'')}</td><td class="num"><input type="number" step="0.01" min="0" data-split="${esc(r.type)}" data-src="${esc(r.source||'')}" value="${r.amount.toFixed(2)}" style="width:120px;text-align:right"></td></tr>`).join('')}<tr><td colspan="2"><b>Totaal</b></td><td class="num"><b id="splitSum"></b></td></tr></table></details>`}
+function unsureHtml(list,sup){if(!list||!list.length)return '';return `<p class="ptwarn">⚠ ${list.length} ${list.length===1?'productgroep':'productgroepen'}${sup?' van '+esc(sup):''} niet herkend, voorlopig ingedeeld: ${list.slice(0,6).map(x=>`${esc(x.name)} ${eur(Math.round(x.amount))} → ${esc(PTYPE[x.type]||x.type)}`).join(' · ')}${list.length>6?' …':''}. Klopt dit niet? Geef het door, dan wordt de herkenning aangepast.</p>`}
+function splitEditorHtml(rows,unsure){if(!rows||!rows.length)return '';
+ return `<details open style="margin-top:6px"><summary><b>Verdeling per productsoort</b> <span class="hint">(wordt bij Opslaan meegeslagen; pas bedragen aan als het niet klopt)</span></summary><table class="t" id="splitTbl"><tr><th>Productsoort</th><th>Komt van</th><th class="num">Bedrag</th></tr>${rows.map(r=>`<tr><td>${esc(PTYPE[r.type]||r.type)}</td><td class="hint">${esc(r.source||'')}</td><td class="num"><input type="number" step="0.01" min="0" data-split="${esc(r.type)}" data-src="${esc(r.source||'')}" value="${r.amount.toFixed(2)}" style="width:120px;text-align:right"></td></tr>`).join('')}<tr><td colspan="2"><b>Totaal</b></td><td class="num"><b id="splitSum"></b></td></tr></table>${unsureHtml(unsure)}</details>`}
 function bindSplitEditor(){const upd=()=>{const e=$('#splitSum');if(!e)return;const sum=[...document.querySelectorAll('#splitTbl [data-split]')].reduce((a,x)=>a+Number(x.value||0),0),amt=Number(($('#camt')||{}).value||0);e.textContent=eur(sum)+(Math.abs(sum-amt)>0.05?' — wijkt af van het bedrag ('+eur(amt)+')':'');e.style.color=Math.abs(sum-amt)>0.05?'var(--bad,#b42318)':''};
  document.querySelectorAll('#splitTbl [data-split]').forEach(x=>x.oninput=upd);if($('#camt'))$('#camt').addEventListener('input',upd);upd()}
 function readSplitEditor(){const xs=[...document.querySelectorAll('#splitTbl [data-split]')];if(!xs.length)return null;return xs.map(x=>({type:x.dataset.split,amount:Math.round(Number(x.value||0)*100)/100,source:x.dataset.src||null}))}
@@ -776,15 +784,19 @@ function productTypeHtml(){const ink=(S.costLines||[]).filter(l=>l.cost_kind==='
  const years=[...new Set(ink.map(l=>l.period_start.slice(0,4)))].sort().reverse();const y=S.ptYear&&years.includes(S.ptYear)?S.ptYear:years[0];
  const lines=ink.filter(l=>l.period_start.slice(0,4)===y),sp=S.costSplits||[];const by={};let total=0,unsplit=[];
  for(const l of lines){const own=sp.filter(x=>x.cost_line_id===l.id);
-  const parts=own.length?own.map(x=>({type:x.product_type,amount:Number(x.amount),source:x.source})):(()=>{const t=ptypeOf('',l.category);if(!t)unsplit.push(l);return [{type:t||'overig',amount:Number(l.amount_excl_vat),source:t?null:'nog niet verdeeld'}]})();
+  const parts=own.length?own.map(x=>({type:x.product_type,amount:Number(x.amount),source:x.source})):(()=>{const t={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd'}[l.category]||null;if(!t)unsplit.push(l);return [{type:t||'overig',amount:Number(l.amount_excl_vat),source:t?null:'nog niet verdeeld'}]})();
   for(const pt of parts){(by[pt.type]=by[pt.type]||{amount:0,sup:[]});by[pt.type].amount+=pt.amount;by[pt.type].sup.push({supplier:l.supplier,amount:pt.amount,source:pt.source});total+=pt.amount}}
  const rows=Object.entries(by).sort((a,b)=>b[1].amount-a[1].amount);
  return `<h3 style="margin-top:18px">Inkoop per productsoort ${years.length>1?`<select id="ptYear" style="font-size:13px;margin-left:6px">${years.map(v=>`<option${v===y?' selected':''}>${v}</option>`).join('')}</select>`:`<span class="hint" style="text-transform:none;letter-spacing:0">(${y})</span>`}</h3>
   <p class="hint" style="margin:0 0 6px">Alle inkoop van alle leveranciers samen, ingedeeld per soort product. Klik op een soort om te zien waar het vandaan komt.</p>
+  ${(()=>{const w=[];const ov=(by.overig||{}).amount||0;if(total&&ov/total>0.10)w.push(`Meer dan 10% van de inkoop staat onder Overig (${eur(Math.round(ov))}). De indeling is daardoor minder betrouwbaar.`);
+   for(const l of lines){const own=sp.filter(x=>x.cost_line_id===l.id);if(own.length){const sum=own.reduce((a,x)=>a+Number(x.amount),0);if(Math.abs(sum-Number(l.amount_excl_vat))>0.05)w.push(`Verdeling van ${esc(l.supplier)} (${eur(sum)}) telt niet op tot het bedrag van de kostenregel (${eur(l.amount_excl_vat)}).`)}}
+   if(unsplit.length)w.push(`Nog niet verdeeld, staat onder Overig: ${unsplit.map(l=>esc(l.supplier)+' '+eur(Math.round(l.amount_excl_vat))).join(', ')}.`);
+   return w.map(x=>`<p class="ptwarn">⚠ ${x}</p>`).join('')})()}<div id="ptasync">${(S.ptUnsure||[]).filter(u=>u.year===y&&u.org===S.costOrg).map(u=>unsureHtml(u.list,u.supplier)).join('')}</div>
   <div class="ptlist">${rows.map(([t,x])=>`<details class="ptrow"><summary><span class="ptname">${esc(PTYPE[t]||t)}</span><span class="ptbar"><i style="width:${Math.max(2,Math.round(x.amount/total*100))}%"></i></span><span class="num">${eur(Math.round(x.amount))}</span><span class="num hint">${(x.amount/total*100).toFixed(1).replace('.',',')}%</span></summary>
    <ul style="margin:6px 0 10px 18px">${x.sup.sort((a,b)=>b.amount-a.amount).map(s=>`<li><b>${esc(s.supplier)}</b> ${eur(s.amount)}${s.source?` <span class="hint">— ${esc(s.source)}</span>`:''}</li>`).join('')}</ul></details>`).join('')}
    <div class="ptrow pttotal"><span class="ptname"><b>Totaal inkoop ${y}</b></span><span></span><span class="num"><b>${eur(Math.round(total))}</b></span><span></span></div></div>
-  ${unsplit.length?`<p class="hint">Nog niet verdeeld (staat onder Overig): ${unsplit.map(l=>esc(l.supplier)).join(', ')}. Lees het document opnieuw uit om een verdeling op te slaan.</p>`:''}`}
+`}
 /* Mutatie-overzicht per artikel (bv. slager): links 'Datum Artikel Relatie Mutatie Aantal', op latere pagina's 'Stuksprijs Totaal Factuur Order'.
    De rijen staan in dezelfde volgorde; we zetten ze weer aan elkaar en controleren aantal × prijs = totaal. */
 function parseArticleMutations(lines){
@@ -912,7 +924,9 @@ async function adviceAsync(canEdit){const o=S.costOrg,own=((S.orgs||[]).find(x=>
   const months=en.period_start&&en.period_end?Math.max(1,Math.round((new Date(en.period_end)-new Date(en.period_start))/(30.4375*864e5))):12,need=en.total*1.21/months,diff=(need-en.newTerm)*12;
   if(diff>300)extra.push({key:'voorschot:'+d.id,group:'energie',level:'risico',title:`Voorschot ${en.comm==='gas'?'gas':'stroom'} te laag: ≈ ${eur(Math.round(diff))} bijbetalen`,why:`Nieuw voorschot ${eur(en.newTerm)} p/m, bij hetzelfde verbruik nodig ≈ ${eur(Math.round(need))} p/m (incl. btw).`,impact:`≈ ${eur(Math.round(diff))} nabetaling`,cTitle:'Houd rekening met bijbetalen',cBody:`Je nieuwe voorschot voor ${en.comm==='gas'?'gas':'stroom'} is ${eur(en.newTerm)} per maand. Bij hetzelfde verbruik kost het je ongeveer ${eur(Math.round(need))} per maand. Houd rekening met ongeveer ${eur(Math.round(diff))} bijbetalen bij de volgende jaarafrekening, of vraag je leverancier het voorschot te verhogen.`})})().catch(()=>{}));
  const inkDocs=new Set((S.costLines||[]).filter(l=>l.cost_kind==='inkoop'&&l.document_id).map(l=>l.document_id));
+ S.ptUnsure=[];
  for(const d of (S.costDocs||[]).filter(d=>inkDocs.has(d.id)))jobs.push((async()=>{const st=parseArticleStats(await read(d));if(!st)return;
+  {const ln=(S.costLines||[]).find(l=>l.document_id===d.id&&l.cost_kind==='inkoop');const un=unsureOf(st);if(ln&&un.length&&(S.costSplits||[]).some(x=>x.cost_line_id===ln.id)){S.ptUnsure.push({org:o,year:ln.period_start.slice(0,4),supplier:ln.supplier,list:un});const b=$('#ptbox');if(b&&S.costOrg===o)b.innerHTML=productTypeHtml()}}
   if(st.kind==='mutaties')for(const x of (st.rises||[]).filter(x=>x.pct>=10&&x.r.net>=500).slice(0,2)){const r=x.r,sup=((S.costLines||[]).find(l=>l.document_id===d.id)||{}).supplier||st.supplier||'je leverancier';
    const extraNow=Math.round(r.qty*(r.price-r.first));
    extra.push({key:'prijs:'+d.id+':'+r.code,group:'inkoop',level:'kans',title:`${esc(sup)}: ${esc(r.name)} ${String(x.pct).replace('.',',')}% duurder`,why:`Van ${eur(r.first)} (${fmtDate(r.firstOn)}) naar ${eur(r.price)}${r.since?' sinds '+fmtDate(r.since):''}. Afname ${r.qty.toLocaleString('nl-NL')} · ${eur(Math.round(r.net))} in deze periode.`,impact:`≈ ${eur(extraNow)} per jaar bij gelijke afname`,cTitle:`${r.name.split(',')[0]} is ${Math.round(x.pct)}% duurder geworden`,cBody:`Bij ${sup} betaal je voor ${r.name.split(',')[0]} nu ${eur(r.price)} per eenheid, tegen ${eur(r.first)} begin ${fmtDate(r.firstOn).slice(-4)}. Bij dezelfde afname is dat ongeveer ${eur(extraNow)} per jaar extra. Vraag ${sup} naar de reden en of er een betere prijs mogelijk is, bijvoorbeeld bij een vaste afname. Wil je dat wij meekijken? Laat het ons weten.`})}
@@ -1213,7 +1227,7 @@ async function extractInvoice(docId,btn){
     ${st.cut?`<li style="color:var(--warn)">Let op: de laatste regel lijkt onvolledig. Controleer het totaal met de PDF.</li>`:''}
     <li>Het formulier hieronder is ingevuld als <b>inkoop (variabel)</b>, één regel voor de hele periode. Inkoop telt niet mee in de vaste kosten per jaar. Controleer en klik op Opslaan.</li></ul>
     ${st.kind==='groepen'?`<details open><summary class="hint">Verdeling per productgroep</summary><table class="t"><tr><th>Productgroep</th><th class="num">Afzet</th><th class="num">Bedrag</th><th class="num">Aandeel</th></tr>${st.rows.slice().sort((a,b)=>b.net-a.net).map(x=>`<tr><td>${esc(x.name)}</td><td class="num">${x.qty.toLocaleString('nl-NL')}</td><td class="num">${eur(x.net)}</td><td class="num">${(x.net/st.total*100).toFixed(1).replace('.',',')}%</td></tr>`).join('')}</table></details>`:st.kind==='mutaties'?`<details open><summary class="hint">Grootste artikelen en prijsverloop</summary><table class="t"><tr><th>Artikel</th><th class="num">Aantal</th><th class="num">Betaald</th><th class="num">Eerste prijs</th><th class="num">Laatste prijs</th><th class="num">Verschil</th></tr>${top.map(x=>{const pc=x.first&&x.price?(x.price/x.first-1)*100:0;return `<tr><td>${esc(x.name)}</td><td class="num">${x.qty.toLocaleString('nl-NL')}</td><td class="num">${eur(x.net)}</td><td class="num">${eur(x.first)} <span class="hint">${x.firstOn?fmtDate(x.firstOn):''}</span></td><td class="num">${eur(x.price)}${x.since?` <span class="hint">sinds ${fmtDate(x.since)}</span>`:''}</td><td class="num" style="${pc>=5?'color:var(--warn)':''}">${Math.abs(pc)<0.05?'—':(pc>0?'+':'')+pc.toFixed(1).replace('.',',')+'%'}</td></tr>`}).join('')}</table></details>`:`<details><summary class="hint">Grootste artikelen</summary><table class="t"><tr><th>Artikel</th><th class="num">Aantal</th><th class="num">Betaald</th><th class="num">Gem. per stuk</th><th class="num">Actuele prijs</th></tr>${top.map(x=>`<tr><td>${esc(x.name)}</td><td class="num">${x.qty}</td><td class="num">${eur(x.net)}</td><td class="num">${eur(x.net/x.qty)}</td><td class="num">${eur(x.price)}</td></tr>`).join('')}</table></details>`}
-    ${splitEditorHtml(splitFromStats(st))}
+    ${splitEditorHtml(splitFromStats(st),unsureOf(st))}
     <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);
    bindCopyRaw();bindSplitEditor();return}
   if(g.type==='contract'){S.lastLines=lines;
