@@ -66,6 +66,7 @@ td .s{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .orgpick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 16px}.orgpick select{min-width:280px}
 @media(max-width:1100px){.layout.open{grid-template-columns:1fr}.detail{position:static;max-height:none}}
 @media(max-width:700px){.hide-m{display:none}.filters input{min-width:0;flex:1}}
+.ptlist{border:1px solid var(--line,#e3e0d5);border-radius:10px;overflow:hidden}.ptrow{border-bottom:1px solid var(--line,#e3e0d5)}.ptrow:last-child{border-bottom:0}.ptrow>summary,.pttotal{display:grid;grid-template-columns:minmax(150px,1.2fr) 2fr 110px 60px;gap:12px;align-items:center;padding:8px 12px;cursor:pointer;list-style:none}.ptrow>summary::-webkit-details-marker{display:none}.ptrow>summary .ptname::before{content:'▸ ';color:#94a3b8}.ptrow[open]>summary .ptname::before{content:'▾ '}.pttotal{cursor:default;background:#f6f5f1}.ptbar{height:8px;background:#eef0ec;border-radius:4px;overflow:hidden}.ptbar i{display:block;height:100%;background:#2f6b4c}
 </style>
 </head>
 <body>
@@ -173,6 +174,8 @@ function liveApi(){
   async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path,supplier_hint,content_hash').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
   async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,start_date,end_date,status,document_id,added_by_staff,amount,amount_period,promo_end_date,amount_after_promo,flexible_cancellation,notice_period_months,cancel_by_date,auto_renews').eq('organization_id',o).limit(300))},
   async addCost(row){return ok(await client.from('huos_cost_lines').insert(row).select('id').single())},
+  async costSplits(o){return ok(await client.from('huos_cost_line_splits').select('cost_line_id,product_type,amount,source').eq('organization_id',o).limit(2000))},
+  async setSplit(line,rows){return ok(await client.rpc('huos_cost_line_split_set',{p_line:line,p_rows:rows}))},
   async updateCost(id,row){const r=ok(await client.from('huos_cost_lines').update(row).eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet bijgewerkt (geen rechten?)');return r},
   async deleteCost(id){const r=ok(await client.from('huos_cost_lines').delete().eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet verwijderd (geen rechten?)');return r},
   async fileUrl(path){const {data,error}=await client.storage.from('huos-pilot-private').createSignedUrl(path,120);if(error)throw error;return data.signedUrl},
@@ -215,7 +218,7 @@ function demoApi(){
   async requests(){return [{id:'rq1',organization_id:'o1',notice_id:null,contract_id:null,origin:'notice',subject:'Je kosten voor elektra zijn gestegen',customer_message:'Graag bellen na 14:00',status:'new',created_at:d(0),updated_at:d(0)}]},
   async requestEvents(){return [{id:1,actor_role:'klant',event:'created',to_status:'new',note:'Graag bellen na 14:00',created_at:d(0)}]},
   async recentDocs(){return [{id:'dd1',organization_id:'o1',file_name:'factuur-afval-okt.pdf',category:'invoice',uploaded_at:d(0)}]},
-  async costLines(){return DEMO_COST},async costCompare(){return DEMO_CMP},async orgDocs(){return [{id:'dd1',file_name:'factuur-afval-sept.pdf',category:'invoice',uploaded_at:d(20)}]},async orgContracts(){return []},
+  async costLines(){return DEMO_COST},async costSplits(){return []},async setSplit(){return null},async costCompare(){return DEMO_CMP},async orgDocs(){return [{id:'dd1',file_name:'factuur-afval-sept.pdf',category:'invoice',uploaded_at:d(20)}]},async orgContracts(){return []},
   addCost:demoOnly,updateCost:demoOnly,deleteCost:demoOnly,fileUrl:demoOnly
  };
 }
@@ -405,8 +408,8 @@ async function renderCosts(){
   if(!S.orgs.length){v.innerHTML='<h1>Kosten per bedrijf</h1><div class="card empty">Er zijn nog geen klantbedrijven waar jij toegang toe hebt.</div>';return}
   if(!S.costOrg||!S.orgs.find(o=>o.id===S.costOrg))S.costOrg=S.orgs[0].id;
   const o=S.costOrg;
-  const [lines,cmp,docs,cons,notes,caudit,invs]=await Promise.all([api.costLines(o),api.costCompare(o),api.orgDocs(o),api.orgContracts(o),api.orgNotices(o).catch(()=>[]),api.contractAudit(o).catch(()=>[]),client.from('huos_investments').select('id,document_id,description,amount_excl_vat,invested_on').eq('organization_id',o).then(r=>r.error?[]:(r.data||[]),()=>[])]);
-  S.notices=notes||[];S.cmp=cmp||[];S.costCons=cons||[];S.caudit=caudit||[];S.costInv=invs||[];
+  const [lines,cmp,docs,cons,notes,caudit,invs,splits]=await Promise.all([api.costLines(o),api.costCompare(o),api.orgDocs(o),api.orgContracts(o),api.orgNotices(o).catch(()=>[]),api.contractAudit(o).catch(()=>[]),client.from('huos_investments').select('id,document_id,description,amount_excl_vat,invested_on').eq('organization_id',o).then(r=>r.error?[]:(r.data||[]),()=>[]),api.costSplits(o).catch(()=>[])]);
+  S.costSplits=splits||[];S.notices=notes||[];S.cmp=cmp||[];S.costCons=cons||[];S.caudit=caudit||[];S.costInv=invs||[];
   S.costLines=lines||[];S.costDocs=docs||[];
   const canEdit=S.role==='reviewer'||S.role==='admin';
   const recentAll=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
@@ -434,6 +437,7 @@ async function renderCosts(){
    <div class="stat"><span>Stijgingen</span><b>${sigs.length}</b><small>t.o.v. begin dit jaar, of anders de oudste factuur</small></div>
   </div>
   <h3>Advies <span class="hint" style="text-transform:none;letter-spacing:0">(alleen voor jou — kies zelf wat je aan de klant doorgeeft)</span></h3><div id="advbox">${adviceHtml(adviceSync(),canEdit,true)}</div>
+  <div id="ptbox">${productTypeHtml()}</div>
   ${(()=>{const pr=(S.costCons||[]).filter(c=>c.promo_end_date).map(c=>({c,d:Math.round((new Date(c.promo_end_date+'T12:00:00')-Date.now())/864e5)})).filter(x=>x.d>=-30&&x.d<=120).sort((a,b)=>a.d-b.d);
    return pr.length?`<h3>Acties die aflopen</h3>${pr.map(({c,d})=>`<div class="sig" style="border-left-color:var(--warn)"><b>${esc(CCAT[c.category]||c.category)} · ${esc(c.supplier)}</b>Actieprijs t/m ${esc(fmtDate(c.promo_end_date))} (${d>=0?'nog '+d+' dagen':'verlopen'})${c.amount_after_promo!=null?` — daarna ${eur(c.amount_after_promo)} p/m`+(c.amount!=null?` (+${eur(c.amount_after_promo-c.amount)})`:''):''}<span class="s hint">De klant ziet vanaf 60 dagen vooraf automatisch een melding.</span></div>`).join('')}`:''})()}
   <h3>Stijgingen</h3>${sigs.length?sigs.map(r=>`<div class="sig"><b>${esc(CCAT[r.category]||r.category)} · ${esc(r.supplier)}${r.product?' · '+esc(r.product):''}</b>${r.signal_reference==='year_start'?`${pctCell(r.pct_since_year_start)} sinds ${esc(fmtMonth(r.ytd_start))}`:`${pctCell(r.pct_since_oldest)} sinds ${esc(fmtMonth(r.oldest_start))}`} — <b style="display:inline">${eur(r.extra_per_month)}</b> per maand meer (≈ ${eur(Math.round(r.extra_per_month*12))} per jaar)${r.signal_reference==='year_start'&&r.pct_since_oldest!=null&&r.oldest_start!==r.ytd_start?` · sinds ${esc(fmtMonth(r.oldest_start))}: ${pctCell(r.pct_since_oldest)}`:''}${noticeControls(r,canEdit)}</div>`).join(''):'<p class="hint">Nog geen stijgingen gevonden.</p>'}
@@ -488,8 +492,10 @@ async function saveCost(){
   if(amt===''||Number(amt)<0)throw new Error('Vul het bedrag excl. btw in.');
   if((qty==='')!==(unit===''))throw new Error('Vul aantal én eenheid in, of laat beide leeg.');
   const row={cost_kind:$('#ckind').value,category:$('#ccat').value,supplier:sup,product:val('#cprod')||null,period_start:from,period_end:to,invoice_date:val('#cidate')||null,invoice_number:val('#cinr')||null,amount_excl_vat:Number(amt),quantity:qty===''?null:Number(qty),unit:unit||null,document_id:$('#cdoc').value||null,contract_id:$('#ccon').value||null,note:val('#cnote')||null};
+  const split=!S.costEdit&&row.cost_kind==='inkoop'?readSplitEditor():null;
+  if(split){const sum=split.reduce((a,x)=>a+x.amount,0);if(Math.abs(sum-row.amount_excl_vat)>0.05)throw new Error('De verdeling per productsoort ('+eur(sum)+') telt niet op tot het bedrag ('+eur(row.amount_excl_vat)+'). Pas de bedragen aan.')}
   b.disabled=true;m.textContent='Bezig…';
-  if(S.costEdit)await api.updateCost(S.costEdit,row);else{await api.addCost({...row,organization_id:S.costOrg});
+  if(S.costEdit)await api.updateCost(S.costEdit,row);else{const ins=await api.addCost({...row,organization_id:S.costOrg});if(split&&ins&&ins.id){try{await api.setSplit(ins.id,split)}catch(e){alert('Kostenregel is opgeslagen, maar de verdeling per productsoort niet: '+errText(e))}}
    if(S.pendingSurcharges&&$('#csplit')&&$('#csplit').checked){for(const x of S.pendingSurcharges)await api.addCost({...row,organization_id:S.costOrg,product:x.label,amount_excl_vat:x.amount,quantity:null,unit:null,contract_id:null,note:'Afgesplitst van factuursubtotaal'})}}
   S.pendingSurcharges=null;
   S.costEdit=null;await renderCosts();const m2=$('#cmsg');if(m2){m2.className='msg ok';m2.textContent='Opgeslagen.'}
@@ -740,6 +746,45 @@ function docStatusChip(id){const k=S.costLines.some(l=>l.document_id===id),c=(S.
 /* ---------- Inkoopoverzicht per artikel (bijv. 'Klant - Artikel Statistiek' van een groothandel) ---------- */
 function rawTextHtml(lines){return `<button type="button" class="btn ghost" data-copyraw style="margin:6px 0">Kopieer alle tekst</button><pre style="max-height:320px;overflow:auto">${esc(lines.join('\n'))}</pre>`}
 function bindCopyRaw(){document.querySelectorAll('[data-copyraw]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText((S.lastLines||[]).join('\n'));b.textContent='Gekopieerd ✓'}catch(e){b.textContent='Kopiëren lukt niet — selecteer de tekst handmatig'}})}
+/* ---------- Inkoop per productsoort (alleen beheer) ---------- */
+document.addEventListener('change',e=>{if(e.target&&e.target.id==='ptYear'){S.ptYear=e.target.value;const b=$('#ptbox');if(b)b.innerHTML=productTypeHtml()}});
+const PTYPE={vlees:'Vlees',vis:'Vis',agf:'AGF (groente & fruit)',zuivel:'Zuivel & koeling',diepvries:'Diepvries & frites',brood:'Brood & patisserie',droog:'Droge & overige food',wijn:'Wijn',bier:'Bier',frisdrank:'Frisdrank',gedistilleerd:'Gedistilleerd',nonfood:'Non-food',overig:'Overig'};
+function ptypeOf(name,cat){const n=String(name||'').toLowerCase();
+ if(/papier|servies|glas|porselein|porcelein|huishoud|textiel|elektro|schoonmaak|verzorging|kantoor|bedrijfsbenodig|vrije\s*tijd|luxe artikel|verpakking|disposable/.test(n))return 'nonfood';
+ if(/\bvis\b|^vis|zalm|garnaal|kabeljauw|schaal|mossel|oester/.test(n))return 'vis';
+ if(/slager|poelier|vleeswaren|vlees|kip|rund|varken|kalf|lam|steak|tartaar|haas|ribeye|ribfinger|spek|ham|worst|gehakt|buik naturel|nekken|\bnek\b|filet/.test(n))return 'vlees';
+ if(/^agf|groente|fruit|aardappel|salade|kruiden vers/.test(n))return 'agf';
+ if(/zuivel|koeling|kaas|melk|room|boter|yoghurt|eieren/.test(n))return 'zuivel';
+ if(/diepvries|frites|friet/.test(n))return 'diepvries';
+ if(/brood|patisserie|banket|gebak|zoetwaren/.test(n))return 'brood';
+ if(/wijn|champagne|cava|prosecco|port\b/.test(n))return 'wijn';
+ if(/\bbier|brouwerij|pils/.test(n))return 'bier';
+ if(/frisdrank|\bfris\b|water|sap|limonade|tonic|cola/.test(n))return 'frisdrank';
+ if(/gedistilleerd|sterke drank|whisky|gin\b|rum\b|vodka|likeur|jenever/.test(n))return 'gedistilleerd';
+ return {wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd'}[cat]||((cat==='food'||cat==='groothandel')&&n?'droog':null)}
+/* Voorstel verdeling uit een uitgelezen inkoopoverzicht: per productgroep/artikel een productsoort; som = totaal. */
+function splitFromStats(st){const by={};for(const r of (st.rows||[])){if(!r.net)continue;const t=ptypeOf(r.name,st.category)||'overig';(by[t]=by[t]||{amount:0,names:[]});by[t].amount+=r.net;if(by[t].names.length<6&&!by[t].names.includes(r.name))by[t].names.push(r.name)}
+ let rows=Object.entries(by).map(([type,x])=>({type,amount:Math.round(x.amount*100)/100,source:x.names.join(', ')+(x.names.length>=6?' …':'')})).filter(r=>r.amount>0);
+ const diff=Math.round((st.total-rows.reduce((a,r)=>a+r.amount,0))*100)/100;if(rows.length&&Math.abs(diff)>0)rows.sort((a,b)=>b.amount-a.amount)[0].amount=Math.round((rows[0].amount+diff)*100)/100;
+ return rows.sort((a,b)=>b.amount-a.amount)}
+function splitEditorHtml(rows){if(!rows||!rows.length)return '';
+ return `<details open style="margin-top:6px"><summary><b>Verdeling per productsoort</b> <span class="hint">(wordt bij Opslaan meegeslagen; pas bedragen aan als het niet klopt)</span></summary><table class="t" id="splitTbl"><tr><th>Productsoort</th><th>Komt van</th><th class="num">Bedrag</th></tr>${rows.map(r=>`<tr><td>${esc(PTYPE[r.type]||r.type)}</td><td class="hint">${esc(r.source||'')}</td><td class="num"><input type="number" step="0.01" min="0" data-split="${esc(r.type)}" data-src="${esc(r.source||'')}" value="${r.amount.toFixed(2)}" style="width:120px;text-align:right"></td></tr>`).join('')}<tr><td colspan="2"><b>Totaal</b></td><td class="num"><b id="splitSum"></b></td></tr></table></details>`}
+function bindSplitEditor(){const upd=()=>{const e=$('#splitSum');if(!e)return;const sum=[...document.querySelectorAll('#splitTbl [data-split]')].reduce((a,x)=>a+Number(x.value||0),0),amt=Number(($('#camt')||{}).value||0);e.textContent=eur(sum)+(Math.abs(sum-amt)>0.05?' — wijkt af van het bedrag ('+eur(amt)+')':'');e.style.color=Math.abs(sum-amt)>0.05?'var(--bad,#b42318)':''};
+ document.querySelectorAll('#splitTbl [data-split]').forEach(x=>x.oninput=upd);if($('#camt'))$('#camt').addEventListener('input',upd);upd()}
+function readSplitEditor(){const xs=[...document.querySelectorAll('#splitTbl [data-split]')];if(!xs.length)return null;return xs.map(x=>({type:x.dataset.split,amount:Math.round(Number(x.value||0)*100)/100,source:x.dataset.src||null}))}
+function productTypeHtml(){const ink=(S.costLines||[]).filter(l=>l.cost_kind==='inkoop');if(!ink.length)return '';
+ const years=[...new Set(ink.map(l=>l.period_start.slice(0,4)))].sort().reverse();const y=S.ptYear&&years.includes(S.ptYear)?S.ptYear:years[0];
+ const lines=ink.filter(l=>l.period_start.slice(0,4)===y),sp=S.costSplits||[];const by={};let total=0,unsplit=[];
+ for(const l of lines){const own=sp.filter(x=>x.cost_line_id===l.id);
+  const parts=own.length?own.map(x=>({type:x.product_type,amount:Number(x.amount),source:x.source})):(()=>{const t=ptypeOf('',l.category);if(!t)unsplit.push(l);return [{type:t||'overig',amount:Number(l.amount_excl_vat),source:t?null:'nog niet verdeeld'}]})();
+  for(const pt of parts){(by[pt.type]=by[pt.type]||{amount:0,sup:[]});by[pt.type].amount+=pt.amount;by[pt.type].sup.push({supplier:l.supplier,amount:pt.amount,source:pt.source});total+=pt.amount}}
+ const rows=Object.entries(by).sort((a,b)=>b[1].amount-a[1].amount);
+ return `<h3 style="margin-top:18px">Inkoop per productsoort ${years.length>1?`<select id="ptYear" style="font-size:13px;margin-left:6px">${years.map(v=>`<option${v===y?' selected':''}>${v}</option>`).join('')}</select>`:`<span class="hint" style="text-transform:none;letter-spacing:0">(${y})</span>`}</h3>
+  <p class="hint" style="margin:0 0 6px">Alle inkoop van alle leveranciers samen, ingedeeld per soort product. Klik op een soort om te zien waar het vandaan komt.</p>
+  <div class="ptlist">${rows.map(([t,x])=>`<details class="ptrow"><summary><span class="ptname">${esc(PTYPE[t]||t)}</span><span class="ptbar"><i style="width:${Math.max(2,Math.round(x.amount/total*100))}%"></i></span><span class="num">${eur(Math.round(x.amount))}</span><span class="num hint">${(x.amount/total*100).toFixed(1).replace('.',',')}%</span></summary>
+   <ul style="margin:6px 0 10px 18px">${x.sup.sort((a,b)=>b.amount-a.amount).map(s=>`<li><b>${esc(s.supplier)}</b> ${eur(s.amount)}${s.source?` <span class="hint">— ${esc(s.source)}</span>`:''}</li>`).join('')}</ul></details>`).join('')}
+   <div class="ptrow pttotal"><span class="ptname"><b>Totaal inkoop ${y}</b></span><span></span><span class="num"><b>${eur(Math.round(total))}</b></span><span></span></div></div>
+  ${unsplit.length?`<p class="hint">Nog niet verdeeld (staat onder Overig): ${unsplit.map(l=>esc(l.supplier)).join(', ')}. Lees het document opnieuw uit om een verdeling op te slaan.</p>`:''}`}
 /* Mutatie-overzicht per artikel (bv. slager): links 'Datum Artikel Relatie Mutatie Aantal', op latere pagina's 'Stuksprijs Totaal Factuur Order'.
    De rijen staan in dezelfde volgorde; we zetten ze weer aan elkaar en controleren aantal × prijs = totaal. */
 function parseArticleMutations(lines){
@@ -1168,8 +1213,9 @@ async function extractInvoice(docId,btn){
     ${st.cut?`<li style="color:var(--warn)">Let op: de laatste regel lijkt onvolledig. Controleer het totaal met de PDF.</li>`:''}
     <li>Het formulier hieronder is ingevuld als <b>inkoop (variabel)</b>, één regel voor de hele periode. Inkoop telt niet mee in de vaste kosten per jaar. Controleer en klik op Opslaan.</li></ul>
     ${st.kind==='groepen'?`<details open><summary class="hint">Verdeling per productgroep</summary><table class="t"><tr><th>Productgroep</th><th class="num">Afzet</th><th class="num">Bedrag</th><th class="num">Aandeel</th></tr>${st.rows.slice().sort((a,b)=>b.net-a.net).map(x=>`<tr><td>${esc(x.name)}</td><td class="num">${x.qty.toLocaleString('nl-NL')}</td><td class="num">${eur(x.net)}</td><td class="num">${(x.net/st.total*100).toFixed(1).replace('.',',')}%</td></tr>`).join('')}</table></details>`:st.kind==='mutaties'?`<details open><summary class="hint">Grootste artikelen en prijsverloop</summary><table class="t"><tr><th>Artikel</th><th class="num">Aantal</th><th class="num">Betaald</th><th class="num">Eerste prijs</th><th class="num">Laatste prijs</th><th class="num">Verschil</th></tr>${top.map(x=>{const pc=x.first&&x.price?(x.price/x.first-1)*100:0;return `<tr><td>${esc(x.name)}</td><td class="num">${x.qty.toLocaleString('nl-NL')}</td><td class="num">${eur(x.net)}</td><td class="num">${eur(x.first)} <span class="hint">${x.firstOn?fmtDate(x.firstOn):''}</span></td><td class="num">${eur(x.price)}${x.since?` <span class="hint">sinds ${fmtDate(x.since)}</span>`:''}</td><td class="num" style="${pc>=5?'color:var(--warn)':''}">${Math.abs(pc)<0.05?'—':(pc>0?'+':'')+pc.toFixed(1).replace('.',',')+'%'}</td></tr>`}).join('')}</table></details>`:`<details><summary class="hint">Grootste artikelen</summary><table class="t"><tr><th>Artikel</th><th class="num">Aantal</th><th class="num">Betaald</th><th class="num">Gem. per stuk</th><th class="num">Actuele prijs</th></tr>${top.map(x=>`<tr><td>${esc(x.name)}</td><td class="num">${x.qty}</td><td class="num">${eur(x.net)}</td><td class="num">${eur(x.net/x.qty)}</td><td class="num">${eur(x.price)}</td></tr>`).join('')}</table></details>`}
+    ${splitEditorHtml(splitFromStats(st))}
     <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);
-   bindCopyRaw();return}
+   bindCopyRaw();bindSplitEditor();return}
   if(g.type==='contract'){S.lastLines=lines;
    const cc=dpParseContract(lines,((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||'');let costInfo='';
    if(cc.amount!=null&&cc.amount_period&&cc.amount_period!=='total'){
