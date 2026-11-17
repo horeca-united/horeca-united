@@ -1035,14 +1035,14 @@ function parseInvoice(lines,prev){
  // heffingen/toeslagen apart (bijv. 'CO2- en brandstofheffing € 32,68')
  r.surcharges=[];
  for(const x of lines){if(!/(heffing|toeslag|surcharge)/i.test(x)||/(btw|b\.t\.w|subtotaal|totaal|incl)/i.test(x))continue;const a=lastAmt(x);if(a==null||a<=0)continue;
-  let label=x.replace(/€?\s*-?\d{1,3}(?:\.\d{3})*,\d{2}|€?\s*-?\d+\.\d{2}/g,'').replace(/\b\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}\b/g,'').replace(/\s{2,}.*$/,'').replace(/[€\s]+$/,'').trim();
+  let label=x.replace(/€?\s*-?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}|€?\s*-?\d+\.\d{2}/g,'').replace(/\b\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}\b/g,'').replace(/\s{2,}.*$/,'').replace(/[€\s]+$/,'').trim();
   if(/co2/i.test(label)&&/brandstof/i.test(label))label='CO2- en brandstofheffing';
   const pl=prev.find(p=>p.supplier&&r.supplier&&p.supplier.toLowerCase()===r.supplier.toLowerCase()&&p.product&&/(heffing|toeslag)/i.test(p.product)&&(p.product.toLowerCase().includes(label.toLowerCase().slice(0,8))||label.toLowerCase().includes(p.product.toLowerCase().slice(0,8))));
   if(pl)label=pl.product;if(label.length<3)label='Heffing / toeslag';
   if(!r.surcharges.some(s=>s.label===label))r.surcharges.push({label:label.slice(0,160),amount:a})}
  // totaal excl. btw: 'BTW over € X' of het laatste subtotaal; het eerste subtotaal kan alleen het abonnement zijn
  const subs=lines.filter(x=>/^\s*(sub)?totaal\b(?!.*(incl|te voldoen|te betalen))/i.test(x)).map(lastAmt).filter(v=>v!=null);
- const bm=text.match(/(btw|b\.t\.w\.?)\s*over\s*€?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/i);const base=bm?parseAmt(bm[2]):(subs.length?subs[subs.length-1]:null);
+ const bm=text.match(/(btw|b\.t\.w\.?)\s*over\s*€?\s*((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}|\d+,\d{2})/i);const base=bm?parseAmt(bm[2]):(subs.length?subs[subs.length-1]:null);
  if(base!=null&&r.amount_excl!=null&&base>r.amount_excl+0.009&&!r.surcharges.length)r.amount_excl=base;
  if(r.surcharges.length){const h=Math.round(r.surcharges.reduce((t,s)=>t+s.amount,0)*100)/100,tot=base??r.amount_excl;
   const first=subs.length?subs[0]:null;
