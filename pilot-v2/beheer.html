@@ -740,7 +740,36 @@ function docStatusChip(id){const k=S.costLines.some(l=>l.document_id===id),c=(S.
 /* ---------- Inkoopoverzicht per artikel (bijv. 'Klant - Artikel Statistiek' van een groothandel) ---------- */
 function rawTextHtml(lines){return `<button type="button" class="btn ghost" data-copyraw style="margin:6px 0">Kopieer alle tekst</button><pre style="max-height:320px;overflow:auto">${esc(lines.join('\n'))}</pre>`}
 function bindCopyRaw(){document.querySelectorAll('[data-copyraw]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText((S.lastLines||[]).join('\n'));b.textContent='Gekopieerd ✓'}catch(e){b.textContent='Kopiëren lukt niet — selecteer de tekst handmatig'}})}
+/* Mutatie-overzicht per artikel (bv. slager): links 'Datum Artikel Relatie Mutatie Aantal', op latere pagina's 'Stuksprijs Totaal Factuur Order'.
+   De rijen staan in dezelfde volgorde; we zetten ze weer aan elkaar en controleren aantal × prijs = totaal. */
+function parseArticleMutations(lines){
+ if(!lines.some(x=>/datum\s+artikel\s+relatie\s+mutatie\s+aantal/i.test(x))||!lines.some(x=>/stuksprijs\s+totaal/i.test(x)))return null;
+ const num=x=>Number(String(x).replace(/€|\s/g,'').replace(/\./g,'').replace(',','.'));
+ const L=[],R=[];
+ for(const l of lines){
+  const m=l.match(/^\s*(\d{1,2})-(\d{1,2})-(\d{4})\s+(\d+)\s+(.+?)\s{2,}\d+\s+.+?\s{2,}\S+\s{2,}(-?[\d.]*\d,\d+)\s*$/);
+  if(m){L.push({d:`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`,code:m[4],name:m[5].replace(/\s*\*retour\*\s*/i,'').trim(),qty:num(m[6])});continue}
+  const r=l.match(/^\s*(-?€\s*-?[\d.]*\d,\d+)\s+(-?€\s*-?[\d.]*\d,\d+)\s+(\d+)/);
+  if(r)R.push({price:num(r[1].replace('-€','€-')),tot:num(r[2].replace('-€','€-')),inv:r[3]})}
+ if(L.length<3||L.length!==R.length)return null;
+ let bad=0;L.forEach((x,i)=>{if(Math.abs(x.qty*R[i].price-R[i].tot)>0.06)bad++});if(bad>L.length*0.05)return null;
+ const by=new Map();
+ L.forEach((x,i)=>{const k=x.code;let a=by.get(k);if(!a){a={code:k,name:x.name,qty:0,net:0,pts:[]};by.set(k,a)}a.qty+=x.qty;a.net+=R[i].tot;if(x.qty>0)a.pts.push({d:x.d,p:R[i].price})});
+ const rows=[...by.values()].map(a=>{a.pts.sort((p,q)=>p.d<q.d?-1:p.d>q.d?1:0);const f=a.pts[0]||{},z=a.pts[a.pts.length-1]||{};
+  let since=null;for(let j=a.pts.length-1;j>0;j--){if(a.pts[j].p!==a.pts[j-1].p){since=a.pts[j].d;break}}
+  return {code:a.code,name:a.name,qty:Math.round(a.qty*100)/100,net:Math.round(a.net*100)/100,price:z.p??null,first:f.p??null,firstOn:f.d||null,lastOn:z.d||null,since}});
+ const ds=L.map(x=>x.d).sort(),ps=ds[0],pe=ds[ds.length-1];
+ const total=Math.round(R.reduce((a,x)=>a+x.tot,0)*100)/100,qty=Math.round(rows.reduce((a,r)=>a+r.qty,0)*100)/100,priced=rows.filter(r=>r.net>0&&r.qty>0);
+ const invs=new Set(R.map(x=>x.inv)).size;
+ const rises=priced.filter(r=>r.first&&r.price&&r.first!==r.price).map(r=>({r,pct:Math.round((r.price/r.first-1)*1000)/10})).sort((a,b)=>b.r.net-a.r.net);
+ const up=rises.filter(x=>x.pct>0).slice(0,3);
+ const pattern=up.length?'Prijsstijgingen: '+up.map(x=>`${x.r.name} ${String(x.pct).replace('.',',')}% (${eur(x.r.first)} → ${eur(x.r.price)})`).join('; ')+'.':null;
+ const t=lines.join('\n');const cat=/wijn|wine/i.test(t)?'wijn':/bier|brouwerij/i.test(t)?'bier':'food';
+ const yr=ps&&pe&&ps.slice(0,4)===pe.slice(0,4)?ps.slice(0,4):'';
+ return {kind:'mutaties',rows,priced,free:0,total,qty,cut:false,period_start:ps,period_end:pe,supplier:null,category:cat,invoices:invs,rises,
+  product:'Inkoop '+(yr||'periode')+' (artikeloverzicht)',note:`${rows.length} artikelen, ${L.length} leveringen op ${invs} facturen. Uit artikeloverzicht (mutaties).`,pattern}}
 function parseArticleStats(lines){
+ const mu=parseArticleMutations(lines);if(mu)return mu;
  const t=lines.join('\n');if(!/(artikel\s*statistiek|artikeloverzicht|omzet per artikel|inkoopoverzicht)/i.test(t))return null;
  const num=x=>Number(x.replace(/\./g,'').replace(',','.'));
  const rows=[];
@@ -824,6 +853,9 @@ async function adviceAsync(canEdit){const o=S.costOrg,own=((S.orgs||[]).find(x=>
   if(diff>300)extra.push({key:'voorschot:'+d.id,group:'energie',level:'risico',title:`Voorschot ${en.comm==='gas'?'gas':'stroom'} te laag: ≈ ${eur(Math.round(diff))} bijbetalen`,why:`Nieuw voorschot ${eur(en.newTerm)} p/m, bij hetzelfde verbruik nodig ≈ ${eur(Math.round(need))} p/m (incl. btw).`,impact:`≈ ${eur(Math.round(diff))} nabetaling`,cTitle:'Houd rekening met bijbetalen',cBody:`Je nieuwe voorschot voor ${en.comm==='gas'?'gas':'stroom'} is ${eur(en.newTerm)} per maand. Bij hetzelfde verbruik kost het je ongeveer ${eur(Math.round(need))} per maand. Houd rekening met ongeveer ${eur(Math.round(diff))} bijbetalen bij de volgende jaarafrekening, of vraag je leverancier het voorschot te verhogen.`})})().catch(()=>{}));
  const inkDocs=new Set((S.costLines||[]).filter(l=>l.cost_kind==='inkoop'&&l.document_id).map(l=>l.document_id));
  for(const d of (S.costDocs||[]).filter(d=>inkDocs.has(d.id)))jobs.push((async()=>{const st=parseArticleStats(await read(d));if(!st)return;
+  if(st.kind==='mutaties')for(const x of (st.rises||[]).filter(x=>x.pct>=10&&x.r.net>=500).slice(0,2)){const r=x.r,sup=((S.costLines||[]).find(l=>l.document_id===d.id)||{}).supplier||st.supplier||'je leverancier';
+   const extraNow=Math.round(r.qty*(r.price-r.first));
+   extra.push({key:'prijs:'+d.id+':'+r.code,group:'inkoop',level:'kans',title:`${esc(sup)}: ${esc(r.name)} ${String(x.pct).replace('.',',')}% duurder`,why:`Van ${eur(r.first)} (${fmtDate(r.firstOn)}) naar ${eur(r.price)}${r.since?' sinds '+fmtDate(r.since):''}. Afname ${r.qty.toLocaleString('nl-NL')} · ${eur(Math.round(r.net))} in deze periode.`,impact:`≈ ${eur(extraNow)} per jaar bij gelijke afname`,cTitle:`${r.name.split(',')[0]} is ${Math.round(x.pct)}% duurder geworden`,cBody:`Bij ${sup} betaal je voor ${r.name.split(',')[0]} nu ${eur(r.price)} per eenheid, tegen ${eur(r.first)} begin ${fmtDate(r.firstOn).slice(-4)}. Bij dezelfde afname is dat ongeveer ${eur(extraNow)} per jaar extra. Vraag ${sup} naar de reden en of er een betere prijs mogelijk is, bijvoorbeeld bij een vaste afname. Wil je dat wij meekijken? Laat het ons weten.`})}
   const rs=st.priced.filter(r=>r.price>0).map(r=>({r,disc:Math.round((1-(r.net/r.qty)/r.price)*100)}));const cnt={};rs.forEach(x=>cnt[x.disc]=(cnt[x.disc]||0)+1);
   const tiers=Object.entries(cnt).filter(e=>e[1]>=3&&+e[0]>0).map(e=>+e[0]).sort((a,b)=>a-b);
   if(tiers.length>=2){const lo=tiers[0],hi=tiers[tiers.length-1],netLo=rs.filter(x=>x.disc===lo).reduce((a,x)=>a+x.r.net,0),save=netLo*(1-(1-hi/100)/(1-lo/100));
@@ -1115,12 +1147,12 @@ async function extractInvoice(docId,btn){
    const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
    set('#ccat',st.category);set('#ckind','inkoop');set('#csup',st.supplier);set('#cprod',st.product);set('#cfrom',st.period_start);set('#cto',st.period_end);set('#camt',st.total.toFixed(2));set('#cnote',st.note);
    const top=st.priced.slice().sort((a,b)=>b.net-a.net).slice(0,8);
-   show(`<b>${esc(d.file_name)}</b><ul><li>Soort document: <b>inkoopoverzicht per artikel</b> (artikelstatistiek).</li>
-    <li>${st.rows.length} artikelen · ${st.qty.toLocaleString('nl-NL')} stuks · totaal ${eur(st.total)} excl. btw${st.free?` · ${st.free} regels à € 0,00 (proef/gratis) niet meegeteld`:''}${st.period_start?` · periode ${fmtDate(st.period_start)} – ${fmtDate(st.period_end)}`:''}</li>
+   show(`<b>${esc(d.file_name)}</b><ul><li>Soort document: <b>inkoopoverzicht per artikel</b> (${st.kind==='mutaties'?'mutaties per levering, '+st.invoices+' facturen':'artikelstatistiek'}).</li>
+    ${st.kind==='mutaties'&&!st.supplier?'<li style="color:var(--warn)">De naam van de leverancier staat niet in dit document. Vul die zelf in.</li>':''}<li>${st.rows.length} artikelen · ${st.qty.toLocaleString('nl-NL')} ${st.kind==='mutaties'?'eenheden':'stuks'} · totaal ${eur(st.total)} excl. btw${st.free?` · ${st.free} regels à € 0,00 (proef/gratis) niet meegeteld`:''}${st.period_start?` · periode ${fmtDate(st.period_start)} – ${fmtDate(st.period_end)}`:''}</li>
     ${st.pattern?`<li>${esc(st.pattern)}</li>`:''}
     ${st.cut?`<li style="color:var(--warn)">Let op: de laatste regel lijkt onvolledig. Controleer het totaal met de PDF.</li>`:''}
     <li>Het formulier hieronder is ingevuld als <b>inkoop (variabel)</b>, één regel voor de hele periode. Inkoop telt niet mee in de vaste kosten per jaar. Controleer en klik op Opslaan.</li></ul>
-    <details><summary class="hint">Grootste artikelen</summary><table class="t"><tr><th>Artikel</th><th class="num">Aantal</th><th class="num">Betaald</th><th class="num">Gem. per stuk</th><th class="num">Actuele prijs</th></tr>${top.map(x=>`<tr><td>${esc(x.name)}</td><td class="num">${x.qty}</td><td class="num">${eur(x.net)}</td><td class="num">${eur(x.net/x.qty)}</td><td class="num">${eur(x.price)}</td></tr>`).join('')}</table></details>
+    ${st.kind==='mutaties'?`<details open><summary class="hint">Grootste artikelen en prijsverloop</summary><table class="t"><tr><th>Artikel</th><th class="num">Aantal</th><th class="num">Betaald</th><th class="num">Eerste prijs</th><th class="num">Laatste prijs</th><th class="num">Verschil</th></tr>${top.map(x=>{const pc=x.first&&x.price?(x.price/x.first-1)*100:0;return `<tr><td>${esc(x.name)}</td><td class="num">${x.qty.toLocaleString('nl-NL')}</td><td class="num">${eur(x.net)}</td><td class="num">${eur(x.first)} <span class="hint">${x.firstOn?fmtDate(x.firstOn):''}</span></td><td class="num">${eur(x.price)}${x.since?` <span class="hint">sinds ${fmtDate(x.since)}</span>`:''}</td><td class="num" style="${pc>=5?'color:var(--warn)':''}">${Math.abs(pc)<0.05?'—':(pc>0?'+':'')+pc.toFixed(1).replace('.',',')+'%'}</td></tr>`}).join('')}</table></details>`:`<details><summary class="hint">Grootste artikelen</summary><table class="t"><tr><th>Artikel</th><th class="num">Aantal</th><th class="num">Betaald</th><th class="num">Gem. per stuk</th><th class="num">Actuele prijs</th></tr>${top.map(x=>`<tr><td>${esc(x.name)}</td><td class="num">${x.qty}</td><td class="num">${eur(x.net)}</td><td class="num">${eur(x.net/x.qty)}</td><td class="num">${eur(x.price)}</td></tr>`).join('')}</table></details>`}
     <details style="margin-top:6px"><summary class="hint">Toon uitgelezen tekst</summary>${rawTextHtml(lines)}</details>`);
    bindCopyRaw();return}
   if(g.type==='contract'){S.lastLines=lines;
