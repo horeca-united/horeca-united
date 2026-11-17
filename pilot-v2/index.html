@@ -731,7 +731,7 @@ async function readInvestmentFile(file){if(!/pdf/i.test(file.type||file.name))re
  // omschrijving: de artikelregel met het hoogste bedrag (vóór de totalen)
  let item=null,best=-1,bestIdx=-1;const stop=lines.findIndex(x=>/^\s*(sub)?totaal|totaal\s+(excl|incl)|btw\s+\d|^\s*netto(bedrag)?\b/i.test(x));let nArt=0;
  const head=lines.slice(0,stop>0?stop:lines.length);for(let ix=0;ix<head.length;ix++){const x=head[ix];if(!/€|\d,\d{2}\b/.test(x)||/factuur|datum|iban|kvk|omschrijving|aantal|prijs/i.test(x))continue;const v=last(x);if(v!=null&&v>best){best=v;bestIdx=ix}
-  const cs=x.replace(/€?\s*-?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}/g,'').split(/\s{2,}/).map(c=>c.trim()).filter(Boolean);const lead=cs.length>1&&/^\d+$/.test(cs[0]);let d=cs.find(c=>/[a-z]{3}/i.test(c)&&!/^(st|stuk|stuks|pcs|eur|euro)$/i.test(c))||'';if(!lead)d=d.replace(/\s+\d+([.,]\d+)?\s*(st|stuks|x|pcs)?\s*$/i,'').trim();if(v!=null&&v>0&&d)nArt++;
+  const cs=x.replace(/€?\s*-?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}/g,'').split(/\s{2,}/).map(c=>c.trim()).filter(Boolean);const lead=cs.length>1&&/^\d+$/.test(cs[0]);let d=cs.find(c=>/[a-z]{3}/i.test(c)&&!/^(st|stuk|stuks|pcs|eur|euro)$/i.test(c))||'';if(!lead&&!cs.some(c=>/^\d+$/.test(c)))d=d.replace(/\s+\d+([.,]\d+)?\s*(st|stuks|x|pcs)?\s*$/i,'').trim();if(v!=null&&v>=1&&d&&!/^incl\b/i.test(d)&&!/btw\s*vrij|premie|verzeker/i.test(x))nArt++;
   if(v!=null&&v>=best&&d.length>=3&&/[a-z]{3}/i.test(d)&&!/^\d+\s*%$|btw/i.test(d)){item=d.slice(0,120)}}
  if(item&&nArt>1)item=(item+' + '+(nArt-1)+' ander'+(nArt-1===1?' artikel':'e artikelen')).slice(0,160);
  if(!item&&bestIdx>=0){for(const y of lines.slice(bestIdx+1,bestIdx+3).concat(lines.slice(Math.max(0,bestIdx-1),bestIdx))){const z=y.trim();if(z.length>=3&&/[a-z]{3}/i.test(z)&&!/€|\d,\d{2}|btw|totaal|factuur|datum|gelieve|iban|kvk/i.test(z)){item=z.replace(/\s{2,}/g,' ').slice(0,120);break}}}
@@ -913,7 +913,10 @@ function dpSupplier(lines,ownName){
  const dm=[...text.matchAll(/(?:www\.|@)([a-z0-9-]{3,40})\.(?:nl|com|eu|be|de)\b/gi)].map(m=>m[1].toLowerCase()).find(d=>!['gmail','hotmail','outlook','live','icloud','yahoo','ziggo','kpnmail','xs4all'].includes(d)&&!isOwn(d));
  if(dm)return {supplier:dm.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' '),category:null};
  const ln=lines.slice(0,15).find(x=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b/.test(x)&&!isOwn(x));
- if(ln)return {supplier:ln.replace(/^(tussen|en|de ondergetekenden:?)\s+/i,'').replace(/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b.*$/,'').trim().slice(0,120),category:null};
+ if(ln)return {supplier:ln.replace(/^(tussen|en|de ondergetekenden:?)\s+/i,'').replace(/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b.*$/,'').replace(/\s+(is|als)\s+(the|a|een|de)\s+.*$/i,'').trim().slice(0,120),category:null};
+ // naam alleen in de voettekst (logo bovenaan is een plaatje), bv. 'Coolblue B.V.  Weena 664  Rotterdam'
+ const fl=lines.slice(-12).find(x=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)(?=\s|$)/.test(x)&&!isOwn(x));
+ if(fl){const nm=fl.split(/\s{2,}/).map(c=>c.trim()).find(c=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)(?=\s|$)/.test(c));const sup=nm&&nm.replace(/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)(?=\s|$).*$/,'').replace(/^.*\b(?:van|door|is|of)\s+/i,'').trim();if(sup&&sup.length>=2&&sup.length<=60&&/[a-z]{2}/i.test(sup))return {supplier:sup,category:null}}
  return {supplier:null,category:null}}
 function dpParseContract(lines,ownName){
  const t=lines.join('\n'),find=re=>lines.find(l=>re.test(l)),r={found:[]};

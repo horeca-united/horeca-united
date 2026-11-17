@@ -548,7 +548,10 @@ function dpSupplier(lines,ownName){
  const dm=[...text.matchAll(/(?:www\.|@)([a-z0-9-]{3,40})\.(?:nl|com|eu|be|de)\b/gi)].map(m=>m[1].toLowerCase()).find(d=>!['gmail','hotmail','outlook','live','icloud','yahoo','ziggo','kpnmail','xs4all'].includes(d)&&!isOwn(d));
  if(dm)return {supplier:dm.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' '),category:null};
  const ln=lines.slice(0,15).find(x=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b/.test(x)&&!isOwn(x));
- if(ln)return {supplier:ln.replace(/^(tussen|en|de ondergetekenden:?)\s+/i,'').replace(/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b.*$/,'').trim().slice(0,120),category:null};
+ if(ln)return {supplier:ln.replace(/^(tussen|en|de ondergetekenden:?)\s+/i,'').replace(/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b.*$/,'').replace(/\s+(is|als)\s+(the|a|een|de)\s+.*$/i,'').trim().slice(0,120),category:null};
+ // naam alleen in de voettekst (logo bovenaan is een plaatje), bv. 'Coolblue B.V.  Weena 664  Rotterdam'
+ const fl=lines.slice(-12).find(x=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)(?=\s|$)/.test(x)&&!isOwn(x));
+ if(fl){const nm=fl.split(/\s{2,}/).map(c=>c.trim()).find(c=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)(?=\s|$)/.test(c));const sup=nm&&nm.replace(/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)(?=\s|$).*$/,'').replace(/^.*\b(?:van|door|is|of)\s+/i,'').trim();if(sup&&sup.length>=2&&sup.length<=60&&/[a-z]{2}/i.test(sup))return {supplier:sup,category:null}}
  return {supplier:null,category:null}}
 function dpParseContract(lines,ownName){
  const t=lines.join('\n'),find=re=>lines.find(l=>re.test(l)),r={found:[]};
