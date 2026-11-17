@@ -743,13 +743,13 @@ function detectSupplier(lines){const t=lines.join('\n'),own=(org&&org.name)||'';
 async function tagSupplierFromFile(docId,file){try{if(!/pdf/i.test((file.type||'')+(file.name||'')))return;const sup=detectSupplier(await dpPdfLines(await file.arrayBuffer()));
  if(sup){await client.rpc('huos_set_document_supplier',{p_doc:docId,p_supplier:sup});docSup[docId]=docSup[docId]||sup}}catch(_){}}
 let supBackfillRunning=false;
-async function backfillSuppliers(){if(supBackfillRunning||!org)return;supBackfillRunning=true;let tried={};try{tried=JSON.parse(sessionStorage.getItem('huos-sup-tried')||'{}')}catch(_){}
+async function backfillSuppliers(){if(supBackfillRunning||!org)return;supBackfillRunning=true;let tried={};try{tried=JSON.parse(sessionStorage.getItem('huos-bf-tried-v2')||'{}')}catch(_){}
  try{const todo=docs.filter(d=>!tried[d.id]&&(!d.content_hash||(!docSup[d.id]&&/pdf/i.test((d.file_name||'')+(d.storage_path||''))))).slice(0,20);let changed=false;
   for(const d of todo){tried[d.id]=1;try{const r=await client.storage.from('huos-pilot-private').download(d.storage_path);if(r.error)continue;const buf=await r.data.arrayBuffer();
    if(!d.content_hash){try{const hb=await crypto.subtle.digest('SHA-256',buf);const h=[...new Uint8Array(hb)].map(x=>x.toString(16).padStart(2,'0')).join('');const x=await client.rpc('huos_set_document_hash',{p_doc:d.id,p_hash:h});if(!x.error)d.content_hash=h}catch(_){}}
    if(docSup[d.id]||!/pdf/i.test((d.file_name||'')+(d.storage_path||'')))continue;const sup=detectSupplier(await dpPdfLines(buf));
    if(sup){const x=await client.rpc('huos_set_document_supplier',{p_doc:d.id,p_supplier:sup});if(!x.error){docSup[d.id]=sup;changed=true}}}catch(_){}}
-  try{sessionStorage.setItem('huos-sup-tried',JSON.stringify(tried))}catch(_){}
+  try{sessionStorage.setItem('huos-bf-tried-v2',JSON.stringify(tried))}catch(_){}
   if(changed)render()}finally{supBackfillRunning=false}}
 
 /* ---------- Facturen naar de boekhouder ---------- */
