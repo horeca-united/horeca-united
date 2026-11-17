@@ -716,6 +716,10 @@ window.addEventListener('beforeunload',e=>{if(anyUnsaved()){e.preventDefault();e
 async function readInvestmentFile(file){if(!/pdf/i.test(file.type||file.name))return null;try{const lines=await dpPdfLines(await file.arrayBuffer());const t=lines.join('\n');
  const num=x=>Number(String(x).replace(/\./g,'').replace(',','.'));const last=x=>{const a=[...String(x).matchAll(/€?\s*(-?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2})/g)].map(m=>num(m[1]));return a.length?a[a.length-1]:null};
  let amt=null,calc=null;const al=lines.filter(x=>/(totaal|subtotaal|bedrag|netto)[^\n]*(excl|exclusief|zonder btw)|excl\.?\s*btw|exclusief btw/i.test(x)&&!/incl/i.test(x)).map(last).filter(v=>v!=null&&v>0);if(al.length)amt=al[al.length-1];
+ // kopjes op één regel, bedragen op de regel eronder (bv. 'Bedrag excl.BTW  %btw  Bedrag btw  Factuurbedrag')
+ if(amt==null){for(let ix=0;ix<lines.length-1;ix++){const h=lines[ix];if(!/excl|exclusief/i.test(h)||/\d,\d{2}/.test(h))continue;const hc=h.split(/\s{2,}/).map(c=>c.trim()).filter(Boolean),vc=lines[ix+1].split(/\s{2,}/).map(c=>c.trim()).filter(Boolean),k=hc.findIndex(c=>/excl|exclusief/i.test(c));let v=null;
+  if(hc.length===vc.length&&k>=0){const m=vc[k].match(/^€?\s*((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2})$/);if(m)v=num(m[1])}else{const m=lines[ix+1].match(/(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}(?!\s*%)/);if(m)v=num(m[0])}
+  if(v!=null&&v>0){amt=v;break}}}
  if(amt==null){const nl=lines.find(x=>/^\s*netto(bedrag)?\s*:?\s*€?\s*\d/i.test(x)||/^\s*netto(bedrag)?\s*:?\s*€/i.test(x));if(nl){const m=nl.match(/netto(?:bedrag)?\s*:?\s*€?\s*((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2})/i);if(m&&num(m[1])>0)amt=num(m[1])}}
  if(amt==null){const bm=t.match(/btw\s*(?:over|grondslag)[^\d€]*€?\s*((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2})/i);if(bm)amt=num(bm[1])}
  // alleen totaal incl. btw + btw-bedrag op de factuur? Dan excl. = incl. − btw (of incl. / 1,21 bij alleen 21%)
