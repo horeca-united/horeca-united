@@ -170,7 +170,7 @@ function liveApi(){
   async orgs(){return ok(await client.from('huos_pilot_organizations').select('id,name,city,business_type,kvk_number,location_count').order('name'))},
   async costLines(o){return ok(await client.from('huos_cost_lines').select('*').eq('organization_id',o).order('period_end',{ascending:false}).limit(1000))},
   async costCompare(o){return ok(await client.from('huos_cost_comparison').select('*').eq('organization_id',o))},
-  async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path,supplier_hint').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
+  async orgDocs(o){return ok(await client.from('huos_pilot_documents').select('id,file_name,category,uploaded_at,storage_path,supplier_hint,content_hash').eq('organization_id',o).order('uploaded_at',{ascending:false}).limit(300))},
   async orgContracts(o){return ok(await client.from('huos_pilot_contracts').select('id,category,supplier,description,start_date,end_date,status,document_id,added_by_staff,amount,amount_period,promo_end_date,amount_after_promo,flexible_cancellation,notice_period_months,cancel_by_date,auto_renews').eq('organization_id',o).limit(300))},
   async addCost(row){return ok(await client.from('huos_cost_lines').insert(row).select('id').single())},
   async updateCost(id,row){const r=ok(await client.from('huos_cost_lines').update(row).eq('id',id).select('id'));if(!r||!r.length)throw new Error('Niet bijgewerkt (geen rechten?)');return r},
@@ -444,7 +444,7 @@ async function renderCosts(){
   ${missingInvoicesHtml()}
   <p class="hint">Vergelijking op prijs per eenheid als beide facturen dezelfde eenheid hebben (bijv. per lediging); anders op bedrag per maand. Een stijging door méér volume telt dan niet als prijsstijging.</p>
   ${contractAuditHtml()}
-  <h3>Aangeleverde documenten</h3><div class="card"><ul class="timeline doclist" style="padding:0 16px">${S.costDocs.map(d=>`<li><span>${esc(fmtDT(d.uploaded_at))} · ${esc(DOCCAT[d.category]||d.category||'')}</span><a href="#" data-file="${esc(d.id)}">${esc(d.file_name)}</a>${canEdit?` <button class="btn small" data-xtr="${esc(d.id)}">Uitlezen → formulier</button>`:''}${docLabel(d.id)}${' '+docStatusChip(d.id)}</li>`).join('')||'<li>Nog geen documenten aangeleverd door de klant.</li>'}</ul></div>
+  <h3>Aangeleverde documenten</h3><div class="card"><ul class="timeline doclist" style="padding:0 16px">${docGroups().main.map(d=>`<li><span>${esc(fmtDT(d.uploaded_at))} · ${esc(DOCCAT[d.category]||d.category||'')}</span><a href="#" data-file="${esc(d.id)}">${esc(d.file_name)}</a>${canEdit?` <button class="btn small" data-xtr="${esc(d.id)}">Uitlezen → formulier</button>`:''}${docLabel(d.id)}${' '+docStatusChip(d.id)}</li>`).join('')||'<li>Nog geen documenten aangeleverd door de klant.</li>'}</ul>${(()=>{const g=docGroups();return g.dups.length?`<details style="padding:0 16px 12px"><summary class="hint">Dubbele documenten (${g.dups.length}) — zelfde inhoud als een ander document, niet nodig om te verwerken</summary><ul class="timeline" style="padding:0">${g.dups.map(x=>`<li><span>${esc(fmtDT(x.d.uploaded_at))}</span><a href="#" data-file="${esc(x.d.id)}">${esc(x.d.file_name)}</a> <span class="hint">kopie van ${esc(x.of.file_name)} (${esc(fmtDT(x.of.uploaded_at))})</span></li>`).join('')}</ul></details>`:''})()}</div>
   ${canEdit?`<h3 id="cformh">Kostenregel toevoegen</h3><div class="card" style="padding:16px"><div class="form" id="cform">
    <div class="row"><select id="ckind" title="Soort kosten"><option value="vast">Vaste kosten</option><option value="inkoop">Inkoop (variabel)</option></select><select id="ccat">${Object.entries(CCAT).map(([k,x])=>`<option value="${k}">${esc(x)}</option>`).join('')}</select><input id="csup" maxlength="120" placeholder="Leverancier *"><input id="cprod" maxlength="160" placeholder="Product / dienst (bijv. restafval 240L)"></div>
    <div class="row"><label class="hint">Periode van *<input id="cfrom" type="date"></label><label class="hint">t/m *<input id="cto" type="date"></label><label class="hint">Factuurdatum<input id="cidate" type="date"></label><label class="hint">Factuurnummer<input id="cinr" maxlength="60"></label></div>
@@ -844,6 +844,14 @@ function bindAdvice(){
    try{await api.publishNotice({p_org:S.costOrg,p_kind:'custom',p_source_key:'advies:'+a.key,p_source:{advice:a.key,group:a.group,level:a.level},p_title:t,p_body:bd,p_note:nt||null,p_cta:box.querySelector('.ncta').checked?'proposal':'upload'});await renderCosts()}
    catch(e){m.className='msg nmsg err';m.textContent=errText(e);go.disabled=false}}});
  document.querySelectorAll('#advbox [data-nwd]').forEach(x=>x.onclick=async ev=>{ev.preventDefault();if(!confirm('Deze melding intrekken? De klant ziet hem dan niet meer.'))return;try{await api.withdrawNotice(x.dataset.nwd);await renderCosts()}catch(e){alert(errText(e))}})}
+
+
+/* ---------- Dubbele documenten (zelfde inhoud) ---------- */
+function docGroups(){const docs=S.costDocs||[],linked=id=>(S.costLines||[]).some(l=>l.document_id===id)||(S.costCons||[]).some(c=>c.document_id===id)||(S.costInv||[]).some(i=>i.document_id===id);
+ const byHash={};for(const d of docs)if(d.content_hash)(byHash[d.content_hash]=byHash[d.content_hash]||[]).push(d);
+ const dupIds=new Map();for(const h in byHash){const g=byHash[h];if(g.length<2)continue;const keep=g.find(d=>linked(d.id))||g.slice().sort((a,b)=>String(a.uploaded_at).localeCompare(String(b.uploaded_at)))[0];
+  for(const d of g)if(d.id!==keep.id&&!linked(d.id))dupIds.set(d.id,keep)}
+ return {main:docs.filter(d=>!dupIds.has(d.id)),dups:docs.filter(d=>dupIds.has(d.id)).map(d=>({d,of:dupIds.get(d.id)}))}}
 
 /* ---------- Periodes en ontbrekende facturen ---------- */
 const MND=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
