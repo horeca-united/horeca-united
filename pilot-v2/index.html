@@ -674,8 +674,12 @@ async function deleteInvestment(id){if(!confirm('Deze investering verwijderen?')
 /* ---------- Investeringsfactuur slepen: uploaden + formulier invullen ---------- */
 async function readInvestmentFile(file){if(!/pdf/i.test(file.type||file.name))return null;try{const lines=await dpPdfLines(await file.arrayBuffer());const t=lines.join('\n');
  const num=x=>Number(String(x).replace(/\./g,'').replace(',','.'));const last=x=>{const a=[...String(x).matchAll(/€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/g)].map(m=>num(m[1]));return a.length?a[a.length-1]:null};
- let amt=null;const al=lines.filter(x=>/(totaal|subtotaal|bedrag|netto)[^\n]*(excl|exclusief|zonder btw)|excl\.?\s*btw|exclusief btw/i.test(x)&&!/incl/i.test(x)).map(last).filter(v=>v!=null&&v>0);if(al.length)amt=al[al.length-1];
+ let amt=null,calc=null;const al=lines.filter(x=>/(totaal|subtotaal|bedrag|netto)[^\n]*(excl|exclusief|zonder btw)|excl\.?\s*btw|exclusief btw/i.test(x)&&!/incl/i.test(x)).map(last).filter(v=>v!=null&&v>0);if(al.length)amt=al[al.length-1];
  if(amt==null){const bm=t.match(/btw\s*(?:over|grondslag)[^\d€]*€?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i);if(bm)amt=num(bm[1])}
+ // alleen totaal incl. btw + btw-bedrag op de factuur? Dan excl. = incl. − btw (of incl. / 1,21 bij alleen 21%)
+ if(amt==null){const il=lines.filter(x=>/totaal|te betalen|factuurbedrag/i.test(x)&&!/excl|exclusief/i.test(x)).map(last).filter(v=>v!=null&&v>0);const incl=il.length?Math.max(...il):null;
+  const bl=lines.filter(x=>/\bbtw\b|\bvat\b/i.test(x)&&!/nummer|nr\.?|btw-id|totaal/i.test(x)).map(last).filter(v=>v!=null&&v>0);const vat=bl.length?bl[bl.length-1]:null;
+  if(incl!=null&&vat!=null&&vat<incl){amt=Math.round((incl-vat)*100)/100;calc='totaal incl. btw min btw'}else if(incl!=null&&/21\s*%/.test(t)){amt=Math.round(incl/1.21*100)/100;calc='totaal incl. btw gedeeld door 1,21'}}
  let dt=null;const dl=lines.find(x=>/factuurdatum|datum factuur|invoice date/i.test(x));if(dl)dt=(dpDates(dl)||[])[0]||null;if(!dt)dt=(dpDates(t)||[])[0]||null;
  const sup=(dpSupplier(lines,(org&&org.name)||'')||{}).supplier||null;
  // omschrijving: de artikelregel met het hoogste bedrag (vóór de totalen)
@@ -683,14 +687,14 @@ async function readInvestmentFile(file){if(!/pdf/i.test(file.type||file.name))re
  for(const x of lines.slice(0,stop>0?stop:lines.length)){if(!/€|\d,\d{2}\b/.test(x)||/factuur|datum|btw|iban|kvk|omschrijving|aantal|prijs/i.test(x))continue;const v=last(x);
   const d=x.replace(/€?\s*-?\d{1,3}(?:\.\d{3})*,\d{2}/g,'').replace(/\s+\d+([.,]\d+)?\s*(st|stuks|x|pcs)?\s*$/i,'').replace(/\s{2,}.*$/,'').trim();
   if(v!=null&&v>best&&d.length>=3&&/[a-z]{3}/i.test(d)){best=v;item=d.slice(0,120)}}
- return {amount:amt,date:dt,supplier:sup,item}}catch(_){return null}}
+ return {amount:amt,date:dt,supplier:sup,item,calc}}catch(_){return null}}
 async function uploadInvestmentFiles(files){const ids=await uploadMany(files,'invoice','invDrop','invDropMsg');if(!ids.length)return;
  tab('insights');const last=(ids.pairs||[]).slice(-1)[0];const p=last?await readInvestmentFile(last.file):null;
  resetInvForm();document.querySelectorAll('#inv_desc,#inv_amount,#inv_date,#inv_doc').forEach(x=>x.classList.remove('prefill'));
  const set=(id,v)=>{if(v==null||v==='')return;el(id).value=v;el(id).classList.add('prefill')};
  set('inv_doc',ids[ids.length-1]);if(p){set('inv_amount',p.amount!=null?p.amount.toFixed(2):null);set('inv_date',p.date);if(p.item)set('inv_desc',p.item);else if(p.supplier)set('inv_desc','Aankoop '+p.supplier)}
  el('inv_sup').innerHTML=p&&p.supplier?'Leverancier: <strong>'+safe(p.supplier)+'</strong> <span class="muted">(herkend uit de factuur)</span>':'';
- const got=[p&&p.item&&'omschrijving',p&&p.amount!=null&&'bedrag',p&&p.date&&'datum',p&&p.supplier&&'leverancier'].filter(Boolean);
+ const got=[p&&p.item&&'omschrijving',p&&p.amount!=null&&('bedrag excl. btw'+(p.calc?' (berekend: '+p.calc+')':'')),p&&p.date&&'datum',p&&p.supplier&&'leverancier'].filter(Boolean);
  alert('invDropMsg',(ids.length===1?'Factuur opgeslagen':'Facturen opgeslagen')+' en gekoppeld. '+(got.length?'Ingevuld: '+got.join(', ')+'. Controleer de gemarkeerde velden en klik op Investering opslaan.':'Vul omschrijving, bedrag en datum in en klik op Investering opslaan.')+(ids.length>1?' De andere facturen staan bij Mijn documenten; koppel ze via “Investering?”.':''));
  el('inv_desc').focus()}
 
