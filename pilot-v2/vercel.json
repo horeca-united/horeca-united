@@ -35,5 +35,29 @@
         }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/beheer",
+      "has": [
+        {
+          "type": "host",
+          "value": "app.horecaunited.nl"
+        }
+      ],
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/beheer.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "app.horecaunited.nl"
+        }
+      ],
+      "destination": "/",
+      "permanent": false
+    }
   ]
 }
