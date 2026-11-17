@@ -765,7 +765,7 @@ function ptypeGuess(name,cat){const n=String(name||'').toLowerCase(),S1=t=>({t,s
  if(/gedistilleerd|sterke drank|whisky|gin\b|rum\b|vodka|likeur|jenever/.test(n))return S1('gedistilleerd');
  if(/conserven|grutters|margarine|vetten|soep|sauz|suiker|zout|koffie|thee|zuren|olie|azijn|specerij|rijst|pasta|meel|bloem|noten|ijsbenodig|chips|snack/.test(n))return S1('droog');
  const one={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd'}[cat];if(one)return S1(one);
- if(cat==='food'||cat==='groothandel')return {t:'droog',sure:!n};
+ if(cat==='food'||cat==='groothandel')return {t:'overig',sure:!n};
  return {t:null,sure:!n}}
 const ptypeOf=(name,cat)=>ptypeGuess(name,cat).t;
 /* Voorstel verdeling uit een uitgelezen inkoopoverzicht: per productgroep/artikel een productsoort; som = totaal. */
