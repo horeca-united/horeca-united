@@ -733,8 +733,8 @@ function autoContract(docId,supplier){const cs=(S.costCons||[]).filter(c=>c.stat
  const byDoc=cs.find(c=>c.document_id===docId&&(!sp||same(c)));if(byDoc)return byDoc.id;
  const m=cs.filter(same);return m.length===1?m[0].id:''}
 function setAutoContract(docId){const v=autoContract(docId,$('#csup').value);if(v&&$('#ccon')){$('#ccon').value=v;$('#ccon').classList.add('auto')}}
-function docStatusChip(id){const k=S.costLines.some(l=>l.document_id===id),c=(S.costCons||[]).some(x=>x.document_id===id);
- if(k&&c)return chip(['Verwerkt: kosten + contract','c-ok']);if(k)return chip([S.costLines.filter(l=>l.document_id===id).every(l=>l.cost_kind==='inkoop')?'Verwerkt als inkoop':'Verwerkt in kosten','c-ok']);if(c)return chip(['Verwerkt als contract','c-ok']);return chip(['Nog te verwerken','c-warn'])}
+function docStatusChip(id){const k=S.costLines.some(l=>l.document_id===id),c=(S.costCons||[]).some(x=>x.document_id===id),inv=(S.costInv||[]).some(x=>x.document_id===id);
+ if(k&&c)return chip(['Verwerkt: kosten + contract','c-ok']);if(k)return chip([S.costLines.filter(l=>l.document_id===id).every(l=>l.cost_kind==='inkoop')?'Verwerkt als inkoop':'Verwerkt in kosten','c-ok']);if(c)return chip(['Verwerkt als contract','c-ok']);if(inv)return chip(['Investering (KIA)','c-ok']);return chip(['Nog te verwerken','c-warn'])}
 
 
 /* ---------- Inkoopoverzicht per artikel (bijv. 'Klant - Artikel Statistiek' van een groothandel) ---------- */
