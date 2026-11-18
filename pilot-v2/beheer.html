@@ -157,6 +157,9 @@ function liveApi(){
   async addNote(lead,body){return ok(await client.rpc('huos_beer_lead_add_note',{p_lead:lead,p_body:body}))},
   async verify(lead,field,year,value,unit,outcome,kind,note){return ok(await client.rpc('huos_beer_lead_verify',{p_lead:lead,p_field:field,p_period_year:year,p_value:value,p_unit:unit,p_outcome:outcome,p_evidence_kind:kind,p_note:note,p_document:null}))},
   async mandateDecide(id,status,method,note,via){return ok(await client.rpc('huos_beer_mandate_decide',{p_mandate:id,p_status:status,p_method:method||null,p_note:note||null,p_revoked_via:via||null}))},
+  async orgMandate(o){return ok(await client.from('huos_beer_mandates').select('*').eq('organization_id',o).in('status',['pending','verified']).maybeSingle())},
+  async orgMandEvents(o){return ok(await client.from('huos_beer_lead_events').select('*').is('lead_id',null).eq('details->>organization_id',o).order('created_at',{ascending:false}).limit(50))},
+  async linkOrg(m,o){return ok(await client.rpc('huos_mandate_link_org',{p_mandate:m,p_org:o}))},
   async mandSuppliers(m){return ok(await client.from('huos_beer_mandate_suppliers').select('*').eq('mandate_id',m).order('created_at'))},
   async mandRequests(m){return ok(await client.from('huos_beer_mandate_requests').select('*').eq('mandate_id',m).order('created_at',{ascending:false}))},
   async supAdd(m,name,role,scope,via,note){return ok(await client.rpc('huos_mandate_supplier_add',{p_mandate:m,p_name:name,p_role:role,p_scope:scope,p_confirmed_via:via,p_note:note}))},
@@ -208,7 +211,7 @@ function demoApi(){
  const notes={l2:[{created_at:d(2),body:'Gebeld: eigenaar bevestigt bevoegdheid, KvK-uittreksel volgt per mail.'}],l4:[{created_at:d(4),body:'Jaaroverzicht 2025 ontvangen.'}]};
  const ver={l4:[{field:'annual_volume_hl',period_year:2025,submitted_value:210,verified_value:196,outcome:'corrected',evidence_kind:'document',note:'Jaaroverzicht 2025 leverancier: 196 hl',verified_at:d(4)}]};
  const mand={l2:{id:'m2',status:'pending',consent_text_version:'huos-mandate-beer-v1',consent_at:d(3),authority_asserted:true,followup:[]}};
- const msup={m2:[{id:'ms1',mandate_id:'m2',supplier_name:'AB InBev',role:'brouwerij',scope:['volume','discounts','bonuses','contract_terms'],source:'bierscan',status:'active',name_check:'ok',confirmed_via:'bierscan',created_at:d(3)},{id:'ms2',mandate_id:'m2',supplier_name:'Sligro',role:'groothandel',scope:['volume','prices','discounts'],source:'bierscan',status:'active',name_check:'ok',confirmed_via:'bierscan',created_at:d(3)}]};
+ const msup={mo1:[{id:'mos1',mandate_id:'mo1',supplier_name:'Hanos',role:'groothandel',scope:['volume','prices','discounts'],source:'klant',status:'active',name_check:'ok',confirmed_via:'portal',created_at:d(1)}],m2:[{id:'ms1',mandate_id:'m2',supplier_name:'AB InBev',role:'brouwerij',scope:['volume','discounts','bonuses','contract_terms'],source:'bierscan',status:'active',name_check:'ok',confirmed_via:'bierscan',created_at:d(3)},{id:'ms2',mandate_id:'m2',supplier_name:'Sligro',role:'groothandel',scope:['volume','prices','discounts'],source:'bierscan',status:'active',name_check:'ok',confirmed_via:'bierscan',created_at:d(3)}]};
  const ev=lead=>[{created_at:d(1),event_type:'stage_changed',actor_role:'admin',details:{from:'new',to:L.find(x=>x.lead_id===lead)?.stage}},{created_at:d(3),event_type:'lead_created',actor_role:null,details:{}}];
  const T=[['new','contact_needed'],['new','awaiting_upload'],['new','mandate_pending'],['new','review_needed'],['new','closed'],['contact_needed','awaiting_upload'],['contact_needed','mandate_pending'],['contact_needed','review_needed'],['contact_needed','closed'],['awaiting_upload','document_received'],['awaiting_upload','contact_needed'],['awaiting_upload','closed'],['mandate_pending','document_received'],['mandate_pending','contact_needed'],['mandate_pending','closed'],['document_received','review_needed'],['document_received','awaiting_upload'],['document_received','closed'],['review_needed','ready_for_offer'],['review_needed','awaiting_upload'],['review_needed','contact_needed'],['review_needed','closed'],['ready_for_offer','offer_sent'],['ready_for_offer','review_needed'],['ready_for_offer','closed'],['offer_sent','customer'],['offer_sent','review_needed'],['offer_sent','closed'],['customer','closed'],['closed','contact_needed']].map(([f,t])=>({from_stage:f,to_stage:t,min_role:(f==='customer'||f==='closed')?'admin':'reviewer'}));
  const demoOnly=async()=>{throw new Error('Demo: in de demoversie wordt niets opgeslagen.')};
@@ -217,10 +220,11 @@ function demoApi(){
   async leads(){return L},async transitions(){return T},async submission(id){return subs[id]},
   async notes(l){return notes[l]||[]},async verifications(l){return ver[l]||[]},async mandate(l){return mand[l]||null},async events(l){return ev(l)},
   async mandSuppliers(m){return msup[m]||[]},async mandRequests(){return []},
+  async orgMandate(o){return o==='o1'?{id:'mo1',organization_id:'o1',status:'pending',consent_text_version:'huos-mandate-v2',consent_at:d(1),signer_name:'Demo Eigenaar',signer_function:'Eigenaar',followup:[]}:null},async orgMandEvents(){return []},
   async staffList(){return [{user_id:me,email:'hui@horecaunited.nl',role:'admin',active:true,scope:'all',scope_values:[],last_sign_in_at:d(0),created_at:d(0)}]},
   async staffAudit(){return [{created_at:d(0),action:'granted',target_user:me,actor_kind:'database',new_value:{role:'admin',scope:'all'},reason:'Eerste hoofdbeheerder (demo)'}]},
   async allEvents(){return ev('l2')},
-  setStage:demoOnly,assign:demoOnly,addNote:demoOnly,verify:demoOnly,mandateDecide:demoOnly,supAdd:demoOnly,supUpdate:demoOnly,supRevoke:demoOnly,reqCreate:demoOnly,reqSet:demoOnly,setRole:demoOnly,revoke:demoOnly,
+  setStage:demoOnly,assign:demoOnly,addNote:demoOnly,verify:demoOnly,mandateDecide:demoOnly,linkOrg:demoOnly,supAdd:demoOnly,supUpdate:demoOnly,supRevoke:demoOnly,reqCreate:demoOnly,reqSet:demoOnly,setRole:demoOnly,revoke:demoOnly,
   async exportLeads(){return L},async signOut(){location.reload()},
   async orgs(){return [{id:'o1',name:'Restaurant Demozaak',city:'Arnhem',business_type:'restaurant',kvk_number:'12345678',location_count:1}]},
   async contractAudit(){return [{id:2,contract_id:'c2',action:'update',actor_kind:'klant',actor_email:'facturen@volkarnhem.nl',supplier:'Odido',changes:{end_date:['2028-04-14','2028-05-01'],promo_end_date:['2027-04-14','2027-05-01']},created_at:d(0)},{id:1,contract_id:'c2',action:'insert',actor_kind:'medewerker',actor_email:'hui@horecaunited.nl',supplier:'Odido',changes:{},created_at:d(1)}]},
@@ -324,6 +328,7 @@ async function renderDetail(id){
   const [sub,notes,vers,mand,evs]=await Promise.all([api.submission(l.submission_id),api.notes(id),api.verifications(id),api.mandate(id),api.events(id)]);
   const a=sub?.answers||{};
   const canEdit=S.role==='reviewer'||S.role==='admin';
+  if(mand&&!S.orgs)S.orgs=await api.orgs().catch(()=>[])||[];
   const [msups,mreqs]=mand?await Promise.all([api.mandSuppliers(mand.id).catch(()=>[]),api.mandRequests(mand.id).catch(()=>[])]):[[],[]];
   const nexts=S.transitions.filter(t=>t.from_stage===l.stage&&(t.min_role==='reviewer'||S.role==='admin'));
   box.innerHTML=`
@@ -354,6 +359,7 @@ async function renderDetail(id){
    ${canEdit&&mand.status!=='revoked'?`<div class="form"><div class="row"><select id="mstat"><option value="verified">Bevoegdheid geverifieerd</option><option value="rejected">Afwijzen</option><option value="revoked">Ingetrokken door klant</option></select><select id="mmeth"><option value="kvk_extract">KvK-uittreksel</option><option value="owner_confirmation">Bevestiging eigenaar</option><option value="signed_statement">Getekende verklaring</option><option value="other">Anders</option></select><select id="mvia"><option value="">Intrekking via…</option><option value="email">E-mail</option><option value="phone">Telefoon</option><option value="in_person">Persoonlijk</option><option value="other">Anders</option></select></div>
    <input id="mnote" placeholder="Toelichting (verplicht bij verifiëren)"><button class="btn" id="mgo">Machtiging bijwerken</button><div class="msg" id="mmsg"></div></div>`:''}
    ${mandSupHtml(mand,msups,mreqs,canEdit)}
+   ${S.role==='admin'&&!mand.organization_id&&['pending','verified'].includes(mand.status)?`<details style="margin-top:10px"><summary>Koppelen aan pilotklant</summary><p class="hint">Wordt deze ondernemer pilotklant? Koppel de machtiging, dan hoeft hij niet opnieuw te tekenen.</p><div class="row"><select id="mlorg"><option value="">Kies pilotklant…</option>${(S.orgs||[]).map(o=>`<option value="${esc(o.id)}">${esc(o.name)}${o.city?' — '+esc(o.city):''}</option>`).join('')}</select><button class="btn" id="mlink">Koppelen</button></div><div class="msg" id="mlmsg"></div></details>`:mand.organization_id?`<p class="hint">Gekoppeld aan pilotklant ${esc(((S.orgs||[]).find(o=>o.id===mand.organization_id)||{}).name||'')}.</p>`:''}
   </div>`:''}
 
   ${canEdit?`<h3>Fase en opvolging</h3><div class="box int"><div class="form">
@@ -372,7 +378,8 @@ async function renderDetail(id){
   $('#dclose').onclick=()=>{S.sel=null;renderLeads()};
   const run=async(btn,msg,fn,okText)=>{const b=$(btn),m=$(msg);b.disabled=true;m.className='msg';m.textContent='Bezig…';try{await fn();m.className='msg ok';m.textContent=okText;await reload(id)}catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}};
   if($('#vgo'))$('#vgo').onclick=()=>run('#vgo','#vmsg',()=>{const v=$('#vval').value;if(v==='')throw new Error('Vul de bevestigde hoeveelheid in.');const n=Number(v);return api.verify(id,'annual_volume_hl',2025,n,'hl',(l.hl_submitted!=null&&Number(l.hl_submitted)===n)?'confirmed':'corrected',$('#vkind').value,$('#vnote').value.trim())},'Vastgelegd.');
-  bindMandSup(l,mand,msups,mreqs,run);
+  bindMandSup(l,mand,msups,mreqs);
+  if($('#mlink'))$('#mlink').onclick=()=>run('#mlink','#mlmsg',()=>{const o=$('#mlorg').value;if(!o)throw new Error('Kies een pilotklant.');return api.linkOrg(mand.id,o)},'Gekoppeld. De machtiging staat nu ook bij die klant onder Kosten per bedrijf.');
   if($('#mgo'))$('#mgo').onclick=()=>run('#mgo','#mmsg',()=>{const st=$('#mstat').value;return api.mandateDecide(mand.id,st,st==='revoked'?null:$('#mmeth').value,$('#mnote').value.trim(),st==='revoked'?($('#mvia').value||null):null)},'Bijgewerkt.');
   if($('#sgo'))$('#sgo').onclick=()=>run('#sgo','#smsg',()=>api.setStage(id,$('#snext').value,$('#snote').value.trim()),'Fase gewijzigd.');
   if($('#ago'))$('#ago').onclick=()=>run('#ago','#amsg',()=>{const dt=$('#afu').value;return api.assign(id,S.user.id,dt?new Date(dt+'T09:00:00').toISOString():null,$('#apr').value)},'Bijgewerkt.');
@@ -422,9 +429,9 @@ function mandPrint(l,mand,sups){const w=window.open('','_blank');if(!w)return;
  <p>Akkoord gegeven op ${esc(new Date(mand.consent_at).toLocaleString('nl-NL',{dateStyle:'long',timeStyle:'short'}))} (tekstversie ${esc(mand.consent_text_version||'')}). Status machtiging: ${esc((MANDATE[mand.status]||[mand.status])[0])}. Deze machtiging kan op elk moment worden ingetrokken via Horeca United.</p>
  <div class="sig"><div>Handtekening ${esc(l.company_name)}</div><div>Datum</div></div>
  <script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close()}
-function bindMandSup(l,mand,sups,reqs,run){
+function bindMandSup(l,mand,sups,reqs){
  if(!mand)return;const m=$('#msmsg');
- const go=async(fn,okText)=>{m.className='msg';m.textContent='Bezig…';try{await fn();m.className='msg ok';m.textContent=okText;await reload(l.lead_id)}catch(e){m.className='msg err';m.textContent=errText(e)}};
+ const go=async(fn,okText)=>{m.className='msg';m.textContent='Bezig…';try{await fn();m.className='msg ok';m.textContent=okText;await (l.reload?l.reload():reload(l.lead_id))}catch(e){m.className='msg err';m.textContent=errText(e)}};
  const reason=()=>($('#msreason')?.value||'').trim();
  if($('#msprint'))$('#msprint').onclick=()=>mandPrint(l,mand,sups);
  if($('#msadd'))$('#msadd').onclick=()=>go(()=>{const n=$('#msname').value.trim();if(n.length<2)throw new Error('Vul de naam van de leverancier in.');const sc=[...document.querySelectorAll('.msscope:checked')].map(x=>x.value);if(!sc.length)throw new Error('Kies minstens één soort gegevens.');return api.supAdd(mand.id,n,$('#msrole').value,sc,$('#msvia').value,$('#msnote').value.trim())},'Leverancier toegevoegd.');
@@ -438,6 +445,24 @@ function bindMandSup(l,mand,sups,reqs,run){
   if(k==='revk')return go(()=>{if(!confirm('Deze leverancier uit de machtiging halen?'))throw new Error('Niet uitgevoerd.');return api.supRevoke(id,reason())},'Leverancier uit machtiging gehaald.');
   if(k==='mail'){const r=reqs.find(x=>x.id===id);const t=mandMail(l,r);(navigator.clipboard?.writeText(t)||Promise.reject()).then(()=>{m.className='msg ok';m.textContent='Mailtekst gekopieerd. Voeg de afgedrukte en getekende machtiging als bijlage toe.'},()=>{m.className='msg';m.textContent=t})}
  })}
+async function orgMandLoad(o,canEdit){const box=$('#orgmand');if(!box)return;
+ try{const mand=await api.orgMandate(o);const org=(S.orgs||[]).find(x=>x.id===o)||{};
+  if(!mand){box.innerHTML='';return}
+  const [sups,reqs,evs]=await Promise.all([api.mandSuppliers(mand.id).catch(()=>[]),api.mandRequests(mand.id).catch(()=>[]),api.orgMandEvents(o).catch(()=>[])]);
+  if(S.costOrg!==o||!$('#orgmand'))return;
+  const ctx={company_name:org.name||'',contact_name:mand.signer_name||'',reload:()=>orgMandLoad(o,canEdit)};
+  $('#orgmand').innerHTML=`<h3>Machtiging</h3><div class="card" style="padding:16px">
+   <div class="kv"><span>Status</span><b>${chip(MANDATE[mand.status])}</b></div>
+   <div class="kv"><span>Ondertekend</span><b>${esc(mand.signer_name||'—')}${mand.signer_function?' ('+esc(mand.signer_function)+')':''} · ${fmtDT(mand.consent_at)} · tekst ${esc(mand.consent_text_version)}</b></div>
+   <div class="kv"><span>KvK-nummer in profiel</span><b>${esc(org.kvk_number||'niet ingevuld')}</b></div>
+   ${mand.authority_check_method?`<div class="kv"><span>Bevoegdheid gecontroleerd</span><b>${esc({kvk_extract:'KvK-uittreksel',owner_confirmation:'Bevestiging eigenaar',signed_statement:'Getekende verklaring',other:'Anders'}[mand.authority_check_method]||mand.authority_check_method)} · ${fmtDT(mand.authority_checked_at)}</b></div>`:''}
+   ${canEdit&&mand.status==='pending'?`<div class="form"><div class="row"><select id="omstat"><option value="verified">Bevoegdheid geverifieerd</option><option value="rejected">Afwijzen</option></select><select id="ommeth"><option value="kvk_extract">KvK-uittreksel</option><option value="owner_confirmation">Bevestiging eigenaar</option><option value="signed_statement">Getekende verklaring</option><option value="other">Anders</option></select></div><input id="omnote" placeholder="Wat heb je gecontroleerd? (verplicht)"><button class="btn" id="omgo">Machtiging bijwerken</button><div class="msg" id="ommsg"></div></div>`:''}
+   ${mandSupHtml(mand,sups,reqs,canEdit)}
+   ${evs.length?`<details style="margin-top:10px"><summary>Tijdlijn machtiging (${evs.length})</summary><ul class="timeline">${evs.map(e=>`<li><span>${fmtDT(e.created_at)}${e.actor_role?' · '+esc(ROLE[e.actor_role]||e.actor_role):' · klant'}</span>${esc(eventText(e))}</li>`).join('')}</ul></details>`:''}
+  </div>`;
+  bindMandSup(ctx,mand,sups,reqs);
+  if($('#omgo'))$('#omgo').onclick=async()=>{const m=$('#ommsg'),b=$('#omgo');b.disabled=true;m.className='msg';m.textContent='Bezig…';try{await api.mandateDecide(mand.id,$('#omstat').value,$('#ommeth').value,$('#omnote').value.trim(),null);await orgMandLoad(o,canEdit)}catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}};
+ }catch(e){if($('#orgmand'))$('#orgmand').innerHTML=`<p class="msg err">Machtiging kon niet worden geladen: ${esc(errText(e))}</p>`}}
 function eventText(e){const d=e.details||{};switch(e.event_type){
  case 'lead_created':return 'Lead aangemaakt uit Quick Scan-inzending';
  case 'stage_changed':return `Fase: ${STAGES[d.from]||d.from||'?'} → ${STAGES[d.to]||d.to||'?'}${d.note?' — '+d.note:''}`;
@@ -457,6 +482,7 @@ function eventText(e){const d=e.details||{};switch(e.event_type){
  case 'mandate_request_answered':return `Antwoord ontvangen van ${d.supplier||''}`;
  case 'mandate_request_cancelled':return `Verzoek ${d.supplier||''} geannuleerd`;
  case 'mandate_linked_org':return 'Machtiging gekoppeld aan pilotklant';
+ case 'mandate_signed':return `Machtiging ondertekend door ${d.signer||'klant'}${d.function?' ('+d.function+')':''} — ${d.suppliers??'?'} leverancier(s)`;
  default:return e.event_type.replace(/_/g,' ')}}
 async function reload(id){S.leads=await api.leads()||[];S.sel=id;renderLeads()}
 async function doExport(){
@@ -521,6 +547,7 @@ async function renderCosts(){
    <div class="stat"><span>Stijgingen</span><b>${sigs.length}</b><small>t.o.v. begin dit jaar, of anders de oudste factuur</small></div>
   </div>
   <h3>Advies <span class="hint" style="text-transform:none;letter-spacing:0">(alleen voor jou — kies zelf wat je aan de klant doorgeeft)</span></h3><div id="advbox">${adviceHtml(adviceSync(),canEdit,true)}</div>
+  <div id="orgmand"></div>
   <div id="ptbox">${productTypeHtml()}</div>
   ${(()=>{const pr=(S.costCons||[]).filter(c=>c.promo_end_date).map(c=>({c,d:Math.round((new Date(c.promo_end_date+'T12:00:00')-Date.now())/864e5)})).filter(x=>x.d>=-30&&x.d<=120).sort((a,b)=>a.d-b.d);
    return pr.length?`<h3>Acties die aflopen</h3>${pr.map(({c,d})=>`<div class="sig" style="border-left-color:var(--warn)"><b>${esc(CCAT[c.category]||c.category)} · ${esc(c.supplier)}</b>Actieprijs t/m ${esc(fmtDate(c.promo_end_date))} (${d>=0?'nog '+d+' dagen':'verlopen'})${c.amount_after_promo!=null?` — daarna ${eur(c.amount_after_promo)} p/m`+(c.amount!=null?` (+${eur(c.amount_after_promo-c.amount)})`:''):''}<span class="s hint">De klant ziet vanaf 60 dagen vooraf automatisch een melding.</span></div>`).join('')}`:''})()}
@@ -547,7 +574,7 @@ async function renderCosts(){
 `;
   $('#corg').onchange=e=>{S.costOrg=e.target.value;S.costEdit=null;renderCosts()};
   document.querySelectorAll('[data-goorg]').forEach(a=>a.onclick=ev=>{ev.preventDefault();S.costOrg=a.dataset.goorg;S.costEdit=null;renderCosts()});
-  bindNoticeControls();bindAdvice();adviceAsync(canEdit);
+  bindNoticeControls();bindAdvice();adviceAsync(canEdit);orgMandLoad(o,canEdit);
   if($('#seenall'))$('#seenall').onclick=()=>{try{localStorage.setItem(seenKey(),new Date().toISOString())}catch(_){}render()};
   document.querySelectorAll('[data-file]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();const d=S.costDocs.find(x=>x.id===a.dataset.file);if(!d)return;const w=window.open('','_blank');try{const u=await api.fileUrl(d.storage_path);if(w)w.location=u;else location.href=u}catch(e){if(w)w.close();alert('Openen mislukt: '+errText(e))}});
   if(!canEdit)return;
