@@ -219,7 +219,7 @@ const CHOOSE=[['','Maak een keuze']];
 const BEER_QUESTIONS=[
  {id:'brewery_supplier',label:'1. Met welke brouwerij werk je?',options:[...CHOOSE,...Object.keys(BREWERY_BRANDS).map(x=>[x,x]),['other','Anders'],['unknown','Weet ik niet']],otherLabel:'Welke brouwerij?',otherKey:'brewery_supplier_other'},
  {id:'tap_beer_brand',label:'2. Welk merk standaard pils schenk je op tap?',dynamic:'brands',otherLabel:'Welk pilsmerk?',otherKey:'tap_beer_brand_other'},
- {id:'distributor',label:'3. Wie levert het bier bij jouw zaak?',options:[...CHOOSE,['direct','Rechtstreeks via brouwerij'],['HANOS','HANOS'],['Sligro','Sligro'],['Bidfood','Bidfood'],['other','Anders'],['unknown','Weet ik niet']],otherLabel:'Welke distributeur?',otherKey:'distributor_other',directLabel:'Welke brouwerij levert rechtstreeks?',directKey:'direct_delivery_brewery'},
+ {id:'distributor',label:'3. Wie levert het bier bij jouw zaak?',options:[...CHOOSE,['HANOS','HANOS'],['Sligro','Sligro'],['Bidfood','Bidfood'],['other','Anders'],['unknown','Weet ik niet']],otherLabel:'Welke distributeur?',otherKey:'distributor_other'},
  {id:'keg_size_l',label:'4. Wat is het formaat van jouw standaard fust (liters)?',options:[...CHOOSE,['20','20 liter'],['30','30 liter'],['50','50 liter'],['other','Ander formaat'],['unknown','Weet ik niet']],otherLabel:'Ander fustformaat in liters',otherKey:'keg_size_l_other'},
  {id:'keg_price_ex_vat',label:'5. Wat betaal je per fust exclusief btw?',type:'number',min:0,max:5000,step:'any',hint:'Bedrag in euro. Leeg laten als onbekend.'},
  {id:'annual_volume_hl',label:'6. Hoeveel bier heb je in 2025 afgenomen (hectoliter)?',type:'number',min:0,max:100000,step:'any',hint:'1 hectoliter = 100 liter. Leeg laten als onbekend.'},
