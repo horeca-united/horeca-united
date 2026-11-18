@@ -35,7 +35,7 @@ async function sha256Hex(data: Uint8Array | string) {
   return Array.from(new Uint8Array(dig), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 const safeName = (s: string) =>
-  String(s || "onderneming").normalize("NFKD").replace(/[̀-ͯ]/g, "")
+  String(s || "onderneming").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^A-Za-z0-9 _.-]+/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "onderneming";
 
 Deno.serve(async (req) => {
