@@ -158,6 +158,9 @@ function liveApi(){
   async verify(lead,field,year,value,unit,outcome,kind,note){return ok(await client.rpc('huos_beer_lead_verify',{p_lead:lead,p_field:field,p_period_year:year,p_value:value,p_unit:unit,p_outcome:outcome,p_evidence_kind:kind,p_note:note,p_document:null}))},
   async mandateDecide(id,status,method,note,via){return ok(await client.rpc('huos_beer_mandate_decide',{p_mandate:id,p_status:status,p_method:method||null,p_note:note||null,p_revoked_via:via||null}))},
   async beerAlerts(){return ok(await client.from('huos_pilot_beer_scan_alerts').select('*').eq('pending',true).order('changed_at',{ascending:false}))},
+  async leadOrgLinks(){return ok(await client.from('huos_beer_leads').select('id,organization_id').not('organization_id','is',null))},
+  async linkSuggestions(){return ok(await client.rpc('huos_beer_link_suggestions'))},
+  async linkLeadOrg(l,o){return ok(await client.rpc('huos_beer_lead_link_org',{p_lead:l,p_org:o}))},
   async beerAllVersions(){return ok(await client.from('huos_pilot_beer_scan_versions').select('organization_id,completed_at,answers').order('completed_at',{ascending:false}).limit(500))},
   async beerVersions(o){return ok(await client.from('huos_pilot_beer_scan_versions').select('*').eq('organization_id',o).order('completed_at',{ascending:false}).limit(10))},
   async beerSeen(o){return ok(await client.rpc('huos_beer_scan_seen',{p_org:o}))},
@@ -226,12 +229,13 @@ function demoApi(){
   async mandSuppliers(m){return msup[m]||[]},async mandRequests(){return []},
   async beerAlerts(){return [{organization_id:'o1',pending:true,changed_at:d(0)}]},
   async beerAllVersions(){return (await this.beerVersions('o1'))},
+  async leadOrgLinks(){return []},async linkSuggestions(){return [{lead_id:'l2',organization_id:'o1'}]},
   async beerVersions(o){return o==='o1'?[{id:'v2',organization_id:'o1',completed_at:d(0),answers:{brewery_supplier:'Heineken',tap_beer_brand:'Heineken',distributor:'HANOS',keg_size_l:'20',keg_price_ex_vat:55,annual_volume_source:'invoice',bonus_status:'yes',contract_end_status:'ongoing',purchase_obligation:'no',installation_status:'brewery',brewery_loan_status:'no',proposal_interest:'yes',willingness_to_switch:'maybe',data_route:'mandate'}},{id:'v1',organization_id:'o1',completed_at:d(3),answers:{brewery_supplier:'Heineken',tap_beer_brand:'Heineken',distributor:'Sligro',keg_size_l:'20',keg_price_ex_vat:51.04,annual_volume_source:'invoice',bonus_status:'yes',contract_end_status:'ongoing',purchase_obligation:'no',installation_status:'brewery',brewery_loan_status:'no',proposal_interest:'yes',willingness_to_switch:'maybe',data_route:'mandate'}}]:[]},
   async orgMandate(o){return o==='o1'?{id:'mo1',organization_id:'o1',status:'pending',consent_text_version:'huos-mandate-v2',consent_at:d(1),signer_name:'Demo Eigenaar',signer_function:'Eigenaar',followup:[]}:null},async orgMandEvents(){return []},
   async staffList(){return [{user_id:me,email:'hui@horecaunited.nl',role:'admin',active:true,scope:'all',scope_values:[],last_sign_in_at:d(0),created_at:d(0)}]},
   async staffAudit(){return [{created_at:d(0),action:'granted',target_user:me,actor_kind:'database',new_value:{role:'admin',scope:'all'},reason:'Eerste hoofdbeheerder (demo)'}]},
   async allEvents(){return ev('l2')},
-  setStage:demoOnly,assign:demoOnly,addNote:demoOnly,verify:demoOnly,mandateDecide:demoOnly,linkOrg:demoOnly,beerSeen:demoOnly,supAdd:demoOnly,supUpdate:demoOnly,supRevoke:demoOnly,reqCreate:demoOnly,reqSet:demoOnly,setRole:demoOnly,revoke:demoOnly,
+  setStage:demoOnly,assign:demoOnly,addNote:demoOnly,verify:demoOnly,mandateDecide:demoOnly,linkOrg:demoOnly,linkLeadOrg:demoOnly,beerSeen:demoOnly,supAdd:demoOnly,supUpdate:demoOnly,supRevoke:demoOnly,reqCreate:demoOnly,reqSet:demoOnly,setRole:demoOnly,revoke:demoOnly,
   async exportLeads(){return L},async signOut(){location.reload()},
   async orgs(){return [{id:'o1',name:'Restaurant Demozaak',city:'Arnhem',business_type:'restaurant',kvk_number:'12345678',location_count:1}]},
   async contractAudit(){return [{id:2,contract_id:'c2',action:'update',actor_kind:'klant',actor_email:'facturen@volkarnhem.nl',supplier:'Odido',changes:{end_date:['2028-04-14','2028-05-01'],promo_end_date:['2027-04-14','2027-05-01']},created_at:d(0)},{id:1,contract_id:'c2',action:'insert',actor_kind:'medewerker',actor_email:'hui@horecaunited.nl',supplier:'Odido',changes:{},created_at:d(1)}]},
@@ -259,6 +263,7 @@ async function boot(){
   try{S.recent=await api.recentDocs()||[]}catch(_){S.recent=[]}
   try{S.requests=await api.requests()||[]}catch(_){S.requests=[]}
   try{S.beerAlerts=await api.beerAlerts()||[]}catch(_){S.beerAlerts=[]}
+  await loadLinks();
   const [leads,trans]=await Promise.all([api.leads(),api.transitions()]);
   S.leads=leads||[];S.transitions=trans||[];
   if(S.role==='admin'){try{S.staff=await api.staffList()||[]}catch(e){S.staff=[]}}
@@ -288,6 +293,11 @@ function filtered(){
  const f=S.filters,q=f.q.trim().toLowerCase();
  return S.leads.filter(l=>(!q||[l.company_name,l.contact_name,l.email].some(v=>(v||'').toLowerCase().includes(q)))&&(!f.stage||l.stage===f.stage)&&(!f.hl||l.hl_quality===f.hl)&&(!f.mandate||l.mandate_status_current===f.mandate));
 }
+async function loadLinks(){
+ try{if(!S.orgs)S.orgs=await api.orgs()||[]}catch(_){S.orgs=S.orgs||[]}
+ try{S.leadOrg=Object.fromEntries((await api.leadOrgLinks()||[]).map(x=>[x.id,x.organization_id]))}catch(_){S.leadOrg={}}
+ try{S.linkSugg=await api.linkSuggestions()||[]}catch(_){S.linkSugg=[]}}
+const orgName=id=>((S.orgs||[]).find(x=>x.id===id)||{}).name||'pilotklant';
 function renderLeads(){
  const all=S.leads;
  const sum=(arr,k)=>arr.reduce((a,l)=>a+(Number(l[k])||0),0);
@@ -303,6 +313,7 @@ function renderLeads(){
   <div class="stat"><span>Opgegeven met bron</span><b>${fmtHl(sum(rep,'hl_submitted'))}</b><small>${rep.length} lead(s), nog te verifiëren</small></div>
   <div class="stat"><span>Geschat volume</span><b>${fmtHl(sum(est,'hl_submitted'))}</b><small>${est.length} lead(s), eigen schatting</small></div>
  </div>
+ ${(S.linkSugg||[]).filter(x=>S.leads.some(l=>l.lead_id===x.lead_id)).map(x=>{const l=S.leads.find(y=>y.lead_id===x.lead_id);return `<p class="ptwarn">🔗 Website-bierscan van <b>${esc(l.company_name)}</b> (${esc(l.email)}) hoort waarschijnlijk bij pilotklant <b>${esc(orgName(x.organization_id))}</b> — zelfde e-mailadres. ${S.role==='admin'?`<button class="btn small" data-linksug="${esc(x.lead_id)}|${esc(x.organization_id)}">Koppelen</button>`:'Een beheerder kan dit koppelen.'}</p>`}).join('')}<div class="msg" id="lsmsg"></div>
  <div id="pilotbeer"></div>
  <div class="filters">
   <input id="fq" placeholder="Zoek op bedrijf, contactpersoon of e-mail" value="${esc(S.filters.q)}">
@@ -317,7 +328,7 @@ function renderLeads(){
  const rows=filtered();
  $('#rows').innerHTML=rows.length?rows.map(l=>`<tr data-id="${esc(l.lead_id)}" class="${S.sel===l.lead_id?'sel':''}">
   <td>${fmtDate(l.submitted_at)}</td>
-  <td><b>${esc(l.company_name)}</b><span class="s">${esc(l.contact_name)} · ${esc(l.email)}</span></td>
+  <td><b>${esc(l.company_name)}</b>${(S.leadOrg||{})[l.lead_id]?' '+chip(['Pilotklant','c-info']):''}<span class="s">${esc(l.contact_name)} · ${esc(l.email)}</span></td>
   <td class="hide-m">${esc(l.brewery_supplier||'—')}<span class="s">${esc(l.tap_beer_brand||'')}</span></td>
   <td>${l.hl_quality==='verified'?fmtHl(l.hl_verified):fmtHl(l.hl_submitted)}<span class="s">${chip(HLQ[l.hl_quality])}</span></td>
   <td>${chip([STAGES[l.stage]||l.stage,STAGE_CLS[l.stage]||'c-grey'])}<span class="s">${esc(staffName(l.assigned_to))}</span></td>
@@ -325,6 +336,7 @@ function renderLeads(){
   <td class="hide-m">${esc(SHORT.proposal_interest[l.proposal_interest]||'—')} / ${esc(SHORT.willingness_to_switch[l.willingness_to_switch]||'—')}</td>
   <td class="hide-m">${l.next_follow_up_at?fmtDate(l.next_follow_up_at):'—'}</td></tr>`).join(''):`<tr><td colspan="8" class="empty">${all.length?'Geen leads met deze filters.':'Nog geen inzendingen.'}</td></tr>`;
  document.querySelectorAll('#rows tr[data-id]').forEach(tr=>tr.onclick=()=>{S.sel=tr.dataset.id;renderLeads()});
+ document.querySelectorAll('[data-linksug]').forEach(b=>b.onclick=async()=>{const [ld,og]=b.dataset.linksug.split('|'),m=$('#lsmsg');b.disabled=true;try{const r=await api.linkLeadOrg(ld,og);await loadLinks();renderLeads();const mm=$('#lsmsg');mm.className='msg ok';mm.textContent='Gekoppeld.'+(r&&r.mandate_linked?' De machtiging uit de bierscan staat nu ook bij de pilotklant.':'')+(r&&r.note?' '+r.note:'')}catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}});
  const bind=(id,k)=>{const e=$(id);e.oninput=e.onchange=()=>{S.filters[k]=e.value;const pos=e.selectionStart;renderLeads();const n=$(id);n.focus();if(pos!=null&&n.setSelectionRange)n.setSelectionRange(pos,pos)}};
  bind('#fq','q');bind('#fstage','stage');bind('#fhl','hl');bind('#fm','mandate');
  if($('#exp'))$('#exp').onclick=doExport;
@@ -338,13 +350,14 @@ async function renderDetail(id){
   const [sub,notes,vers,mand,evs]=await Promise.all([api.submission(l.submission_id),api.notes(id),api.verifications(id),api.mandate(id),api.events(id)]);
   const a=sub?.answers||{};
   const canEdit=S.role==='reviewer'||S.role==='admin';
-  if(mand&&!S.orgs)S.orgs=await api.orgs().catch(()=>[])||[];
+  if(!S.orgs)S.orgs=await api.orgs().catch(()=>[])||[];
   const [msups,mreqs]=mand?await Promise.all([api.mandSuppliers(mand.id).catch(()=>[]),api.mandRequests(mand.id).catch(()=>[])]):[[],[]];
   const nexts=S.transitions.filter(t=>t.from_stage===l.stage&&(t.min_role==='reviewer'||S.role==='admin'));
   box.innerHTML=`
   <button class="btn small close" id="dclose">Sluiten</button>
   <h2>${esc(l.company_name)}</h2>
   <p class="sub">${esc(l.contact_name)} · ${esc(l.email)}${l.phone?' · '+esc(l.phone):''}<br>Ingezonden ${fmtDT(l.submitted_at)} · ${chip([STAGES[l.stage],STAGE_CLS[l.stage]])}</p>
+  ${(S.leadOrg||{})[l.lead_id]?`<p class="ptwarn" style="background:#eef6ff;border-color:#bcd6f5">Gekoppeld aan pilotklant <b>${esc(orgName(S.leadOrg[l.lead_id]))}</b>. De meest recent ingevulde bierscan is leidend; zie “Pilotklanten — Bier Quick Scan in de app” bovenaan.</p>`:S.role==='admin'?`<details style="margin:6px 0 12px"><summary>Koppelen aan pilotklant</summary><p class="hint">Is deze ondernemer ook pilotklant? Koppel de bierscan, dan gaat een lopende machtiging mee en hoeft hij niet opnieuw te tekenen.</p><div class="row"><select id="mlorg"><option value="">Kies pilotklant…</option>${(S.orgs||[]).map(o=>`<option value="${esc(o.id)}"${(S.linkSugg||[]).some(x=>x.lead_id===l.lead_id&&x.organization_id===o.id)?' selected':''}>${esc(o.name)}${o.city?' — '+esc(o.city):''}</option>`).join('')}</select><button class="btn" id="mlink">Koppelen</button></div><div class="msg" id="mlmsg"></div></details>`:''}
 
   <h3>Ingevuld door ondernemer</h3>
   <div class="box orig">${Q.filter(([k])=>a[k]!=null&&a[k]!=='').map(([k,label,map])=>`<div class="kv"><span>${esc(label.trim())}</span><b>${esc(ansLabel(k,a[k],map))}</b></div>`).join('')||'<p class="hint">Geen antwoorden.</p>'}
@@ -369,7 +382,6 @@ async function renderDetail(id){
    ${canEdit&&mand.status!=='revoked'?`<div class="form"><div class="row"><select id="mstat"><option value="verified">Bevoegdheid geverifieerd</option><option value="rejected">Afwijzen</option><option value="revoked">Ingetrokken door klant</option></select><select id="mmeth"><option value="kvk_extract">KvK-uittreksel</option><option value="owner_confirmation">Bevestiging eigenaar</option><option value="signed_statement">Getekende verklaring</option><option value="other">Anders</option></select><select id="mvia"><option value="">Intrekking via…</option><option value="email">E-mail</option><option value="phone">Telefoon</option><option value="in_person">Persoonlijk</option><option value="other">Anders</option></select></div>
    <input id="mnote" placeholder="Toelichting (verplicht bij verifiëren)"><button class="btn" id="mgo">Machtiging bijwerken</button><div class="msg" id="mmsg"></div></div>`:''}
    ${mandSupHtml(mand,msups,mreqs,canEdit)}
-   ${S.role==='admin'&&!mand.organization_id&&['pending','verified'].includes(mand.status)?`<details style="margin-top:10px"><summary>Koppelen aan pilotklant</summary><p class="hint">Wordt deze ondernemer pilotklant? Koppel de machtiging, dan hoeft hij niet opnieuw te tekenen.</p><div class="row"><select id="mlorg"><option value="">Kies pilotklant…</option>${(S.orgs||[]).map(o=>`<option value="${esc(o.id)}">${esc(o.name)}${o.city?' — '+esc(o.city):''}</option>`).join('')}</select><button class="btn" id="mlink">Koppelen</button></div><div class="msg" id="mlmsg"></div></details>`:mand.organization_id?`<p class="hint">Gekoppeld aan pilotklant ${esc(((S.orgs||[]).find(o=>o.id===mand.organization_id)||{}).name||'')}.</p>`:''}
   </div>`:''}
 
   ${canEdit?`<h3>Fase en opvolging</h3><div class="box int"><div class="form">
@@ -389,7 +401,7 @@ async function renderDetail(id){
   const run=async(btn,msg,fn,okText)=>{const b=$(btn),m=$(msg);b.disabled=true;m.className='msg';m.textContent='Bezig…';try{await fn();m.className='msg ok';m.textContent=okText;await reload(id)}catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}};
   if($('#vgo'))$('#vgo').onclick=()=>run('#vgo','#vmsg',()=>{const v=$('#vval').value;if(v==='')throw new Error('Vul de bevestigde hoeveelheid in.');const n=Number(v);return api.verify(id,'annual_volume_hl',2025,n,'hl',(l.hl_submitted!=null&&Number(l.hl_submitted)===n)?'confirmed':'corrected',$('#vkind').value,$('#vnote').value.trim())},'Vastgelegd.');
   bindMandSup(l,mand,msups,mreqs);
-  if($('#mlink'))$('#mlink').onclick=()=>run('#mlink','#mlmsg',()=>{const o=$('#mlorg').value;if(!o)throw new Error('Kies een pilotklant.');return api.linkOrg(mand.id,o)},'Gekoppeld. De machtiging staat nu ook bij die klant onder Kosten per bedrijf.');
+  if($('#mlink'))$('#mlink').onclick=async()=>{const m=$('#mlmsg'),b=$('#mlink'),o=$('#mlorg').value;if(!o){m.className='msg err';m.textContent='Kies een pilotklant.';return}b.disabled=true;try{await api.linkLeadOrg(id,o);await loadLinks();renderLeads()}catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}};
   if($('#mgo'))$('#mgo').onclick=()=>run('#mgo','#mmsg',()=>{const st=$('#mstat').value;return api.mandateDecide(mand.id,st,st==='revoked'?null:$('#mmeth').value,$('#mnote').value.trim(),st==='revoked'?($('#mvia').value||null):null)},'Bijgewerkt.');
   if($('#sgo'))$('#sgo').onclick=()=>run('#sgo','#smsg',()=>api.setStage(id,$('#snext').value,$('#snote').value.trim()),'Fase gewijzigd.');
   if($('#ago'))$('#ago').onclick=()=>run('#ago','#amsg',()=>{const dt=$('#afu').value;return api.assign(id,S.user.id,dt?new Date(dt+'T09:00:00').toISOString():null,$('#apr').value)},'Bijgewerkt.');
@@ -459,28 +471,35 @@ const Q_ALL=Q.concat([['data_route','15. Ontbrekende gegevens',ROUTE]]);
 async function pilotBeerLoad(){const box=$('#pilotbeer');if(!box)return;
  try{if(!S.orgs)S.orgs=await api.orgs().catch(()=>[])||[];const vs=await api.beerAllVersions()||[];if(!$('#pilotbeer'))return;
   const latest=new Map(),cnt={};for(const v of vs){cnt[v.organization_id]=(cnt[v.organization_id]||0)+1;if(!latest.has(v.organization_id))latest.set(v.organization_id,v)}
-  if(!latest.size){box.innerHTML='';return}
-  const nm=id=>((S.orgs||[]).find(x=>x.id===id)||{}).name||'Klant',isNew=id=>(S.beerAlerts||[]).some(a=>a.organization_id===id);
+  const web={};for(const [lid,o] of Object.entries(S.leadOrg||{})){const l=S.leads.find(x=>x.lead_id===lid);if(l&&(!web[o]||web[o].submitted_at<l.submitted_at))web[o]=l}
+  const orgs=[...new Set([...latest.keys(),...Object.keys(web)])];
+  if(!orgs.length){box.innerHTML='';return}
+  const isNew=id=>(S.beerAlerts||[]).some(a=>a.organization_id===id);
   const qa=(k,v)=>{const q=Q_ALL.find(x=>x[0]===k);return v==null||v===''?'—':v==='unknown'?'Weet ik niet':k==='keg_price_ex_vat'?eur(v):k==='annual_volume_hl'?String(v).replace('.',',')+' hl':ansLabel(k,v,q&&q[2])};
-  const rows=[...latest.values()].sort((a,b)=>(isNew(b.organization_id)-isNew(a.organization_id))||(a.completed_at<b.completed_at?1:-1));
+  const rowOf=o=>{const v=latest.get(o),w=web[o],appNewer=v&&(!w||v.completed_at>=w.submitted_at);
+   if(appNewer){const a=v.answers||{};return {o,date:v.completed_at,src:'App',other:w?`ook website ${fmtDate(w.submitted_at)}`:'',brew:a.brewery_supplier==='other'?a.brewery_supplier_other:qa('brewery_supplier',a.brewery_supplier),brand:a.tap_beer_brand==='other'?a.tap_beer_brand_other||'':a.tap_beer_brand||'',hl:qa('annual_volume_hl',a.annual_volume_hl),price:qa('keg_price_ex_vat',a.keg_price_ex_vat),dist:a.distributor==='other'?a.distributor_other||'Anders':qa('distributor',a.distributor),lead:w&&w.lead_id,app:true,n:cnt[o]||0}}
+   return {o,date:w.submitted_at,src:'Website',other:v?`ook app ${fmtDate(v.completed_at)}`:'',brew:w.brewery_supplier||'—',brand:w.tap_beer_brand||'',hl:w.hl_submitted!=null?fmtHl(w.hl_submitted):'—',price:'zie lead',dist:w.distributor||'—',lead:w.lead_id,app:!!v,n:cnt[o]||0}};
+  const rows=orgs.map(rowOf).sort((a,b)=>(isNew(b.o)-isNew(a.o))||(a.date<b.date?1:-1));
   const canEdit=S.role==='reviewer'||S.role==='admin';
-  box.innerHTML=`<h3 style="margin-top:6px">Pilotklanten — Bier Quick Scan in de app</h3><div class="card" style="overflow:auto;margin-bottom:14px"><table><thead><tr><th>Afgerond</th><th>Onderneming</th><th class="hide-m">Brouwerij / merk</th><th>Afname 2025</th><th class="hide-m">Fustprijs</th><th class="hide-m">Leverancier</th><th></th></tr></thead><tbody>
-   ${rows.map(v=>{const a=v.answers||{},o=v.organization_id;return `<tr data-pbo="${esc(o)}" class="${S.pbSel===o?'sel':''}"><td>${fmtDate(v.completed_at)}${cnt[o]>1?`<span class="s">${cnt[o]} versies</span>`:''}</td><td><b>${esc(nm(o))}</b></td><td class="hide-m">${esc(qa('brewery_supplier',a.brewery_supplier==='other'?a.brewery_supplier_other:a.brewery_supplier))}<span class="s">${esc(a.tap_beer_brand==='other'?a.tap_beer_brand_other||'':a.tap_beer_brand||'')}</span></td><td>${esc(qa('annual_volume_hl',a.annual_volume_hl))}</td><td class="hide-m">${esc(qa('keg_price_ex_vat',a.keg_price_ex_vat))}</td><td class="hide-m">${esc(a.distributor==='other'?a.distributor_other||'Anders':qa('distributor',a.distributor))}</td><td>${isNew(o)?chip(['Nieuw','c-warn']):''}</td></tr>`}).join('')}
-  </tbody></table></div>${S.pbSel&&latest.has(S.pbSel)?`<div id="beerbox" data-org="${esc(S.pbSel)}" style="margin-bottom:18px"></div>`:''}`;
-  box.querySelectorAll('tr[data-pbo]').forEach(tr=>tr.onclick=()=>{S.pbSel=S.pbSel===tr.dataset.pbo?null:tr.dataset.pbo;pilotBeerLoad()});
-  if(S.pbSel&&latest.has(S.pbSel))beerScanLoad(S.pbSel,canEdit);
+  box.innerHTML=`<h3 style="margin-top:6px">Pilotklanten — Bier Quick Scan</h3><p class="hint" style="margin-top:-4px">Per klant gelden de meest recent ingevulde gegevens (app of website).</p><div class="card" style="overflow:auto;margin-bottom:14px"><table><thead><tr><th>Laatst ingevuld</th><th>Onderneming</th><th class="hide-m">Brouwerij / merk</th><th>Afname 2025</th><th class="hide-m">Fustprijs</th><th class="hide-m">Leverancier</th><th></th></tr></thead><tbody>
+   ${rows.map(r=>`<tr data-pbo="${esc(r.o)}" class="${S.pbSel===r.o?'sel':''}"><td>${fmtDate(r.date)}<span class="s">${r.src}${r.n>1&&r.src==='App'?` · ${r.n} versies`:''}${r.other?' · '+r.other:''}</span></td><td><b>${esc(orgName(r.o))}</b></td><td class="hide-m">${esc(r.brew||'—')}<span class="s">${esc(r.brand)}</span></td><td>${esc(r.hl)}</td><td class="hide-m">${esc(r.price)}</td><td class="hide-m">${esc(r.dist)}</td><td>${isNew(r.o)?chip(['Nieuw','c-warn']):''}</td></tr>`).join('')}
+  </tbody></table></div>${S.pbSel&&orgs.includes(S.pbSel)?`<div id="beerbox" data-org="${esc(S.pbSel)}" style="margin-bottom:18px"></div>`:''}`;
+  box.querySelectorAll('tr[data-pbo]').forEach(tr=>tr.onclick=()=>{const o=tr.dataset.pbo,r=rows.find(x=>x.o===o);if(!r.app&&r.lead){S.sel=r.lead;renderLeads();return}S.pbSel=S.pbSel===o?null:o;pilotBeerLoad()});
+  if(S.pbSel&&orgs.includes(S.pbSel)){const r=rows.find(x=>x.o===S.pbSel);if(r.app)beerScanLoad(S.pbSel,canEdit,r.lead,r.src)}
  }catch(e){box.innerHTML=`<p class="msg err">Bier Quick Scans van pilotklanten konden niet worden geladen: ${esc(errText(e))}</p>`}}
-async function beerScanLoad(o,canEdit){const box=$('#beerbox');if(!box)return;
+async function beerScanLoad(o,canEdit,leadId,src){const box=$('#beerbox');if(!box)return;
  try{const vs=await api.beerVersions(o)||[];if(!$('#beerbox')||$('#beerbox').dataset.org!==o)return;if(!vs.length){box.innerHTML='';return}
   const cur=vs[0].answers||{},prev=vs[1]?.answers||null,al=(S.beerAlerts||[]).find(a=>a.organization_id===o);
   const show=(k,v,map)=>v==null||v===''?'—':v==='unknown'?'Weet ik niet':k==='keg_price_ex_vat'?eur(v):k==='annual_volume_hl'?String(v).replace('.',',')+' hl':ansLabel(k,v,map);
   const diff=prev?Q_ALL.filter(([k])=>JSON.stringify(cur[k]??null)!==JSON.stringify(prev[k]??null)).map(([k,l,m])=>`<li>${esc(l.trim())}: ${esc(show(k,prev[k],m))} → <b>${esc(show(k,cur[k],m))}</b></li>`).join(''):'';
   $('#beerbox').innerHTML=`<div class="card" style="padding:16px"><h3 style="margin-top:0">${esc(((S.orgs||[]).find(x=>x.id===o)||{}).name||'Klant')}</h3>
-   <p class="hint" style="margin-top:0">Afgerond op ${fmtDT(vs[0].completed_at)}${vs.length>1?` · ${vs.length} versies`:''}${al?' · <b>nieuw</b>':''}</p>
+   <p class="hint" style="margin-top:0">Afgerond in de app op ${fmtDT(vs[0].completed_at)}${vs.length>1?` · ${vs.length} versies`:''}${al?' · <b>nieuw</b>':''}</p>
+   ${leadId?`<p class="hint">${src==='Website'?'Let op: de website-bierscan is nieuwer en daarom leidend.':'De app-scan is nieuwer dan de website-bierscan en daarom leidend.'} <a href="#" id="toLead">Website-bierscan bekijken</a></p>`:''}
    ${prev?(diff?`<p><b>Gewijzigd t.o.v. ${fmtDT(vs[1].completed_at)}:</b></p><ul style="margin:4px 0 12px 18px">${diff}</ul>`:''):'<p class="hint">Eerste keer afgerond.</p>'}
    <details${al?' open':''}><summary>Alle antwoorden</summary>${Q_ALL.filter(([k])=>cur[k]!=null&&cur[k]!=='').map(([k,l,m])=>`<div class="kv"><span>${esc(l.trim())}</span><b>${esc(show(k,cur[k],m))}</b></div>`).join('')}</details>
    ${al&&canEdit?`<div class="row" style="margin-top:10px"><button class="btn primary" id="beerseen">Gezien</button></div><div class="msg" id="beermsg"></div>`:''}
   </div>`;
+  if($('#toLead'))$('#toLead').onclick=ev=>{ev.preventDefault();S.sel=leadId;renderLeads()};
   if($('#beerseen'))$('#beerseen').onclick=async()=>{const m=$('#beermsg');try{await api.beerSeen(o);S.beerAlerts=(S.beerAlerts||[]).filter(a=>a.organization_id!==o);render()}catch(e){m.className='msg err';m.textContent=errText(e)}};
  }catch(e){if($('#beerbox'))$('#beerbox').innerHTML=`<p class="msg err">Bier Quick Scan kon niet worden geladen: ${esc(errText(e))}</p>`}}
 async function orgMandLoad(o,canEdit){const box=$('#orgmand');if(!box)return;
@@ -520,6 +539,7 @@ function eventText(e){const d=e.details||{};switch(e.event_type){
  case 'mandate_request_answered':return `Antwoord ontvangen van ${d.supplier||''}`;
  case 'mandate_request_cancelled':return `Verzoek ${d.supplier||''} geannuleerd`;
  case 'mandate_linked_org':return 'Machtiging gekoppeld aan pilotklant';
+ case 'lead_linked_org':return 'Gekoppeld aan pilotklant'+(d.mandate_linked?' (machtiging gaat mee)':'')+(d.note?' — '+d.note:'');
  case 'mandate_signed':return `Machtiging ondertekend door ${d.signer||'klant'}${d.function?' ('+d.function+')':''} — ${d.suppliers??'?'} leverancier(s)`;
  default:return e.event_type.replace(/_/g,' ')}}
 async function reload(id){S.leads=await api.leads()||[];S.sel=id;renderLeads()}
