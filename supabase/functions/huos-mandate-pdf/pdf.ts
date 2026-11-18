@@ -32,6 +32,7 @@ const KIND: Record<string, string> = {
 };
 const METHOD: Record<string, string> = {
   huos_account_checkbox: "Akkoord gegeven in het ingelogde HUOS-account (bevestiging bevoegdheid + akkoordknop)",
+  huos_quickscan_checkbox: "Akkoord gegeven aan het eind van de Bier Quick Scan (bevestiging bevoegdheid + verzendknop); bevoegdheid wordt door Horeca United gecontroleerd",
 };
 
 const nlDate = (iso: string) => {

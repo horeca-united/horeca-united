@@ -105,6 +105,33 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
 .doc-head{margin-bottom:12px}
 .doc-count{border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600;color:var(--dark);background:#fff;white-space:nowrap}
 @media(max-width:640px){#docList .line-item{flex-wrap:wrap;row-gap:10px}#docList .line-item>span[style]{flex-basis:calc(100% - 52px)!important}#docList .line-item>span[style]+*{margin-left:52px}}
+
+.mq{border:1px solid var(--border);border-radius:16px;padding:20px;background:#fff;margin:18px 0 6px}
+.mq h3{margin:0 0 6px}.mq-sub{color:var(--muted);font-size:14px;margin:0 0 6px}
+.mq-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:18px 0 10px}
+.mq-row b{font-size:15px;color:var(--dark)}
+.mq-pill{border:1px solid var(--border);border-radius:999px;padding:6px 14px;background:#fff;font:600 13px var(--font-body);color:var(--dark);cursor:pointer;white-space:nowrap}
+.mq-pill:hover{border-color:#b9d6c1}
+.mq-card{position:relative;display:flex;align-items:center;gap:14px;border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin:0 0 10px;background:#fff;cursor:pointer;transition:border-color .15s,background .15s}
+.mq-card:hover{border-color:#b9d6c1}
+.mq-card input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.mq-card:focus-within{box-shadow:0 0 0 3px rgba(49,123,85,.18)}
+.mq-dot{flex:0 0 22px;width:22px;height:22px;border-radius:50%;border:1.5px solid #b8c7bd;background:#fff;display:grid;place-items:center}
+.mq-card.on{border-color:var(--green);background:#f4faf5}
+.mq-card.on .mq-dot{background:var(--green);border-color:var(--green)}
+.mq-card.on .mq-dot::after{content:'';width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
+.mq-card span.t{display:flex;flex-direction:column;min-width:0}
+.mq-card span.t b{font-size:15px;font-weight:600;color:var(--dark)}
+.mq-card span.t small{font-size:12px;color:var(--muted);margin-top:2px}
+.mq-add{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 0}.mq-add input{flex:1 1 200px}.mq-add select{flex:0 0 auto}
+.mq-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.mq-fields .field{margin:0}
+.mq-full{margin:16px 0 4px}.mq-full summary{cursor:pointer;font-weight:600;color:var(--green)}
+.mq-full .m3-text{white-space:pre-wrap;font-size:13px;line-height:1.55;border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:8px;background:var(--cream)}
+.mq-auth{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin:14px 0 2px}.mq-auth input{margin-top:3px;width:auto}
+.mq-need{border-color:#b42318!important;box-shadow:0 0 0 3px rgba(180,35,24,.12)}
+.mq-done{border:1px solid #cfe2d4;background:#f4faf5;border-radius:14px;padding:14px 16px}
+@media(max-width:640px){.mq{padding:16px}.mq-fields{grid-template-columns:1fr}}
 </style><style>#beerQuestions .beer-need{border-color:#b42318!important;box-shadow:0 0 0 3px rgba(180,35,24,.14)}.beer-unk{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#4e745a;font-weight:600;margin-top:8px}.beer-unk input{width:auto!important}.m3-h{margin:20px 0 6px;font-size:15px}.m3-sub{font-size:13px;color:var(--muted);margin:4px 0}.m3-sup{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:6px 0;background:#fff;font-size:14px;cursor:pointer}.m3-opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:6px 0;background:#fff;cursor:pointer}.m3-opt span{display:flex;flex-direction:column}.m3-opt small{font-size:12px;color:var(--muted)}.m3-period{font-size:13px;margin:10px 0}.m3-list{font-size:13px;line-height:1.6;padding-left:18px;margin:6px 0}.m3-full{margin:12px 0;border:1px solid var(--border);border-radius:10px;padding:10px 14px;background:#f7faf7}.m3-full summary{cursor:pointer;font-weight:700;font-size:14px}.m3-text{white-space:pre-wrap;font-size:13px;line-height:1.65;color:#2f4a3a;margin-top:10px}.mand-sup{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin:8px 0;background:#fff}.mand-sup.off{opacity:.55}.mand-top{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}.mand-top b{font-size:14px}.mand-role{font-size:11px;color:var(--muted);margin-left:6px}.mand-scope{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12px;color:#3c5b47}.mand-scope label{display:flex;gap:5px;align-items:center}.mand-st{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;background:#eef2ee;color:#4b5d50;white-space:nowrap}.mand-st.ok{background:#e1f2e5;color:#18402d}.mand-st.wait{background:#fff3e0;color:#8a5a00}.mand-text{white-space:pre-wrap;font-size:13px;line-height:1.65;background:#f7faf7;border:1px solid var(--border);border-radius:10px;padding:14px;color:#2f4a3a;max-height:260px;overflow:auto}.mand-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.mand-btns .btn{margin:0}.mand-new{border:1px dashed #e3c98f;background:#fffaf0;border-radius:12px;padding:10px 14px;margin:10px 0;font-size:13px}.mand-sup{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin:8px 0;background:#fff}.mand-sup.off{opacity:.55}.mand-top{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}.mand-top b{font-size:14px}.mand-role{font-size:11px;color:var(--muted);margin-left:6px}.mand-scope{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12px;color:#3c5b47}.mand-scope label{display:flex;gap:5px;align-items:center}.mand-st{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;background:#eef2ee;color:#4b5d50;white-space:nowrap}.mand-st.ok{background:#e1f2e5;color:#18402d}.mand-st.wait{background:#fff3e0;color:#8a5a00}.mand-text{white-space:pre-wrap;font-size:13px;line-height:1.65;background:#f7faf7;border:1px solid var(--border);border-radius:10px;padding:14px;color:#2f4a3a;max-height:260px;overflow:auto}.mand-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.mand-btns .btn{margin:0}.mand-new{border:1px dashed #e3c98f;background:#fffaf0;border-radius:12px;padding:10px 14px;margin:10px 0;font-size:13px}.mand-add{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.mand-add input,.mand-add select{padding:10px;border:1px solid #cfdfd1;border-radius:9px;font-size:13px}.mand-add input{flex:1;min-width:160px}
 </style></head><body>
 <header class="top"><div class="wrap top-inner"><a class="brand" onclick="showLanding()"><span class="brand-mark">HU.</span><span><strong>Horeca United</strong><small>Jouw digitale horecamanager</small></span></a><div class="nav-actions"><button class="btn ghost" id="navHome" onclick="showLanding()">Home</button><button class="btn" id="navLogin" onclick="showLogin()">Inloggen</button><button class="btn hide" id="navWorkspace" onclick="openWorkspace()">Mijn HUOS</button><button class="btn ghost hide" id="navLogout" onclick="logout()">Uitloggen</button></div></div></header>
@@ -154,7 +181,7 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
 <div class="inv-actions"><button class="btn" id="inv_save" onclick="saveInvestment()">Investering opslaan</button><button class="btn ghost hide" id="inv_cancel" onclick="resetInvForm()">Annuleren</button></div><div id="invMsg" role="status" aria-live="polite"></div></div>
 <div class="block"><h3>Mijn investeringen</h3><div id="invList"></div></div>
 <div class="block"><h3>Naar je boekhouder</h3><div class="send-row"><label for="invYear" class="muted">Jaar</label><select id="invYear" style="max-width:120px"></select></div><div class="send-row"><button class="btn" id="mailAcc" onclick="mailInvestments()">✉ Stuur investeringen naar mijn boekhouder</button><button class="btn ghost" id="zipBtn" onclick="zipInvestments()">⬇ Download facturen als ZIP</button></div><div class="send-row muted" id="accInfo"></div><div id="sendMsg" role="status" aria-live="polite"></div></div></div>
-<div data-page="beer" class="hide"><div class="dashboard-head"><span class="eyebrow">KANSEN &amp; INKOOP / BIER</span><h2>Jouw Bier Quick Scan</h2><p>Ook als bedrijfsleider kun je deze scan invullen zonder volledig inzicht in de contracten of inkoopcijfers. Weet je iets niet, kies dan ‘Weet ik niet’. Er worden geen gegevens namens jou ingevuld.</p></div><div class="beer-panel"><div class="beer-check"><span>◈</span><div>De antwoorden worden alleen bij jouw nieuwe HUOS-bedrijfsprofiel opgeslagen. Als je de scan afrondt, ontvangt Horeca United je antwoorden en kijken we of er voordeel te halen is. Er wordt niets automatisch verzonden naar je brouwerij of leverancier.</div></div><div id="beerScanStatus" role="status" aria-live="polite"></div><div id="beerQuestions"></div><div id="beerMsg" role="status" aria-live="polite"></div><div class="beer-actions"><button id="beerFinish" class="btn" onclick="finishBeerScan()">Scan afronden ↗</button></div><p class="note">Alle vragen zijn verplicht. Weet je iets niet? Kies of vink dan ‘Weet ik niet’ aan. Je kunt de scan later altijd aanpassen en opnieuw afronden.</p></div></div>
+<div data-page="beer" class="hide"><div class="dashboard-head"><span class="eyebrow">KANSEN &amp; INKOOP / BIER</span><h2>Jouw Bier Quick Scan</h2><p>Ook als bedrijfsleider kun je deze scan invullen zonder volledig inzicht in de contracten of inkoopcijfers. Weet je iets niet, kies dan ‘Weet ik niet’. Er worden geen gegevens namens jou ingevuld.</p></div><div class="beer-panel"><div class="beer-check"><span>◈</span><div>De antwoorden worden alleen bij jouw nieuwe HUOS-bedrijfsprofiel opgeslagen. Als je de scan afrondt, ontvangt Horeca United je antwoorden en kijken we of er voordeel te halen is. Er wordt niets automatisch verzonden naar je brouwerij of leverancier.</div></div><div id="beerScanStatus" role="status" aria-live="polite"></div><div id="beerQuestions"></div><div id="mqBox_app"></div><div id="beerMsg" role="status" aria-live="polite"></div><div class="beer-actions"><button id="beerFinish" class="btn" onclick="finishBeerScan()">Scan afronden ↗</button></div><p class="note">Alle vragen zijn verplicht. Weet je iets niet? Kies of vink dan ‘Weet ik niet’ aan. Je kunt de scan later altijd aanpassen en opnieuw afronden.</p></div></div>
 </div></div></div></div></section>
 <footer class="wrap footer">Horeca United · HUOS is jouw digitale bedrijfsmanager · Afgeschermde testomgeving</footer>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -167,7 +194,7 @@ const KEY_SUPABASE='sb_publishable_QDvjBPDGIgrQNcSzEw2FZg_Yj6hfIgY';
 const client=window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE);
 const AUTH_REDIRECT=(()=>{try{const o=location.origin;if(/^https:\/\/(app\.horecaunited\.nl|huos-v2-prive-pilot(-[a-z0-9-]+)?\.vercel\.app)$/.test(o))return o+'/'}catch(_){}return 'https://huos-v2-prive-pilot.vercel.app/'})();
 let user=null,org=null,entries=[],docs=[],contracts=[],beerScan=null,activeTab='overview',generation=0;
-let publicBeerAnswers={},publicBeerIndex=0,publicBeerSent=false,publicBeerMandateConfirmed=false,pendingBeerSaveBusy=false;
+let publicBeerMandateResult='',publicBeerAnswers={},publicBeerIndex=0,publicBeerSent=false,publicBeerMandateConfirmed=false,pendingBeerSaveBusy=false;
 let beerTurnstileConfig=null,beerTurnstileToken='',beerTurnstileWidgetId=null,beerTurnstileScriptPromise=null;
 const BEER_PENDING_KEY='huos2_pending_beer_scan';
 const el=id=>document.getElementById(id);
@@ -181,8 +208,10 @@ function showLogin(){page('authView');nav();alert('authMsg','')}
 function startPilot(){if(user)openWorkspace();else showLogin()}
 function startBeerScan(){
   // Homepage scan is independent of the legacy dashboard and requires NO login.
-  publicBeerAnswers={data_route:'later_upload'};publicBeerMandateConfirmed=false;publicBeerIndex=0;publicBeerSent=false;renderPublicBeer();page('beerPublicView');
+  publicBeerAnswers={data_route:'later_upload'};publicBeerMandateConfirmed=false;publicBeerMandateResult='';mqS.pub={sel:{},extra:[],month:1,period:'closed',kvk:'',fn:'',name:'',auth:false};publicBeerIndex=0;publicBeerSent=false;renderPublicBeer();page('beerPublicView');
 }
+// QR-code / directe link: …/#bierscan of ?bierscan opent meteen de Bier Quick Scan
+window.addEventListener('load',()=>{if(/^#bierscan$/i.test(location.hash)||/[?&]bierscan\b/i.test(location.search))setTimeout(startBeerScan,0)});
 function tab(id){if(typeof unsavedOn==='function'&&activeTab&&activeTab!==id&&unsavedOn(activeTab)){if(!confirm(LEAVE_MSG))return;clearUnsavedOn(activeTab)}activeTab=id;document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('hide',x.dataset.page!==id));document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));if(id==='notices')markNoticesRead();if(id==='documents'&&typeof stagedDocs!=='undefined'&&!stagedDocs.length&&typeof resetDocCat==='function')resetDocCat()}
 async function sendMagicLink(){const email=el('email').value.trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return alert('authMsg','Vul een geldig e-mailadres in.',true);const b=el('loginBtn');b.disabled=true;alert('authMsg','');try{try{localStorage.removeItem('huos-login-target')}catch(_){}const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:AUTH_REDIRECT,shouldCreateUser:false}});if(error)throw error;alert('authMsg','De inloglink is verstuurd. Open de nieuwste e-mail en klik op de link.')}catch(e){const m=String(e&&e.message||'');alert('authMsg',/signup|not allowed|not found|user/i.test(m)?'Dit e-mailadres heeft nog geen toegang tot HUOS. Doe je mee aan de pilot? Neem dan contact op met Horeca United.':'De inloglink kon niet worden verzonden: '+m,true)}finally{b.disabled=false}}
 async function logout(){if(typeof anyUnsaved==='function'&&anyUnsaved()&&!confirm(LEAVE_MSG))return;stagedDocs=[];stagedContract=null;pendingInvFile=null;await client.auth.signOut();generation++;user=null;org=null;entries=[];docs=[];contracts=[];beerScan=null;nav();showLanding()}
@@ -299,7 +328,7 @@ function renderPublicMandateSection(){
  if(!area)return;
  const route=el('beerPublicInput')?.value||publicBeerAnswers.data_route||'later_upload';
  if(route!=='mandate'){area.innerHTML='';return}
- area.innerHTML='<div class="beer-mandate-box"><strong>Toestemming om informatie op te vragen</strong><p>Ik geef Horeca United toestemming om uitsluitend bij mijn huidige bierleverancier of brouwerij informatie op te vragen over bierafname, inkoopprijzen, kortingen, bonussen en biercontractvoorwaarden, voor de beoordeling van mijn Bier Quick Scan en eventuele besparingsmogelijkheden.</p><p>Deze toestemming geeft geen bevoegdheid om contracten te wijzigen of op te zeggen, of om namens mijn onderneming over te stappen. Ik kan haar intrekken door contact op te nemen met Horeca United. Horeca United controleert eerst mijn bevoegdheid.</p><label class="beer-privacy-check"><input type="checkbox" id="beerPublicMandateConsent" '+(publicBeerMandateConfirmed?'checked ':'')+'onchange="publicBeerMandateConfirmed=this.checked"><span>Ik bevestig dat ik bevoegd ben om namens de onderneming deze vrijwillige, beperkte toestemming te geven.</span></label></div>';
+ area.innerHTML='<div class="beer-mandate-box"><strong>Machtiging in de laatste stap</strong><p>In de laatste stap kies je bij welke leveranciers en over welke periode Horeca United jouw inkoopgegevens mag opvragen, en teken je de machtiging digitaal. Horeca United controleert daarna eerst je bevoegdheid (KvK) voordat er iets wordt opgevraagd.</p></div>';
 }
 /* Public quick scan: ask every beer question BEFORE requesting an email address. */
 
@@ -312,6 +341,7 @@ async function loadBeerTurnstile(){
    if(!r.ok)throw new Error('config');
    beerTurnstileConfig=await r.json();
   }
+  if(el('mqBox_pub'))mqRender('pub');
   if(!el('beerPublicTurnstile'))return;
   if(beerTurnstileConfig.turnstile_enabled!==true)return;
   status.textContent='Anti-spamcontrole wordt geladen…';
@@ -354,10 +384,11 @@ function renderPublicBeer(){
  el('beerPublicNext').textContent=isEmail?'Verstuur aanvraag naar Horeca United →':publicBeerIndex===questions.length-1?'Naar de laatste stap →':'Volgende vraag →';
  el('beerPublicButtons').classList.toggle('hide',publicBeerSent);
  el('beerPublicNotice').innerHTML='';
- if(publicBeerSent){el('beerPublicQuestion').innerHTML='<div class="beer-public-done"><strong>Bedankt voor je aanvraag!</strong><p>Horeca United heeft de gegevens ontvangen en zal deze eerst intern bekijken. Als we meer informatie nodig hebben, nemen we contact met je op. Er is geen automatische offerte opgesteld.</p></div>';return}
+ if(publicBeerSent){el('beerPublicQuestion').innerHTML='<div class="beer-public-done"><strong>Bedankt voor je aanvraag!</strong><p>Horeca United heeft de gegevens ontvangen en zal deze eerst intern bekijken. Als we meer informatie nodig hebben, nemen we contact met je op. Er is geen automatische offerte opgesteld.</p>'+(publicBeerMandateResult==='ok'?'<p><b>Je machtiging is ondertekend.</b> Horeca United controleert eerst je bevoegdheid via de KvK en vraagt daarna de gegevens op bij de leveranciers die je hebt gekozen.</p>':publicBeerMandateResult==='fail'?'<p><b>Let op:</b> de machtiging kon niet direct worden vastgelegd. We nemen contact met je op om die af te ronden.</p>':'')+'</div>';return}
  if(isEmail){
    const email=user?.email||'';
-   el('beerPublicQuestion').innerHTML='<span class="eyebrow">LAATSTE STAP · AANVRAAG INSTUREN</span><h2>Waar mogen we je bereiken?</h2><p>Vul je bedrijfsnaam, naam en e-mailadres in, zodat Horeca United je aanvraag persoonlijk kan opvolgen. Een telefoonnummer mag je toevoegen, maar is niet verplicht. Horeca United beoordeelt je antwoorden eerst intern en doet niet automatisch een voorstel.</p><div class="field"><label for="beerPublicCompany">Naam horecazaak *</label><input id="beerPublicCompany" maxlength="160" autocomplete="organization" placeholder="Naam van het horecabedrijf"></div><div class="field"><label for="beerPublicContact">Jouw naam *</label><input id="beerPublicContact" maxlength="120" autocomplete="name" placeholder="Voor- en achternaam"></div><div class="field"><label for="beerPublicEmail">E-mailadres *</label><input id="beerPublicEmail" type="email" autocomplete="email" maxlength="250" placeholder="jij@jouwzaak.nl" value="'+safe(email)+'"></div><div class="field"><label for="beerPublicPhone">Telefoonnummer (optioneel)</label><input id="beerPublicPhone" autocomplete="tel" maxlength="50" type="tel" placeholder="Telefoonnummer"></div><label class="beer-privacy-check"><input id="beerPublicPrivacy" type="checkbox"><span>Ik ga ermee akkoord dat Horeca United mijn ingevulde gegevens gebruikt om deze Bier Quick Scan-aanvraag te beoordelen en zo nodig contact met mij op te nemen. <strong>Geen marketinginschrijving.</strong></span></label><div id="beerPublicTurnstile" class="beer-turnstile-container"></div><div id="beerPublicBotStatus" role="status" aria-live="polite"></div><input class="beer-honeypot" type="text" id="beerPublicWebsite" autocomplete="off" tabindex="-1" aria-hidden="true">';
+   el('beerPublicQuestion').innerHTML='<span class="eyebrow">LAATSTE STAP · AANVRAAG INSTUREN</span><h2>Waar mogen we je bereiken?</h2><p>Vul je bedrijfsnaam, naam en e-mailadres in, zodat Horeca United je aanvraag persoonlijk kan opvolgen. Een telefoonnummer mag je toevoegen, maar is niet verplicht. Horeca United beoordeelt je antwoorden eerst intern en doet niet automatisch een voorstel.</p><div class="field"><label for="beerPublicCompany">Naam horecazaak *</label><input id="beerPublicCompany" maxlength="160" autocomplete="organization" placeholder="Naam van het horecabedrijf"></div><div class="field"><label for="beerPublicContact">Jouw naam *</label><input id="beerPublicContact" maxlength="120" autocomplete="name" placeholder="Voor- en achternaam"></div><div class="field"><label for="beerPublicEmail">E-mailadres *</label><input id="beerPublicEmail" type="email" autocomplete="email" maxlength="250" placeholder="jij@jouwzaak.nl" value="'+safe(email)+'"></div><div class="field"><label for="beerPublicPhone">Telefoonnummer (optioneel)</label><input id="beerPublicPhone" autocomplete="tel" maxlength="50" type="tel" placeholder="Telefoonnummer"></div>'+((publicBeerAnswers.data_route||'')==='mandate'?'<div id="mqBox_pub"></div>':'')+'<label class="beer-privacy-check"><input id="beerPublicPrivacy" type="checkbox"><span>Ik ga ermee akkoord dat Horeca United mijn ingevulde gegevens gebruikt om deze Bier Quick Scan-aanvraag te beoordelen en zo nodig contact met mij op te nemen. <strong>Geen marketinginschrijving.</strong></span></label><div id="beerPublicTurnstile" class="beer-turnstile-container"></div><div id="beerPublicBotStatus" role="status" aria-live="polite"></div><input class="beer-honeypot" type="text" id="beerPublicWebsite" autocomplete="off" tabindex="-1" aria-hidden="true">';
+   if(el('mqBox_pub')){mqRender('pub');el('beerPublicCompany').addEventListener('input',()=>{const c=el('mq_pub_co');if(c)c.textContent=el('beerPublicCompany').value.trim()||'jouw onderneming';const t=el('mq_pub_text');if(t)t.textContent=mqTextOf('pub')})}
    void loadBeerTurnstile();
    return;
  }
@@ -371,11 +402,76 @@ function renderPublicBeer(){
  el('beerPublicQuestion').innerHTML='<h2>'+safe(q.label.replace(/^\\d+\\. /,''))+'</h2><p>'+(q.hint?safe(q.hint):'Geen toegang tot deze informatie? Kies ‘Weet ik niet’ of ga zonder antwoord verder.')+'</p>'+control+'<div id="beerPublic_extras" class="beer-extra-fields">'+beerExtra(q,v,publicBeerAnswers,'beerPublic_')+'</div>';
  if(q.id==='data_route')renderPublicMandateSection();
 }
+
+/* ---------- Machtiging afronden in de Bier Quick Scan (openbaar = 'pub', in account = 'app') ---------- */
+const mqS={pub:{sel:{},extra:[],month:1,period:'closed',kvk:'',fn:'',name:'',auth:false},app:{sel:{},extra:[],month:null,period:'closed',kvk:'',fn:'',name:'',auth:false}};
+const mqGrossier=n=>/(sligro|hanos|bidfood|makro|metro|horesca|van hoeckel)/i.test(n);
+function mqFiscal(m,today){m=Number(m)||1;today=today||new Date();const y=today.getFullYear();let cs=new Date(y,m-1,1);if(cs>today)cs=new Date(y-1,m-1,1);const ls=new Date(cs.getFullYear()-1,m-1,1);
+ const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');const dayBefore=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate()-1);
+ const lab=(a)=>m===1?String(a):a+'/'+String(a+1).slice(2);
+ return {closed:{start:iso(ls),end:iso(dayBefore(cs)),kind:'closed',label:'Boekjaar '+lab(ls.getFullYear())},current:{start:iso(cs),end:iso(dayBefore(new Date(cs.getFullYear()+1,m-1,1))),kind:'current',label:'Lopend boekjaar '+lab(cs.getFullYear())}}}
+function mqPeriods(k){const S=mqS[k],o=mqFiscal(S.month);return S.period==='closed'?[o.closed]:S.period==='current'?[o.current]:S.period==='both'?[o.closed,o.current]:[]}
+const mqD=x=>{const [y,m,d]=String(x).split('-');return d+'-'+m+'-'+y};
+function mqPerText(ps){return ps.slice().sort((a,b)=>a.start.localeCompare(b.start)).map(p=>p.kind==='current'?'vanaf '+mqD(p.start)+' tot de datum van opvragen, uiterlijk '+mqD(p.end):mqD(p.start)+' t/m '+mqD(p.end)).join('; ')}
+function mqScanSuppliers(a){const out=[],add=(n,r)=>{n=String(n||'').trim();if(n.length>=2&&!out.some(x=>x.name.toLowerCase()===n.toLowerCase()))out.push({name:n,role:r,pre:true})};
+ const b=a.brewery_supplier;if(b==='other')add(a.brewery_supplier_other,'brouwerij');else if(b&&b!=='unknown')add(b,'brouwerij');
+ const d=a.distributor;const dn=d==='other'?a.distributor_other:(d&&d!=='unknown'?d:'');if(dn)add(dn,mqGrossier(dn)?'groothandel':'drankleverancier');return out}
+function mqAppAnswers(){const a={};for(const id of ['brewery_supplier','brewery_supplier_other','distributor','distributor_other']){const f=el('beer_'+id);if(f)a[id]=f.value;else if(beerScan&&beerScan.answers&&beerScan.answers[id]!=null)a[id]=beerScan.answers[id]}return a}
+function mqList(k){const S=mqS[k];const scan=mqScanSuppliers(k==='pub'?publicBeerAnswers:mqAppAnswers());const props=k==='app'?((mand&&mand.proposals)||[]).map(p=>({name:p.name,role:p.role,pre:false})):[];
+ const all=[];for(const x of [...scan,...props,...S.extra])if(!all.some(y=>y.name.toLowerCase()===x.name.toLowerCase()))all.push(x);
+ for(const x of all){const key=x.name.toLowerCase();if(!(key in S.sel))S.sel[key]=!!x.pre}return all}
+function mqChosen(k){const S=mqS[k];return mqList(k).filter(x=>S.sel[x.name.toLowerCase()]).map(x=>({name:x.name,role:x.role}))}
+function mqCtx(k){if(k==='pub'){const cfg=beerTurnstileConfig&&beerTurnstileConfig.mandate;return {text:cfg&&cfg.text,company:String(el('beerPublicCompany')?.value||'').trim()||'jouw onderneming',needKvk:true,needName:false}}
+ return {text:mand&&mand.text,company:(org&&org.name)||'jouw onderneming',needKvk:!(org&&org.kvk_number),needName:true}}
+function mqTextOf(k){const c=mqCtx(k),S=mqS[k];const kvk=c.needKvk?S.kvk.replace(/\s/g,''):(org&&org.kvk_number)||'';
+ return String((c.text&&c.text.body)||'').replace('{bedrijf}',c.company).replace('{kvk}',kvk||'…').replace('{leveranciers}',mqChosen(k).map(x=>x.name).sort((a,b)=>a.localeCompare(b)).join(', ')||'…').replace('{periode}',mqPerText(mqPeriods(k))||'…')}
+function mqRender(k){const box=el('mqBox_'+k);if(!box)return;const S=mqS[k],c=mqCtx(k);
+ if(!c.text){box.innerHTML='<div class="mq"><p class="mq-sub">'+(k==='pub'&&!beerTurnstileConfig?'De machtiging wordt geladen…':'De machtiging kan nu niet worden geladen. Probeer het later opnieuw of kies een andere optie bij vraag 15.')+'</p></div>';return}
+ if(S.month==null)S.month=(org&&org.fiscal_year_start_month)||1;
+ const list=mqList(k),allOn=list.length&&list.every(x=>S.sel[x.name.toLowerCase()]),o=mqFiscal(S.month);
+ const card=(on,inner,attrs)=>'<label class="mq-card'+(on?' on':'')+'"><input '+attrs+(on?' checked':'')+'><span class="mq-dot" aria-hidden="true"></span><span class="t">'+inner+'</span></label>';
+ const per=(v,l,sub)=>card(S.period===v,'<b>'+l+'</b><small>'+sub+'</small>','type="radio" name="mqp_'+k+'" onchange="mqSet(\''+k+'\',\'period\',\''+v+'\',1)"');
+ const fld=(id,label,key,attrs)=>'<div class="field"><label for="mq_'+k+'_'+id+'">'+label+'</label><input id="mq_'+k+'_'+id+'" value="'+safe(S[key])+'" oninput="mqSet(\''+k+'\',\''+key+'\',this.value)" '+attrs+'></div>';
+ box.innerHTML='<div class="mq" id="mq_'+k+'"><h3>Machtiging afronden</h3><p class="mq-sub">Je koos ervoor dat Horeca United jouw inkoopgegevens mag opvragen. Rond de machtiging hier meteen af: kies de leveranciers en de periode en teken digitaal. Daarna hoef je zelf niets meer te verzamelen.</p>'+
+  '<div class="mq-row"><b>Gevonden leveranciers</b>'+(list.length?'<button type="button" class="mq-pill" onclick="mqAll(\''+k+'\','+(allOn?'false':'true')+')">'+(allOn?'Alles deselecteren':'Selecteer alles')+'</button>':'')+'</div>'+
+  '<div id="mq_'+k+'_sups">'+(list.length?list.map((x,i)=>card(S.sel[x.name.toLowerCase()],'<b>'+safe(x.name)+'</b><small>'+safe(MRL[x.role]||x.role)+'</small>','type="checkbox" onchange="mqTog(\''+k+'\','+i+',this.checked)"')).join(''):'<p class="mq-sub">Nog geen leveranciers gevonden. Voeg ze hieronder toe.</p>')+'</div>'+
+  '<div class="mq-add"><input id="mq_'+k+'_addn" maxlength="120" placeholder="Andere leverancier toevoegen (naam)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();mqAdd(\''+k+'\')}"><select id="mq_'+k+'_addr">'+Object.entries(MRL).map(([v,l])=>'<option value="'+v+'"'+(v==='groothandel'?' selected':'')+'>'+l+'</option>').join('')+'</select><button type="button" class="btn ghost" onclick="mqAdd(\''+k+'\')">Toevoegen</button></div>'+
+  '<div class="mq-row"><b>Periode</b><select id="mq_'+k+'_month" aria-label="Boekjaar begint in" onchange="mqSet(\''+k+'\',\'month\',Number(this.value),1)" style="width:auto">'+MONTHS_NL.map((n,i)=>'<option value="'+(i+1)+'"'+(Number(S.month)===i+1?' selected':'')+'>Boekjaar begint in '+n+'</option>').join('')+'</select></div>'+
+  '<div id="mq_'+k+'_per">'+per('closed','Laatst afgesloten boekjaar',mqD(o.closed.start)+' t/m '+mqD(o.closed.end))+per('current','Lopend boekjaar tot nu toe','vanaf '+mqD(o.current.start)+' tot de datum van opvragen')+per('both','Beide boekjaren',mqD(o.closed.start)+' t/m '+mqD(o.closed.end)+' én het lopende boekjaar')+'</div>'+
+  '<div class="mq-row"><b>Ondertekenen</b></div><div class="mq-fields">'+
+  (c.needKvk?fld('kvk','KvK-nummer *','kvk','inputmode="numeric" maxlength="10" placeholder="8 cijfers"'):'')+
+  (c.needName?fld('name','Jouw naam *','name','maxlength="120" autocomplete="name"'):'')+
+  fld('fn','Jouw functie *','fn','maxlength="80" placeholder="bijv. eigenaar of directeur"')+'</div>'+
+  (k==='pub'?'<p class="mq-sub" style="margin-top:8px">Je tekent met de naam die je hierboven bij ‘Jouw naam’ hebt ingevuld.</p>':'')+
+  '<details class="mq-full"><summary>Bekijk de volledige machtiging</summary><div class="m3-text" id="mq_'+k+'_text">'+safe(mqTextOf(k))+'</div></details>'+
+  '<label class="mq-auth"><input type="checkbox" id="mq_'+k+'_auth"'+(S.auth?' checked':'')+' onchange="mqSet(\''+k+'\',\'auth\',this.checked)"><span>Ik verklaar dat ik bevoegd ben om namens <b id="mq_'+k+'_co">'+safe(c.company)+'</b> te handelen en ga akkoord met deze machtiging. Horeca United controleert mijn bevoegdheid voordat er gegevens worden opgevraagd.</span></label></div>'}
+function mqSet(k,key,v,re){mqS[k][key]=v;if(re)return mqRender(k);const t=el('mq_'+k+'_text');if(t)t.textContent=mqTextOf(k);const f=el('mq_'+k+'_'+key);if(f)f.classList.remove('mq-need')}
+function mqTog(k,i,on){const x=mqList(k)[i];if(x)mqS[k].sel[x.name.toLowerCase()]=on;mqRender(k)}
+function mqAll(k,on){for(const x of mqList(k))mqS[k].sel[x.name.toLowerCase()]=on;mqRender(k)}
+function mqAdd(k){const n=String(el('mq_'+k+'_addn')?.value||'').trim();if(n.length<2)return;const S=mqS[k];if(!mqList(k).some(x=>x.name.toLowerCase()===n.toLowerCase()))S.extra.push({name:n.slice(0,120),role:el('mq_'+k+'_addr').value,pre:true});S.sel[n.toLowerCase()]=true;mqRender(k)}
+function mqCheck(k){const S=mqS[k],c=mqCtx(k),need=(id,msg)=>{const f=el('mq_'+k+'_'+id);if(f){f.classList.add('mq-need');f.scrollIntoView({block:'center',behavior:'smooth'})}return msg};
+ if(!c.text)return 'De machtiging kon niet worden geladen. Vernieuw de pagina of kies een andere optie bij vraag 15.';
+ if(!mqChosen(k).length){const b=el('mq_'+k+'_sups');if(b)b.scrollIntoView({block:'center',behavior:'smooth'});return 'Kies minstens één leverancier voor de machtiging.'}
+ if(!mqPeriods(k).length)return 'Kies over welke periode we gegevens mogen opvragen.';
+ if(c.needKvk&&!/^\d{8}$/.test(S.kvk.replace(/\s/g,'')))return need('kvk','Vul een geldig KvK-nummer in (8 cijfers).');
+ if(c.needName&&S.name.trim().length<2)return need('name','Vul je naam in bij de machtiging.');
+ if(S.fn.trim().length<2)return need('fn','Vul je functie in bij de machtiging.');
+ if(!S.auth)return need('auth','Vink aan dat je bevoegd bent en akkoord gaat met de machtiging.');
+ return ''}
+/* In-app: toon het blok zodra vraag 15 op machtiging staat */
+let mqAppBusy=false;
+async function mqAppToggle(){const box=el('mqBox_app');if(!box)return;const v=el('beer_data_route')?.value;
+ if(v!=='mandate'){box.innerHTML='';return}
+ if(!mand||!mand.enabled){if(mqAppBusy)return;mqAppBusy=true;box.innerHTML='<div class="mq"><p class="mq-sub">De machtiging wordt klaargezet…</p></div>';try{const r=await client.rpc('huos_my_mandate_enable_from_scan');if(r.error)throw r.error;await loadMandate()}catch(e){box.innerHTML='<div class="mq"><p class="mq-sub">De machtiging kan nu niet worden klaargezet: '+safe(e.message||e)+'</p></div>';return}finally{mqAppBusy=false}if(el('beer_data_route')?.value!=='mandate'){box.innerHTML='';return}}
+ const m=mand&&mand.mandate;
+ if(m&&!(m.valid_until&&new Date(m.valid_until)<new Date())){box.innerHTML='<div class="mq"><h3>Je machtiging is al geregeld</h3><p class="mq-sub">Ondertekend op '+mDate(m.consent_at)+' voor: '+safe((mand.suppliers||[]).filter(s=>s.status!=='revoked').map(s=>s.name).join(', ')||'—')+'. Leveranciers toevoegen of intrekken doe je in Mijn bedrijf → Machtiging leveranciers.</p><button type="button" class="btn ghost" onclick="tab(\'overview\');setTimeout(()=>el(\'mandBlock\')&&el(\'mandBlock\').scrollIntoView({behavior:\'smooth\'}),200)">Naar mijn machtiging</button></div>';return}
+ if(!mqS.app.name&&org&&org.contact_name)mqS.app.name=org.contact_name;
+ mqRender('app')}
+const mqAppNeedsSign=()=>el('beer_data_route')?.value==='mandate'&&mand&&mand.enabled&&!(mand.mandate&&!(mand.mandate.valid_until&&new Date(mand.mandate.valid_until)<new Date()));
 function capturePublicBeer(){
  if(publicBeerIndex>=BEER_QUESTIONS.length)return true;
  const q=BEER_QUESTIONS[publicBeerIndex],field=el('beerPublicInput'),raw=String(field?.value??'').trim();
- if(q.id==='data_route'&&raw==='mandate'&&!publicBeerMandateConfirmed){el('beerPublicNotice').innerHTML='<div class="error">Bevestig de afzonderlijke toestemming of kies een andere optie.</div>';return false}
- if(!raw){delete publicBeerAnswers[q.id];beerCaptureExtra(q,raw,publicBeerAnswers,'beerPublic_');return true}
+  if(!raw){delete publicBeerAnswers[q.id];beerCaptureExtra(q,raw,publicBeerAnswers,'beerPublic_');return true}
  if(q.type==='number'){
    const n=Number(raw.replace(/\s|€/g,'').replace(',','.'));
    if(!Number.isFinite(n)||n<q.min||n>q.max){el('beerPublicNotice').innerHTML='<div class="error">Controleer dit getal of laat het leeg als je het niet weet.</div>';return false}
@@ -415,8 +511,9 @@ async function beerStepNext(){
  }
  if(!privacy_accepted){el('beerPublicNotice').innerHTML='<div class="error">Geef eerst toestemming om je aanvraag te beoordelen.</div>';return}
  const data_route=publicBeerAnswers.data_route||'later_upload';
- const mandate_consent=data_route==='mandate'&&publicBeerMandateConfirmed;
- if(data_route==='mandate'&&!mandate_consent){el('beerPublicNotice').innerHTML='<div class="error">Voor een machtiging is een afzonderlijke toestemmingsverklaring nodig.</div>';return}
+ const mandate_consent=data_route==='mandate';
+ let mandate=null;
+ if(mandate_consent){const err=mqCheck('pub');if(err){el('beerPublicNotice').innerHTML='<div class="error">'+safe(err)+'</div>';return}const S=mqS.pub;mandate={kvk:S.kvk.replace(/\s/g,''),signer_function:S.fn.trim(),fiscal_month:Number(S.month)||1,period:S.period,suppliers:mqChosen('pub')}}
  const scanAnswers={...publicBeerAnswers};delete scanAnswers.data_route;
  if(Object.keys(scanAnswers).length===0){el('beerPublicNotice').innerHTML='<div class="error">Vul minstens één inhoudelijk antwoord in voordat je verdergaat.</div>';return}
  if(!beerTurnstileConfig){el('beerPublicNotice').innerHTML='<div class="error">De beveiligingscontrole is nog niet geladen. Probeer opnieuw.</div>';return}
@@ -427,11 +524,11 @@ async function beerStepNext(){
  try{
   const response=await fetch(URL_SUPABASE+'/functions/v1/huos-beer-intake',{
    method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({company_name,contact_name,email,phone,website,privacy_accepted,answers:scanAnswers,data_route,mandate_consent,mandate_authority_asserted:mandate_consent,mandate_consent_version:mandate_consent?'huos-mandate-beer-v1':null,turnstile_token:beerTurnstileToken})
+   body:JSON.stringify({company_name,contact_name,email,phone,website,privacy_accepted,answers:scanAnswers,data_route,mandate_consent,mandate_authority_asserted:mandate_consent,mandate_consent_version:mandate_consent?beerTurnstileConfig.mandate.text.version:null,mandate,turnstile_token:beerTurnstileToken})
   });
   const body=await response.json().catch(()=>({}));
   if(!response.ok||body.ok!==true)throw new Error(body.error||'De aanvraag kon niet worden verstuurd.');
-  publicBeerSent=true;renderPublicBeer();
+  publicBeerMandateResult=mandate_consent?(body.mandate_ok===true?'ok':'fail'):'';publicBeerSent=true;renderPublicBeer();
  }catch(e){el('beerPublicNotice').innerHTML='<div class="error">'+safe(e.message||'Versturen niet mogelijk.')+'</div>';if(beerTurnstileConfig?.turnstile_enabled){beerTurnstileToken='';if(beerTurnstileWidgetId!==null&&window.turnstile)window.turnstile.reset(beerTurnstileWidgetId)}}
  finally{button.disabled=false}
 }
@@ -476,6 +573,7 @@ function renderBeerScan(){
   return heading+'<div class="field'+(q.type==='text'?' wide':'')+'"><label for="'+id+'">'+safe(q.label)+'</label>'+field+'<div id="beer_'+q.id+'_extras" class="beer-extra-fields">'+beerExtra(q,v,answers,'beer_')+'</div>'+(q.hint?'<small>'+safe(q.hint)+'</small>':'')+'</div>';
  }).join('');
  el('beerScanStatus').innerHTML=beerScan?'<div class="beer-status">'+(beerScan.status==='completed'?'Je scan is afgerond'+(beerScan.updated_at?' op '+new Date(beerScan.updated_at).toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'}):'')+'. Je kunt de antwoorden aanpassen en opnieuw afronden.':'Je scan is nog niet afgerond. Vul de vragen aan en klik op ‘Scan afronden’.')+'</div>':'<div class="beer-status">Nieuwe Bier Quick Scan — nog geen antwoorden opgeslagen.</div>';
+ mqAppToggle();
 }
 function beerUnk(id){const f=el('beer_'+id),c=el('beer_'+id+'_unk');if(!f||!c)return;f.disabled=c.checked;if(c.checked)f.value='';f.classList.remove('beer-need');c.parentNode.classList.remove('beer-need')}
 function beerPrivateChange(id){
@@ -484,6 +582,7 @@ function beerPrivateChange(id){
  if(!q)return;
  const box=el('beer_'+id+'_extras');
  if(box)box.innerHTML=beerExtra(q,v,answers,'beer_');
+ if(id==='data_route')mqAppToggle();else if((id==='brewery_supplier'||id==='distributor')&&el('mq_app'))setTimeout(()=>mqRender('app'),0);
  if(id==='brewery_supplier'){
    const brandField=el('beer_tap_beer_brand');
    if(brandField){
@@ -506,6 +605,9 @@ async function finishBeerScan(){
  }
  for(const k of BEER_REQ){if(answers[k]==null||answers[k]===''){beerMark(k);return alert('beerMsg','Vul deze vraag in of kies ‘Weet ik niet’: '+beerLabelOf(k),true)}
   const x=BEER_EXTRA_REQ[k];if(x&&answers[k]===x[0]&&!String(answers[x[1]]||'').trim()){beerMark(x[1]);return alert('beerMsg','Vul dit nog in: '+beerLabelOf(x[1]),true)}}
+ const signNow=answers.data_route==='mandate'&&mqAppNeedsSign();
+ if(signNow){const err=mqCheck('app');if(err)return alert('beerMsg',err,true)}
+ const mqSnap=signNow?{...mqS.app,chosen:mqChosen('app')}:null;
  const b=el('beerFinish');b.disabled=true;
  try{
   const r=await client.rpc('huos_my_beer_scan_complete',{p_answers:answers});
@@ -513,10 +615,18 @@ async function finishBeerScan(){
   const res=await client.from('huos_pilot_beer_scans').select('id,answers,status,updated_at').eq('organization_id',org.id).maybeSingle();
   if(!res.error&&res.data)beerScan=res.data;renderBeerScan();tab('beer');
   let msg=r.data&&r.data.changed===false?'Er is niets gewijzigd sinds je laatste afronding.':'Je Bier Quick Scan is afgerond en verstuurd naar Horeca United. We nemen contact op als er voordeel te halen is.';
-  if(answers.data_route==='mandate'&&mand&&mand.enabled&&!mand.mandate)msg+=' Je koos dat Horeca United de gegevens mag opvragen: regel dat in Mijn bedrijf onder ‘Machtiging leveranciers’.';
+  if(signNow){
+   try{const S=mqSnap,upd={};const kvk=S.kvk.replace(/\s/g,'');if(!org.kvk_number&&kvk)upd.kvk_number=kvk;if(Number(S.month)!==Number(org.fiscal_year_start_month||1))upd.fiscal_year_start_month=Number(S.month);
+    if(Object.keys(upd).length){const u=await client.from('huos_pilot_organizations').update(upd).eq('id',org.id);if(u.error)throw u.error;Object.assign(org,upd)}
+    await loadMandate();
+    const sg=await client.rpc('huos_my_mandate_sign_v3',{p_name:S.name.trim(),p_function:S.fn.trim(),p_authority:true,p_version:mand.text.version,p_suppliers:S.chosen,p_period_choice:S.period,p_custom:null});if(sg.error)throw sg.error;
+    b.textContent='PDF maken…';const pk=await m3Pdf(sg.data);mqS.app={sel:{},extra:[],month:null,period:'closed',kvk:'',fn:'',name:'',auth:false};await loadData();
+    msg='Je Bier Quick Scan is afgerond en je machtiging is ondertekend'+(pk?'; de PDF staat bij Mijn documenten':'')+'. Horeca United controleert eerst je bevoegdheid en vraagt daarna de gegevens op.';
+   }catch(e){alert('beerMsg','Je scan is afgerond, maar het ondertekenen van de machtiging is niet gelukt: '+(e.message||e)+' Probeer het opnieuw via ‘Scan afronden’ of in Mijn bedrijf.',true);return}
+  }else if(answers.data_route==='mandate'&&mand&&mand.enabled&&!mand.mandate)msg+=' Je koos dat Horeca United de gegevens mag opvragen: regel dat in Mijn bedrijf onder ‘Machtiging leveranciers’.';
   alert('beerMsg',msg);
  }catch(e){alert('beerMsg','Afronden is niet gelukt: '+e.message,true)}
- finally{b.disabled=false}
+ finally{b.disabled=false;b.textContent='Scan afronden ↗'}
 }
 
 

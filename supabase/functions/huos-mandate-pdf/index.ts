@@ -72,7 +72,8 @@ Deno.serve(async (req) => {
   // 2. Machtiging en organisatie opzoeken (server-side)
   const m = await db.from("huos_beer_mandates").select("id,organization_id").eq("id", mandateId).maybeSingle();
   if (m.error) { console.error("mandate lookup", m.error.code); return reply(503, { error: "Tijdelijk niet beschikbaar." }, origin); }
-  if (!m.data?.organization_id) return reply(404, { error: "Machtiging niet gevonden." }, origin);
+  if (!m.data) return reply(404, { error: "Machtiging niet gevonden." }, origin);
+  if (!m.data.organization_id) return reply(409, { error: "Koppel deze aanvraag eerst aan een pilotklant; daarna kan de PDF worden gemaakt." }, origin);
   const orgId = m.data.organization_id as string;
   const o = await db.from("huos_pilot_organizations").select("id,owner_id,name").eq("id", orgId).maybeSingle();
   if (o.error || !o.data?.owner_id) return reply(404, { error: "Machtiging niet gevonden." }, origin);
