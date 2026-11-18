@@ -107,8 +107,8 @@ const Q=[
  ['tap_beer_brand','2. Pilsmerk op tap',null],['tap_beer_brand_other','   Ander pilsmerk',null],
  ['distributor','3. Leverancier',{direct:'Rechtstreeks via brouwerij',other:'Anders',unknown:'Weet ik niet'}],['distributor_other','   Andere distributeur',null],['direct_delivery_brewery','   Levert rechtstreeks',null],
  ['keg_size_l','4. Fustformaat (liter)',{other:'Ander formaat',unknown:'Weet ik niet'}],['keg_size_l_other','   Ander fustformaat',null],
- ['keg_price_ex_vat','5. Fustprijs excl. btw (€)',null],
- ['annual_volume_hl','6. Afname 2025 (hl)',null],
+ ['keg_price_ex_vat','5. Fustprijs excl. btw (€)',{unknown:'Weet ik niet'}],
+ ['annual_volume_hl','6. Afname 2025 (hl)',{unknown:'Weet ik niet'}],
  ['annual_volume_source','7. Bron jaarafname',{own_estimate:'Eigen schatting',invoice:'Zelf opgeteld uit facturen',supplier_statement:'Jaaroverzicht of opgave van de leverancier',unknown:'Weet ik niet'}],
  ['bonus_status','8. Kortingen / bonussen',{yes:'Ja',no:'Nee',unknown:'Weet ik niet'}],
  ['contract_end_status','9. Biercontract',{date_known:'Lopend, einddatum bekend',ongoing:'Lopend, geen vaste einddatum',no_contract:'Geen contract',unknown:'Weet ik niet'}],['contract_end_date','   Einddatum contract',null],
@@ -457,7 +457,7 @@ function beerAlertBanner(){const al=(S.beerAlerts||[]);if(!al.length)return '';c
 async function beerScanLoad(o,canEdit){const box=$('#beerbox');if(!box)return;
  try{const vs=await api.beerVersions(o)||[];if(S.costOrg!==o||!$('#beerbox'))return;if(!vs.length){box.innerHTML='';return}
   const cur=vs[0].answers||{},prev=vs[1]?.answers||null,al=(S.beerAlerts||[]).find(a=>a.organization_id===o);
-  const show=(k,v,map)=>v==null||v===''?'—':k==='keg_price_ex_vat'?eur(v):k==='annual_volume_hl'?String(v).replace('.',',')+' hl':ansLabel(k,v,map);
+  const show=(k,v,map)=>v==null||v===''?'—':v==='unknown'?'Weet ik niet':k==='keg_price_ex_vat'?eur(v):k==='annual_volume_hl'?String(v).replace('.',',')+' hl':ansLabel(k,v,map);
   const diff=prev?Q_ALL.filter(([k])=>JSON.stringify(cur[k]??null)!==JSON.stringify(prev[k]??null)).map(([k,l,m])=>`<li>${esc(l.trim())}: ${esc(show(k,prev[k],m))} → <b>${esc(show(k,cur[k],m))}</b></li>`).join(''):'';
   $('#beerbox').innerHTML=`<h3>Bier Quick Scan</h3><div class="card" style="padding:16px">
    <p class="hint" style="margin-top:0">Afgerond op ${fmtDT(vs[0].completed_at)}${vs.length>1?` · ${vs.length} versies`:''}${al?' · <b>nieuw</b>':''}</p>
@@ -1519,6 +1519,9 @@ function passwordView(recovery){
 }
 if(client)client.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'){S.user=null;S.role=null;S.orgs=null;loginGate()}else if(ev==='PASSWORD_RECOVERY'){setTimeout(()=>passwordView(true),0)}else if(ev==='SIGNED_IN'&&!S.user&&!RECOVERY){setTimeout(boot,0)}});
 boot();
+
+// Getalvelden: scrollen met het muiswiel mag de waarde niet ongemerkt veranderen
+document.addEventListener('wheel',e=>{const a=document.activeElement;if(a&&a.type==='number'&&e.target===a)a.blur()},{passive:true});
 </script>
 </body>
 </html>
