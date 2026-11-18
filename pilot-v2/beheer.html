@@ -517,6 +517,24 @@ async function dpPdfLines(buf){
   for(const it of tc.items){if(!it.str||!it.str.trim())continue;const [ta,tb,,,te,tf]=it.transform,nn=Math.hypot(ta,tb)||1;it._v=(-tb*te+ta*tf)/nn;it._u=(ta*te+tb*tf)/nn;const y=Math.round(it._v/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
   [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a._u-b._u).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
  return out}
+/* ---------- Excel (.xlsx) en CSV lezen: zelfde 'regels' als bij PDF, plus de ruwe tabel in .sheet ---------- */
+const DP_SHEET=/\.(xlsx|csv)$/i;
+const DP_XLSX_SRC='https://cdn.jsdelivr.net/npm/read-excel-file@9.3.17/bundle/read-excel-file.min.js',DP_XLSX_SRI='sha384-OyFN7Kw1vrKAcTBxT5pzfU7e7jpAaON8NWhJ/oS8VG2AqMs7ycowqOs+E5qtBXfq';
+let dpXlsxP=null;
+function dpLoadXlsx(){if(window.readXlsxFile)return Promise.resolve(window.readXlsxFile);return dpXlsxP||(dpXlsxP=new Promise((ok,no)=>{const s=document.createElement('script');s.src=DP_XLSX_SRC;s.integrity=DP_XLSX_SRI;s.crossOrigin='anonymous';s.onload=()=>window.readXlsxFile?ok(window.readXlsxFile):no(new Error('De Excel-lezer kon niet worden geladen.'));s.onerror=()=>{dpXlsxP=null;no(new Error('De Excel-lezer kon niet worden geladen.'))};document.head.appendChild(s)}))}
+function dpCsvRows(txt){txt=txt.replace(/^﻿/,'');const first=txt.split(/\r?\n/)[0]||'',d=(first.match(/;/g)||[]).length>(first.match(/,/g)||[]).length?';':(first.includes('\t')?'\t':',');const rows=[];let row=[],cur='',q=false;
+ for(let i=0;i<txt.length;i++){const ch=txt[i];if(q){if(ch==='"'){if(txt[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}else if(ch==='"')q=true;else if(ch===d){row.push(cur);cur=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&txt[i+1]==='\n')i++;row.push(cur);cur='';if(row.some(c=>c.trim()))rows.push(row);row=[]}else cur+=ch}
+ row.push(cur);if(row.some(c=>c.trim()))rows.push(row);
+ return rows.slice(0,20000).map(r=>r.map(c=>{const t=c.trim();if(/^-?\d{1,3}(\.\d{3})*(,\d+)?$|^-?\d+(,\d+)?$/.test(t)&&d===';')return Number(t.replace(/\./g,'').replace(',','.'));if(/^-?\d+(\.\d+)?$/.test(t))return Number(t);return t}))}
+const dpCell=c=>c instanceof Date?`${String(c.getDate()).padStart(2,'0')}-${String(c.getMonth()+1).padStart(2,'0')}-${c.getFullYear()}`:typeof c==='number'?(Number.isInteger(c)?String(c):c.toFixed(2).replace('.',',')):String(c==null?'':c).trim();
+async function dpSheetLines(buf,name){let sheets;
+ if(/\.csv$/i.test(name||''))sheets=[{sheet:'CSV',data:dpCsvRows(new TextDecoder('utf-8').decode(buf))}];
+ else{const rd=await dpLoadXlsx();sheets=await rd(new Blob([buf]))}
+ const out=[];out.sheet=(sheets||[]).slice(0,20).map(s=>({name:String(s.sheet||''),rows:(s.data||[]).slice(0,20000)}));out.fileName=String(name||'');
+ if(name)out.push(String(name));
+ for(const s of out.sheet){out.push(s.name);for(const r of s.rows){const cells=r.map(c=>dpCell(c)||'-');if(cells.some(c=>c!=='-'))out.push(cells.join('  '))}}
+ return out}
+async function dpDocLines(buf,name){return DP_SHEET.test(name||'')?dpSheetLines(buf,name):dpPdfLines(buf)}
 const DP_M={jan:1,januari:1,feb:2,februari:2,mrt:3,maart:3,apr:4,april:4,mei:5,jun:6,juni:6,jul:7,juli:7,aug:8,augustus:8,sep:9,sept:9,september:9,okt:10,oktober:10,nov:11,november:11,dec:12,december:12};
 const DP_DATE=/(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{4}|\d{2})\b|(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|jan|feb|mrt|apr|jun|jul|aug|sept|sep|okt|nov|dec)\.?\s+(\d{4})/gi;
 const dpPad=n=>String(n).padStart(2,'0');
@@ -758,10 +776,11 @@ function ptypeGuess(name,cat){const n=String(name||'').toLowerCase(),S1=t=>({t,s
  if(/saus|sauzen|dressing/.test(n))return S1('droog');
  if(/boterham|broodbeleg/.test(n))return S1('droog');
  if(/fruitdrank|vruchtensap|sappen/.test(n))return S1('frisdrank');
+ if(/\bvis\b|^vis|zalm|garnaal|garnalen|kabeljauw|schaal|mossel|oester|heek|koolvis|makreel|paling|haring|heilbot|tong\b|sliptong|scampi|gamba|kreeft|krab|inktvis|octopus|tonijn|forel|kuit|kibbeling|alikruik|sardine|ansjovis|schelvis|tarbot|zeebaars|dorade|pangasius|frutti di mare|mulfilet|\bmul\b|snoekbaars|baars|sepia|zeekat|wijting|zeeduivel|schol\b|poon\b|kokkel|vongole|wulk/.test(n))return S1('vis');
+ if(/zeekraal|lamsoor|lamsoren|zeegroente/.test(n))return S1('agf');
  if(/diepvries|frites|friet/.test(n))return S1('diepvries');
- if(/\bvis\b|^vis|zalm|garnaal|kabeljauw|schaal|mossel|oester/.test(n))return S1('vis');
  if(/slager|poelier|vleeswaren|vlees|kip|rund|varken|kalf|lam|steak|tartaar|haas|ribeye|ribfinger|spek|ham|worst|gehakt|buik naturel|nekken|\bnek\b|filet/.test(n))return S1('vlees');
- if(/^agf|groente|fruit|aardappel|salade|kruiden vers/.test(n))return S1('agf');
+ if(/^agf|groente|fruit|aardappel|salade|kruiden vers|zeekraal|lamsoor|lamsoren|zeegroente/.test(n))return S1('agf');
  if(/zuivel|koeling|kaas|melk|room|boter|yoghurt|eier/.test(n))return S1('zuivel');
  if(/diepvries|frites|friet/.test(n))return S1('diepvries');
  if(/brood|patisserie|banket|gebak|zoetwaren/.test(n))return S1('brood');
@@ -775,8 +794,8 @@ function ptypeGuess(name,cat){const n=String(name||'').toLowerCase(),S1=t=>({t,s
  return {t:null,sure:!n}}
 const ptypeOf=(name,cat)=>ptypeGuess(name,cat).t;
 /* Voorstel verdeling uit een uitgelezen inkoopoverzicht: per productgroep/artikel een productsoort; som = totaal. */
-function unsureOf(st){const m=new Map();for(const r of (st.rows||[])){if(!r.net)continue;const g=ptypeGuess(r.name,st.category);if(!g.sure){const k=r.name;const x=m.get(k)||{name:r.name,amount:0,type:g.t||'overig'};x.amount+=r.net;m.set(k,x)}}return [...m.values()].sort((a,b)=>b.amount-a.amount)}
-function splitFromStats(st){const by={};for(const r of (st.rows||[])){if(!r.net)continue;const t=ptypeOf(r.name,st.category)||'overig';(by[t]=by[t]||{amount:0,names:[]});by[t].amount+=r.net;if(by[t].names.length<6&&!by[t].names.includes(r.name))by[t].names.push(r.name)}
+function unsureOf(st){const m=new Map();for(const r of (st.rows||[])){if(!r.net)continue;const g=ptypeGuess(r.group||r.name,st.category);if(!g.sure){const k=r.name;const x=m.get(k)||{name:r.name,amount:0,type:g.t||'overig'};x.amount+=r.net;m.set(k,x)}}return [...m.values()].sort((a,b)=>b.amount-a.amount)}
+function splitFromStats(st){const by={};for(const r of (st.rows||[])){if(!r.net)continue;const t=ptypeOf(r.group||r.name,st.category)||'overig';(by[t]=by[t]||{amount:0,names:[]});by[t].amount+=r.net;if(by[t].names.length<6&&!by[t].names.includes(r.name))by[t].names.push(r.name)}
  let rows=Object.entries(by).map(([type,x])=>({type,amount:Math.round(x.amount*100)/100,source:x.names.join(', ')+(x.names.length>=6?' …':'')})).filter(r=>r.amount>0);
  const diff=Math.round((st.total-rows.reduce((a,r)=>a+r.amount,0))*100)/100;if(rows.length&&Math.abs(diff)>0)rows.sort((a,b)=>b.amount-a.amount)[0].amount=Math.round((rows[0].amount+diff)*100)/100;
  return rows.sort((a,b)=>b.amount-a.amount)}
@@ -860,7 +879,29 @@ function parseArticleGroupList(lines){
  const sp=dpSupplier(lines,(((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||''));const yr=ps&&pe&&ps.slice(0,4)===pe.slice(0,4)?ps.slice(0,4):'';
  return {kind:'groepen',rows,priced:rows.filter(r=>r.net>0),free:0,total,qty,stated,cut:stated!=null&&Math.abs(stated-total)>0.05,period_start:ps,period_end:pe,
   supplier:sp&&sp.supplier||null,category:(sp&&sp.category)||'groothandel',product:'Inkoop '+(yr||'periode')+' (afnameoverzicht per artikelgroep)',note:`${n} artikelregels in ${rows.length} artikelgroepen. Uit afnameoverzicht.`,pattern:null}}
+/* Excel/CSV: tabel met kopregel (artikel/omschrijving + omzet/bedrag/totaal), per artikel of per groep opgeteld. */
+function parseSheetArticles(lines){
+ if(!lines||!lines.sheet)return null;const norm=v=>String(v==null?'':v).toLowerCase().trim();
+ const num=v=>typeof v==='number'?v:(()=>{const t=String(v==null?'':v).replace(/€|\s/g,'');if(!t)return NaN;return /,\d{1,2}$/.test(t)?Number(t.replace(/\./g,'').replace(',','.')):Number(t.replace(/,/g,''))})();
+ for(const sh of lines.sheet){const rows=sh.rows||[];const hi=rows.slice(0,15).findIndex(r=>r.some(c=>/artikel|omschrijving|product/.test(norm(c)))&&r.some(c=>/omzet|bedrag|totaal|waarde/.test(norm(c))));if(hi<0)continue;
+  const h=rows[hi].map(norm),col=re=>h.findIndex(c=>re.test(c));
+  const ni=h.findIndex(c=>/omschrijving/.test(c))>=0?h.findIndex(c=>/omschrijving/.test(c)):col(/artikel|product/);
+  const ai=(()=>{const i=col(/^omzet|omzet\b|bedrag|totaal|waarde/);return i})(),qi=col(/aantal|eenheden|hoeveelheid|afzet|stuks/),pi=col(/prijs/),gi=col(/groep|categorie/),ui=col(/eenheid\b|eenheid\.naam|^eenheid/);
+  if(ni<0||ai<0||ni===ai)continue;const items=[];let bad=0;
+  for(const r of rows.slice(hi+1)){const name=String(r[ni]==null?'':r[ni]).trim();const v=num(r[ai]);if(!name){continue}if(/^totaal/i.test(name))continue;if(!isFinite(v)){bad++;continue}items.push({name,net:v,qty:qi>=0&&isFinite(num(r[qi]))?num(r[qi]):0,price:pi>=0&&isFinite(num(r[pi]))?num(r[pi]):null,group:gi>=0?String(r[gi]||'').trim():'',unit:ui>=0?String(r[ui]||'').trim():''})}
+  if(items.length<3||bad>items.length*0.2)continue;
+  const fn=lines.fileName||lines[0]||'',ym=(fn+' '+sh.name).match(/(?:^|\D)(20\d{2})(?!\d)/),yr=ym?ym[1]:'';
+  const sp=dpSupplier(lines,(((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||''));
+  const total=Math.round(items.reduce((a,x)=>a+x.net,0)*100)/100,qty=Math.round(items.reduce((a,x)=>a+x.qty,0)*100)/100;
+  const byT={};for(const x of items){const t=ptypeOf(x.group||x.name,'food')||'overig';byT[t]=(byT[t]||0)+x.net}const top=Object.entries(byT).sort((a,b)=>b[1]-a[1])[0];
+  const one=top&&total>0&&top[1]/total>=0.8?top[0]:null,cat={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd'}[one]||(sp&&sp.category)||'food';
+  const rows2=items.map(x=>({code:x.name,name:x.name,qty:x.qty,net:Math.round(x.net*100)/100,price:x.price,unit:x.unit,group:x.group}));
+  return {kind:'artikelen',rows:rows2,priced:rows2.filter(r=>r.net>0),free:rows2.filter(r=>r.net===0).length,total,qty,stated:null,cut:false,
+   period_start:yr?yr+'-01-01':null,period_end:yr?yr+'-12-31':null,supplier:sp&&sp.supplier||null,category:cat,
+   product:'Inkoop '+(yr||'periode')+' (artikeloverzicht'+(/\.csv$/i.test(fn)?' CSV':' Excel')+')',note:`${items.length} artikelen uit ${/\.csv$/i.test(fn)?'CSV':'Excel'} (${sh.name}).`,pattern:null}}
+ return null}
 function parseArticleStats(lines){
+ const sa=parseSheetArticles(lines);if(sa)return sa;
  const al=parseArticleGroupList(lines);if(al)return al;
  const go=parseGroupOverview(lines);if(go)return go;
  const mu=parseArticleMutations(lines);if(mu)return mu;
@@ -935,7 +976,7 @@ function adviceSync(){const out=[],cons=(S.costCons||[]).filter(c=>c.status!=='t
 S.advAsync={};
 async function adviceAsync(canEdit){const o=S.costOrg,own=((S.orgs||[]).find(x=>x.id===o)||{}).name||'';const extra=[];
  const docsById=Object.fromEntries((S.costDocs||[]).map(d=>[d.id,d]));
- const read=async d=>{const k=d.id;if(S.advAsync[k])return S.advAsync[k];const url=await api.fileUrl(d.storage_path);const res=await fetch(url);if(!res.ok)throw new Error('ophalen mislukt');return S.advAsync[k]=await pdfLines(await res.arrayBuffer())};
+ const read=async d=>{const k=d.id;if(S.advAsync[k])return S.advAsync[k];const url=await api.fileUrl(d.storage_path);const res=await fetch(url);if(!res.ok)throw new Error('ophalen mislukt');return S.advAsync[k]=DP_SHEET.test(d.file_name||'')?await dpSheetLines(await res.arrayBuffer(),d.file_name):await pdfLines(await res.arrayBuffer())};
  const jobs=[];
  for(const c of (S.costCons||[]).filter(c=>c.category==='verzekeringen'&&c.document_id&&docsById[c.document_id]))jobs.push((async()=>{const p=dpPolicySummary(await read(docsById[c.document_id]),own);if(!p)return;
   if(p.deadline&&dDays(p.deadline)>=-30)extra.push({key:'polis-deadline:'+c.id,group:'verzekeringen',level:'risico',title:`Keuringsrapport vóór ${fmtDate(p.deadline)} (${esc(c.supplier)})`,why:'Zonder rapport is brandschade vanaf die datum niet gedekt.',impact:'risico: brandschade niet verzekerd',altKey:'contract:'+c.id.slice(0,8)+':elektrakeuring',cTitle:`Keuring elektrische installatie vóór ${fmtDate(p.deadline)}`,cBody:`Je bedrijfsverzekering bij ${c.supplier} vraagt een keuringsrapport van de elektrische installatie (SCIOS Scope 10). Dit rapport moet uiterlijk ${fmtDate(p.deadline)} via je adviseur bij de verzekeraar binnen zijn. Komt het niet op tijd, dan is brandschade vanaf die datum niet meer verzekerd. Upload het rapport daarna in HUOS, dan houden wij het voor je bij.`});
@@ -1197,7 +1238,7 @@ async function extractInvoice(docId,btn){
  if(btn){btn.disabled=true;btn.textContent='Bezig…'}
  try{
   let lines;
-  if(DEMO){lines=DEMO_INVOICE}else{const url=await api.fileUrl(d.storage_path);const res=await fetch(url);if(!res.ok)throw new Error('Bestand ophalen mislukt ('+res.status+')');lines=await pdfLines(await res.arrayBuffer())}
+  if(DEMO){lines=DEMO_INVOICE}else{const url=await api.fileUrl(d.storage_path);const res=await fetch(url);if(!res.ok)throw new Error('Bestand ophalen mislukt ('+res.status+')');lines=DP_SHEET.test(d.file_name||'')?await dpSheetLines(await res.arrayBuffer(),d.file_name):await pdfLines(await res.arrayBuffer())}
   if(!lines.join('').trim()){show('<b>Deze PDF bevat geen leesbare tekst</b> (waarschijnlijk een scan). Vul de gegevens handmatig in; de factuur is al gekoppeld.');return}
   const g=guessDocType(lines),chosen=d.category;
   const typeLine=g.type?(g.type===chosen?`<li>Soort document: lijkt ${g.label} (${esc(g.why)} gevonden) ✓ klopt met het label van de klant.</li>`:`<li style="color:var(--warn)"><b>Soort document: lijkt ${g.label}</b> (${esc(g.why)} gevonden), maar de klant koos "${esc(DOCCAT[chosen]||chosen||'onbekend')}".${g.type==='contract'?' Een contract hoort niet in de kostenregels: zet het hieronder bij Mijn contracten van de klant.':''}</li>`):'<li>Soort document: niet duidelijk uit de tekst.</li>';
@@ -1245,7 +1286,7 @@ async function extractInvoice(docId,btn){
    set('#ccat',st.category);set('#ckind','inkoop');set('#csup',st.supplier);set('#cprod',st.product);set('#cfrom',st.period_start);set('#cto',st.period_end);set('#camt',st.total.toFixed(2));set('#cnote',st.note);
    const top=st.priced.slice().sort((a,b)=>b.net-a.net).slice(0,8);
    show(`<b>${esc(d.file_name)}</b><ul><li>Soort document: <b>${st.kind==='groepen'?'afnameoverzicht per productgroep':'inkoopoverzicht per artikel'}</b> (${st.kind==='groepen'?'totaal per groep, geen prijzen per artikel':st.kind==='mutaties'?'mutaties per levering, '+st.invoices+' facturen':'artikelstatistiek'}).</li>
-    ${st.kind==='mutaties'&&!st.supplier?'<li style="color:var(--warn)">De naam van de leverancier staat niet in dit document. Vul die zelf in.</li>':''}<li>${st.rows.length} ${st.kind==='groepen'?'productgroepen':'artikelen'} · ${st.qty.toLocaleString('nl-NL')} ${st.kind?'eenheden':'stuks'} · totaal ${eur(st.total)} excl. btw${st.free?` · ${st.free} regels à € 0,00 (proef/gratis) niet meegeteld`:''}${st.period_start?` · periode ${fmtDate(st.period_start)} – ${fmtDate(st.period_end)}`:''}</li>
+    ${st.kind&&!st.supplier?'<li style="color:var(--warn)">De naam van de leverancier staat niet in dit document. Vul die zelf in.</li>':''}<li>${st.rows.length} ${st.kind==='groepen'?'productgroepen':'artikelen'} · ${st.qty.toLocaleString('nl-NL')} ${st.kind?'eenheden':'stuks'} · totaal ${eur(st.total)} excl. btw${st.free?` · ${st.free} regels à € 0,00 (proef/gratis) niet meegeteld`:''}${st.period_start?` · periode ${fmtDate(st.period_start)} – ${fmtDate(st.period_end)}`:''}</li>
     ${st.pattern?`<li>${esc(st.pattern)}</li>`:''}
     ${st.cut?`<li style="color:var(--warn)">Let op: de laatste regel lijkt onvolledig. Controleer het totaal met de PDF.</li>`:''}
     <li>Het formulier hieronder is ingevuld als <b>inkoop (variabel)</b>, één regel voor de hele periode. Inkoop telt niet mee in de vaste kosten per jaar. Controleer en klik op Opslaan.</li></ul>
