@@ -157,6 +157,9 @@ function liveApi(){
   async addNote(lead,body){return ok(await client.rpc('huos_beer_lead_add_note',{p_lead:lead,p_body:body}))},
   async verify(lead,field,year,value,unit,outcome,kind,note){return ok(await client.rpc('huos_beer_lead_verify',{p_lead:lead,p_field:field,p_period_year:year,p_value:value,p_unit:unit,p_outcome:outcome,p_evidence_kind:kind,p_note:note,p_document:null}))},
   async mandateDecide(id,status,method,note,via){return ok(await client.rpc('huos_beer_mandate_decide',{p_mandate:id,p_status:status,p_method:method||null,p_note:note||null,p_revoked_via:via||null}))},
+  async beerAlerts(){return ok(await client.from('huos_pilot_beer_scan_alerts').select('*').eq('pending',true).order('changed_at',{ascending:false}))},
+  async beerVersions(o){return ok(await client.from('huos_pilot_beer_scan_versions').select('*').eq('organization_id',o).order('completed_at',{ascending:false}).limit(10))},
+  async beerSeen(o){return ok(await client.rpc('huos_beer_scan_seen',{p_org:o}))},
   async orgMandate(o){return ok(await client.from('huos_beer_mandates').select('*').eq('organization_id',o).in('status',['pending','verified']).maybeSingle())},
   async orgMandEvents(o){return ok(await client.from('huos_beer_lead_events').select('*').is('lead_id',null).eq('details->>organization_id',o).order('created_at',{ascending:false}).limit(50))},
   async linkOrg(m,o){return ok(await client.rpc('huos_mandate_link_org',{p_mandate:m,p_org:o}))},
@@ -220,11 +223,13 @@ function demoApi(){
   async leads(){return L},async transitions(){return T},async submission(id){return subs[id]},
   async notes(l){return notes[l]||[]},async verifications(l){return ver[l]||[]},async mandate(l){return mand[l]||null},async events(l){return ev(l)},
   async mandSuppliers(m){return msup[m]||[]},async mandRequests(){return []},
+  async beerAlerts(){return [{organization_id:'o1',pending:true,changed_at:d(0)}]},
+  async beerVersions(o){return o==='o1'?[{id:'v2',organization_id:'o1',completed_at:d(0),answers:{brewery_supplier:'Heineken',tap_beer_brand:'Heineken',distributor:'HANOS',keg_size_l:'20',keg_price_ex_vat:55,annual_volume_source:'invoice',bonus_status:'yes',contract_end_status:'ongoing',purchase_obligation:'no',installation_status:'brewery',brewery_loan_status:'no',proposal_interest:'yes',willingness_to_switch:'maybe',data_route:'mandate'}},{id:'v1',organization_id:'o1',completed_at:d(3),answers:{brewery_supplier:'Heineken',tap_beer_brand:'Heineken',distributor:'Sligro',keg_size_l:'20',keg_price_ex_vat:51.04,annual_volume_source:'invoice',bonus_status:'yes',contract_end_status:'ongoing',purchase_obligation:'no',installation_status:'brewery',brewery_loan_status:'no',proposal_interest:'yes',willingness_to_switch:'maybe',data_route:'mandate'}}]:[]},
   async orgMandate(o){return o==='o1'?{id:'mo1',organization_id:'o1',status:'pending',consent_text_version:'huos-mandate-v2',consent_at:d(1),signer_name:'Demo Eigenaar',signer_function:'Eigenaar',followup:[]}:null},async orgMandEvents(){return []},
   async staffList(){return [{user_id:me,email:'hui@horecaunited.nl',role:'admin',active:true,scope:'all',scope_values:[],last_sign_in_at:d(0),created_at:d(0)}]},
   async staffAudit(){return [{created_at:d(0),action:'granted',target_user:me,actor_kind:'database',new_value:{role:'admin',scope:'all'},reason:'Eerste hoofdbeheerder (demo)'}]},
   async allEvents(){return ev('l2')},
-  setStage:demoOnly,assign:demoOnly,addNote:demoOnly,verify:demoOnly,mandateDecide:demoOnly,linkOrg:demoOnly,supAdd:demoOnly,supUpdate:demoOnly,supRevoke:demoOnly,reqCreate:demoOnly,reqSet:demoOnly,setRole:demoOnly,revoke:demoOnly,
+  setStage:demoOnly,assign:demoOnly,addNote:demoOnly,verify:demoOnly,mandateDecide:demoOnly,linkOrg:demoOnly,beerSeen:demoOnly,supAdd:demoOnly,supUpdate:demoOnly,supRevoke:demoOnly,reqCreate:demoOnly,reqSet:demoOnly,setRole:demoOnly,revoke:demoOnly,
   async exportLeads(){return L},async signOut(){location.reload()},
   async orgs(){return [{id:'o1',name:'Restaurant Demozaak',city:'Arnhem',business_type:'restaurant',kvk_number:'12345678',location_count:1}]},
   async contractAudit(){return [{id:2,contract_id:'c2',action:'update',actor_kind:'klant',actor_email:'facturen@volkarnhem.nl',supplier:'Odido',changes:{end_date:['2028-04-14','2028-05-01'],promo_end_date:['2027-04-14','2027-05-01']},created_at:d(0)},{id:1,contract_id:'c2',action:'insert',actor_kind:'medewerker',actor_email:'hui@horecaunited.nl',supplier:'Odido',changes:{},created_at:d(1)}]},
@@ -251,6 +256,7 @@ async function boot(){
   renderWho();
   try{S.recent=await api.recentDocs()||[]}catch(_){S.recent=[]}
   try{S.requests=await api.requests()||[]}catch(_){S.requests=[]}
+  try{S.beerAlerts=await api.beerAlerts()||[]}catch(_){S.beerAlerts=[]}
   const [leads,trans]=await Promise.all([api.leads(),api.transitions()]);
   S.leads=leads||[];S.transitions=trans||[];
   if(S.role==='admin'){try{S.staff=await api.staffList()||[]}catch(e){S.staff=[]}}
@@ -268,7 +274,7 @@ function renderWho(){
 function render(){
  const nNew=newUploads().length;
  const nReq=(S.requests||[]).filter(r=>r.status==='new').length;
- const tabs=[['leads','Leads'],['costs','Kosten'+(nNew?` <span class="badge">${nNew} nieuw</span>`:'')],['requests','Aanvragen'+(nReq?` <span class="badge">${nReq} nieuw</span>`:'')]].concat(S.role==='admin'?[['staff','Medewerkers'],['log','Logboek']]:[]);
+ const tabs=[['leads','Leads'],['costs','Kosten'+(nNew?` <span class="badge">${nNew} nieuw</span>`:'')+((S.beerAlerts||[]).length?` <span class="badge">${S.beerAlerts.length} bierscan</span>`:'')],['requests','Aanvragen'+(nReq?` <span class="badge">${nReq} nieuw</span>`:'')]].concat(S.role==='admin'?[['staff','Medewerkers'],['log','Logboek']]:[]);
  $('#app').innerHTML=`<div class="tabs">${tabs.map(([k,v])=>`<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${v}</button>`).join('')}</div><div id="view"></div>`;
  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.sel=null;render()});
  if(S.tab==='leads')renderLeads();else if(S.tab==='costs')renderCosts();else if(S.tab==='requests')renderRequests();else if(S.tab==='staff')renderStaff();else renderLog();
@@ -445,6 +451,22 @@ function bindMandSup(l,mand,sups,reqs){
   if(k==='revk')return go(()=>{if(!confirm('Deze leverancier uit de machtiging halen?'))throw new Error('Niet uitgevoerd.');return api.supRevoke(id,reason())},'Leverancier uit machtiging gehaald.');
   if(k==='mail'){const r=reqs.find(x=>x.id===id);const t=mandMail(l,r);(navigator.clipboard?.writeText(t)||Promise.reject()).then(()=>{m.className='msg ok';m.textContent='Mailtekst gekopieerd. Voeg de afgedrukte en getekende machtiging als bijlage toe.'},()=>{m.className='msg';m.textContent=t})}
  })}
+const Q_ALL=Q.concat([['data_route','15. Ontbrekende gegevens',ROUTE]]);
+function beerAlertBanner(){const al=(S.beerAlerts||[]);if(!al.length)return '';const nm=id=>((S.orgs||[]).find(x=>x.id===id)||{}).name||'Klant';
+ return al.map(a=>`<p class="ptwarn">🍺 <b>${esc(nm(a.organization_id))}</b> heeft de Bier Quick Scan afgerond (${fmtDT(a.changed_at)}). ${a.organization_id===S.costOrg?'Zie hieronder.':`<a href="#" data-goorg="${esc(a.organization_id)}">Bekijken</a>`}</p>`).join('')}
+async function beerScanLoad(o,canEdit){const box=$('#beerbox');if(!box)return;
+ try{const vs=await api.beerVersions(o)||[];if(S.costOrg!==o||!$('#beerbox'))return;if(!vs.length){box.innerHTML='';return}
+  const cur=vs[0].answers||{},prev=vs[1]?.answers||null,al=(S.beerAlerts||[]).find(a=>a.organization_id===o);
+  const show=(k,v,map)=>v==null||v===''?'—':k==='keg_price_ex_vat'?eur(v):k==='annual_volume_hl'?String(v).replace('.',',')+' hl':ansLabel(k,v,map);
+  const diff=prev?Q_ALL.filter(([k])=>JSON.stringify(cur[k]??null)!==JSON.stringify(prev[k]??null)).map(([k,l,m])=>`<li>${esc(l.trim())}: ${esc(show(k,prev[k],m))} → <b>${esc(show(k,cur[k],m))}</b></li>`).join(''):'';
+  $('#beerbox').innerHTML=`<h3>Bier Quick Scan</h3><div class="card" style="padding:16px">
+   <p class="hint" style="margin-top:0">Afgerond op ${fmtDT(vs[0].completed_at)}${vs.length>1?` · ${vs.length} versies`:''}${al?' · <b>nieuw</b>':''}</p>
+   ${prev?(diff?`<p><b>Gewijzigd t.o.v. ${fmtDT(vs[1].completed_at)}:</b></p><ul style="margin:4px 0 12px 18px">${diff}</ul>`:''):'<p class="hint">Eerste keer afgerond.</p>'}
+   <details${al?' open':''}><summary>Alle antwoorden</summary>${Q_ALL.filter(([k])=>cur[k]!=null&&cur[k]!=='').map(([k,l,m])=>`<div class="kv"><span>${esc(l.trim())}</span><b>${esc(show(k,cur[k],m))}</b></div>`).join('')}</details>
+   ${al&&canEdit?`<div class="row" style="margin-top:10px"><button class="btn primary" id="beerseen">Gezien</button></div><div class="msg" id="beermsg"></div>`:''}
+  </div>`;
+  if($('#beerseen'))$('#beerseen').onclick=async()=>{const m=$('#beermsg');try{await api.beerSeen(o);S.beerAlerts=(S.beerAlerts||[]).filter(a=>a.organization_id!==o);render()}catch(e){m.className='msg err';m.textContent=errText(e)}};
+ }catch(e){if($('#beerbox'))$('#beerbox').innerHTML=`<p class="msg err">Bier Quick Scan kon niet worden geladen: ${esc(errText(e))}</p>`}}
 async function orgMandLoad(o,canEdit){const box=$('#orgmand');if(!box)return;
  try{const mand=await api.orgMandate(o);const org=(S.orgs||[]).find(x=>x.id===o)||{};
   if(!mand){box.innerHTML='';return}
@@ -538,7 +560,7 @@ async function renderCosts(){
   const sigs=(cmp||[]).filter(r=>r.is_signal).sort((a,b)=>b.extra_per_month-a.extra_per_month);
   const rows=(cmp||[]).slice().sort((a,b)=>(CCAT[a.category]||'').localeCompare(CCAT[b.category]||'')||a.supplier.localeCompare(b.supplier));
   const docName=id=>(S.costDocs.find(d=>d.id===id)||{}).file_name;
-  v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="sub">Intern — de ondernemer ziet dit overzicht niet. Alle bedragen excl. btw. Elke nieuwe factuur wordt vergeleken met de eerste factuur van dat jaar, de oudste factuur en de vorige factuur.</p>
+  v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="sub">Intern — de ondernemer ziet dit overzicht niet. Alle bedragen excl. btw. Elke nieuwe factuur wordt vergeleken met de eerste factuur van dat jaar, de oudste factuur en de vorige factuur.</p>${beerAlertBanner()}
   ${newUploadsBox()}<div class="orgpick"><select id="corg">${S.orgs.map(x=>`<option value="${esc(x.id)}" ${x.id===o?'selected':''}>${esc(x.name)}${x.city?' — '+esc(x.city):''}</option>`).join('')}</select><span class="hint">${S.costDocs.length} document(en) aangeleverd</span></div>
   <div class="stats">
    <div class="stat"><span>Vaste kosten per jaar</span><b>${eur(Math.round(perYear))}</b><small>${fromCon?`facturen ${eur(Math.round(fromInv))} + contracten ${eur(Math.round(fromCon))}`:'geschat uit de laatste facturen (≤ 13 mnd oud)'}</small></div>
@@ -547,6 +569,7 @@ async function renderCosts(){
    <div class="stat"><span>Stijgingen</span><b>${sigs.length}</b><small>t.o.v. begin dit jaar, of anders de oudste factuur</small></div>
   </div>
   <h3>Advies <span class="hint" style="text-transform:none;letter-spacing:0">(alleen voor jou — kies zelf wat je aan de klant doorgeeft)</span></h3><div id="advbox">${adviceHtml(adviceSync(),canEdit,true)}</div>
+  <div id="beerbox"></div>
   <div id="orgmand"></div>
   <div id="ptbox">${productTypeHtml()}</div>
   ${(()=>{const pr=(S.costCons||[]).filter(c=>c.promo_end_date).map(c=>({c,d:Math.round((new Date(c.promo_end_date+'T12:00:00')-Date.now())/864e5)})).filter(x=>x.d>=-30&&x.d<=120).sort((a,b)=>a.d-b.d);
@@ -574,7 +597,7 @@ async function renderCosts(){
 `;
   $('#corg').onchange=e=>{S.costOrg=e.target.value;S.costEdit=null;renderCosts()};
   document.querySelectorAll('[data-goorg]').forEach(a=>a.onclick=ev=>{ev.preventDefault();S.costOrg=a.dataset.goorg;S.costEdit=null;renderCosts()});
-  bindNoticeControls();bindAdvice();adviceAsync(canEdit);orgMandLoad(o,canEdit);
+  bindNoticeControls();bindAdvice();adviceAsync(canEdit);orgMandLoad(o,canEdit);beerScanLoad(o,canEdit);
   if($('#seenall'))$('#seenall').onclick=()=>{try{localStorage.setItem(seenKey(),new Date().toISOString())}catch(_){}render()};
   document.querySelectorAll('[data-file]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();const d=S.costDocs.find(x=>x.id===a.dataset.file);if(!d)return;const w=window.open('','_blank');try{const u=await api.fileUrl(d.storage_path);if(w)w.location=u;else location.href=u}catch(e){if(w)w.close();alert('Openen mislukt: '+errText(e))}});
   if(!canEdit)return;
