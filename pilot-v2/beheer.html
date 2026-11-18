@@ -168,6 +168,8 @@ function liveApi(){
   async orgMandEvents(o){return ok(await client.from('huos_beer_lead_events').select('*').is('lead_id',null).eq('details->>organization_id',o).order('created_at',{ascending:false}).limit(50))},
   async linkOrg(m,o){return ok(await client.rpc('huos_mandate_link_org',{p_mandate:m,p_org:o}))},
   async mandSuppliers(m){return ok(await client.from('huos_beer_mandate_suppliers').select('*').eq('mandate_id',m).order('created_at'))},
+  async mandSignatures(m){const sg=ok(await client.from('huos_mandate_signatures').select('id,kind,signed_at,signer_name,signer_function,suppliers,periods,text_version,text_sha256,pdf_document_id,pdf_sha256').eq('mandate_id',m).order('signed_at'))||[];const ids=sg.map(g=>g.pdf_document_id).filter(Boolean);const dd=ids.length?(ok(await client.from('huos_pilot_documents').select('id,storage_path,file_name').in('id',ids))||[]):[];const by=Object.fromEntries(dd.map(x=>[x.id,x]));return sg.map(g=>({...g,doc:by[g.pdf_document_id]||null}))},
+  async mandPdf(m){const r=await client.functions.invoke('huos-mandate-pdf',{body:{mandate_id:m}});if(r.error){let msg=r.error.message;try{const j=await r.error.context.json();if(j&&j.error)msg=j.error}catch(_){}throw new Error(msg)}return r.data},
   async mandRequests(m){return ok(await client.from('huos_beer_mandate_requests').select('*').eq('mandate_id',m).order('created_at',{ascending:false}))},
   async supAdd(m,name,role,scope,via,note){return ok(await client.rpc('huos_mandate_supplier_add',{p_mandate:m,p_name:name,p_role:role,p_scope:scope,p_confirmed_via:via,p_note:note}))},
   async supUpdate(id,name,scope,check,note){return ok(await client.rpc('huos_mandate_supplier_update',{p_supplier:id,p_name:name||null,p_scope:scope||null,p_name_check:check||null,p_note:note}))},
@@ -185,7 +187,7 @@ function liveApi(){
   async requests(){return ok(await client.from('huos_proposal_requests').select('id,organization_id,notice_id,contract_id,origin,subject,customer_message,status,created_at,updated_at').order('created_at',{ascending:false}).limit(500))},
   async requestEvents(id){return ok(await client.from('huos_proposal_request_events').select('id,actor_role,event,from_status,to_status,note,created_at').eq('request_id',id).order('id'))},
   async updateRequest(id,st,note){const {error}=await client.rpc('huos_request_update',{p_id:id,p_status:st,p_note:note});if(error)throw error},
-  async recentDocs(){return ok(await client.from('huos_pilot_documents').select('id,organization_id,file_name,category,uploaded_at').order('uploaded_at',{ascending:false}).limit(100))},
+  async recentDocs(){return ok(await client.from('huos_pilot_documents').select('id,organization_id,file_name,category,uploaded_at').neq('category','mandate').order('uploaded_at',{ascending:false}).limit(100))},
   async orgs(){return ok(await client.from('huos_pilot_organizations').select('id,name,city,business_type,kvk_number,location_count').order('name'))},
   async costLines(o){return ok(await client.from('huos_cost_lines').select('*').eq('organization_id',o).order('period_end',{ascending:false}).limit(1000))},
   async costCompare(o){return ok(await client.from('huos_cost_comparison').select('*').eq('organization_id',o))},
@@ -226,7 +228,7 @@ function demoApi(){
   async session(){return {id:me,email:'hui@horecaunited.nl'}},async myRole(){return 'admin'},async myStaffRow(){return {role:'admin',scope:'all',scope_values:[]}},
   async leads(){return L},async transitions(){return T},async submission(id){return subs[id]},
   async notes(l){return notes[l]||[]},async verifications(l){return ver[l]||[]},async mandate(l){return mand[l]||null},async events(l){return ev(l)},
-  async mandSuppliers(m){return msup[m]||[]},async mandRequests(){return []},
+  async mandSuppliers(m){return msup[m]||[]},async mandRequests(){return []},async mandSignatures(){return []},mandPdf:demoOnly,
   async beerAlerts(){return [{organization_id:'o1',pending:true,changed_at:d(0)}]},
   async beerAllVersions(){return (await this.beerVersions('o1'))},
   async leadOrgLinks(){return []},async linkSuggestions(){return [{lead_id:'l2',organization_id:'o1'}]},
@@ -505,7 +507,7 @@ async function beerScanLoad(o,canEdit,leadId,src){const box=$('#beerbox');if(!bo
 async function orgMandLoad(o,canEdit){const box=$('#orgmand');if(!box)return;
  try{const mand=await api.orgMandate(o);const org=(S.orgs||[]).find(x=>x.id===o)||{};
   if(!mand){box.innerHTML='';return}
-  const [sups,reqs,evs]=await Promise.all([api.mandSuppliers(mand.id).catch(()=>[]),api.mandRequests(mand.id).catch(()=>[]),api.orgMandEvents(o).catch(()=>[])]);
+  const [sups,reqs,evs,sigs]=await Promise.all([api.mandSuppliers(mand.id).catch(()=>[]),api.mandRequests(mand.id).catch(()=>[]),api.orgMandEvents(o).catch(()=>[]),api.mandSignatures(mand.id).catch(()=>[])]);
   if(S.costOrg!==o||!$('#orgmand'))return;
   const ctx={company_name:org.name||'',contact_name:mand.signer_name||'',reload:()=>orgMandLoad(o,canEdit)};
   $('#orgmand').innerHTML=`<h3>Machtiging</h3><div class="card" style="padding:16px">
@@ -514,10 +516,13 @@ async function orgMandLoad(o,canEdit){const box=$('#orgmand');if(!box)return;
    <div class="kv"><span>KvK-nummer in profiel</span><b>${esc(org.kvk_number||'niet ingevuld')}</b></div>
    ${mand.authority_check_method?`<div class="kv"><span>Bevoegdheid gecontroleerd</span><b>${esc({kvk_extract:'KvK-uittreksel',owner_confirmation:'Bevestiging eigenaar',signed_statement:'Getekende verklaring',other:'Anders'}[mand.authority_check_method]||mand.authority_check_method)} · ${fmtDT(mand.authority_checked_at)}</b></div>`:''}
    ${canEdit&&mand.status==='pending'?`<div class="form"><div class="row"><select id="omstat"><option value="verified">Bevoegdheid geverifieerd</option><option value="rejected">Afwijzen</option></select><select id="ommeth"><option value="kvk_extract">KvK-uittreksel</option><option value="owner_confirmation">Bevestiging eigenaar</option><option value="signed_statement">Getekende verklaring</option><option value="other">Anders</option></select></div><input id="omnote" placeholder="Wat heb je gecontroleerd? (verplicht)"><button class="btn" id="omgo">Machtiging bijwerken</button><div class="msg" id="ommsg"></div></div>`:''}
+   ${sigs.length?`<div style="margin:10px 0"><b>Ondertekeningen</b>${sigs.map(g=>`<div class="kv"><span>${g.kind==='initial'?'Ondertekening':'Aanvulling'} · ${fmtDT(g.signed_at)}</span><b>${esc(g.signer_name)} (${esc(g.signer_function)}) · ${esc((g.suppliers||[]).map(x=>x.name).join(', '))} · ${esc((g.periods||[]).map(p=>p.label||(p.start+' t/m '+p.end)).join(' + '))} · ${g.doc?`<a href="#" data-mpdf="${esc(g.doc.storage_path)}">PDF openen</a>`:'<span style="color:#a3542b">PDF ontbreekt</span>'}</b></div>`).join('')}${canEdit&&sigs.some(g=>!g.pdf_document_id)?`<button class="btn ghost" id="ompdf">PDF opnieuw maken</button><span class="msg" id="ompdfm"></span>`:''}</div>`:''}
    ${mandSupHtml(mand,sups,reqs,canEdit)}
    ${evs.length?`<details style="margin-top:10px"><summary>Tijdlijn machtiging (${evs.length})</summary><ul class="timeline">${evs.map(e=>`<li><span>${fmtDT(e.created_at)}${e.actor_role?' · '+esc(ROLE[e.actor_role]||e.actor_role):' · klant'}</span>${esc(eventText(e))}</li>`).join('')}</ul></details>`:''}
   </div>`;
   bindMandSup(ctx,mand,sups,reqs);
+  document.querySelectorAll('[data-mpdf]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();const w=window.open('','_blank');try{const u=await api.fileUrl(a.dataset.mpdf);if(w)w.location=u}catch(e){if(w)w.close();alert('PDF openen mislukt: '+errText(e))}});
+  if($('#ompdf'))$('#ompdf').onclick=async()=>{const b=$('#ompdf'),m=$('#ompdfm');b.disabled=true;m.className='msg';m.textContent='Bezig…';try{const r=await api.mandPdf(mand.id);if(r&&r.failed&&r.failed.length)throw new Error('niet alle PDF\'s gelukt');await orgMandLoad(o,canEdit)}catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}};
   if($('#omgo'))$('#omgo').onclick=async()=>{const m=$('#ommsg'),b=$('#omgo');b.disabled=true;m.className='msg';m.textContent='Bezig…';try{await api.mandateDecide(mand.id,$('#omstat').value,$('#ommeth').value,$('#omnote').value.trim(),null);await orgMandLoad(o,canEdit)}catch(e){m.className='msg err';m.textContent=errText(e);b.disabled=false}};
  }catch(e){if($('#orgmand'))$('#orgmand').innerHTML=`<p class="msg err">Machtiging kon niet worden geladen: ${esc(errText(e))}</p>`}}
 function eventText(e){const d=e.details||{};switch(e.event_type){
@@ -540,6 +545,7 @@ function eventText(e){const d=e.details||{};switch(e.event_type){
  case 'mandate_request_cancelled':return `Verzoek ${d.supplier||''} geannuleerd`;
  case 'mandate_linked_org':return 'Machtiging gekoppeld aan pilotklant';
  case 'lead_linked_org':return 'Gekoppeld aan pilotklant'+(d.mandate_linked?' (machtiging gaat mee)':'')+(d.note?' — '+d.note:'');
+ case 'mandate_pdf_created':return `PDF van ondertekening gemaakt${d.by==='staff'?' (door Horeca United)':''}`;
  case 'mandate_signed':return `Machtiging ondertekend door ${d.signer||'klant'}${d.function?' ('+d.function+')':''} — ${d.suppliers??'?'} leverancier(s)`;
  default:return e.event_type.replace(/_/g,' ')}}
 async function reload(id){S.leads=await api.leads()||[];S.sel=id;renderLeads()}
@@ -578,7 +584,7 @@ async function renderCosts(){
   const o=S.costOrg;
   const [lines,cmp,docs,cons,notes,caudit,invs,splits]=await Promise.all([api.costLines(o),api.costCompare(o),api.orgDocs(o),api.orgContracts(o),api.orgNotices(o).catch(()=>[]),api.contractAudit(o).catch(()=>[]),client.from('huos_investments').select('id,document_id,description,amount_excl_vat,invested_on').eq('organization_id',o).then(r=>r.error?[]:(r.data||[]),()=>[]),api.costSplits(o).catch(()=>[])]);
   S.costSplits=splits||[];S.notices=notes||[];S.cmp=cmp||[];S.costCons=cons||[];S.caudit=caudit||[];S.costInv=invs||[];
-  S.costLines=lines||[];S.costDocs=docs||[];
+  S.costLines=lines||[];S.costDocs=(docs||[]).filter(d=>d.category!=='mandate');
   const canEdit=S.role==='reviewer'||S.role==='admin';
   const recentAll=(cmp||[]).filter(r=>r.latest_end&&(Date.now()-new Date(r.latest_end))<400*864e5);
   const recent=recentAll.filter(r=>kindOfLine(r.latest_id)!=='inkoop');
@@ -1299,7 +1305,7 @@ function newUploadsBox(){const n=newUploads();if(!n.length)return '';const name=
  return `<div class="newbox"><b>📥 ${n.length} nieuw aangeleverd${n.length===1?' document':'e documenten'} sinds je laatste controle</b><ul style="margin:6px 0 8px 18px;padding:0">${n.slice(0,12).map(d=>`<li>${esc(fmtDT(d.uploaded_at))} · <b>${esc(name(d.organization_id))}</b> · ${esc(DOCCAT[d.category]||d.category||'')} · ${esc(d.file_name)} <a href="#" data-goorg="${esc(d.organization_id)}">bekijk</a></li>`).join('')}</ul><button class="btn small" id="seenall">Alles gezien</button></div>`}
 
 /* ---------- Factuur uitlezen (gratis, in de browser; bestand verlaat de computer niet) ---------- */
-const DOCCAT={invoice:'Inkoopfactuur',annual:'Jaarafrekening',contract:'Contract',overview:'Overzicht',other:'Overig'};
+const DOCCAT={invoice:'Inkoopfactuur',annual:'Jaarafrekening',contract:'Contract',overview:'Overzicht',other:'Overig',mandate:'Machtiging'};
 const PDFJS='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/';
 let pdfjsLib=null;
 async function loadPdfjs(){if(pdfjsLib)return pdfjsLib;const m=await import(PDFJS+'pdf.min.mjs');m.GlobalWorkerOptions.workerSrc=PDFJS+'pdf.worker.min.mjs';return pdfjsLib=m}
