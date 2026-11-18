@@ -1234,7 +1234,7 @@ async function extractInvoice(docId,btn){
  ['#csup','#cprod','#cfrom','#cto','#cidate','#cinr','#camt','#cqty','#cunit','#cnote'].forEach(id=>{$(id).value='';$(id).classList.remove('auto')});$('#ccat').value='overig';$('#ccat').classList.remove('auto');$('#ckind').value='vast';delete $('#ckind').dataset.manual;$('#ckind').classList.remove('auto');$('#ccon').value='';$('#ccon').classList.remove('auto');
  $('#cdoc').value=docId;const box=$('#cxtr');$('#cmsg').textContent='';
  const show=html=>{box.innerHTML=`<div class="xbox">${html}</div>`;$('#cformh').scrollIntoView({behavior:'smooth'})};
- if(!/pdf$/i.test(d.file_name)&&!/pdf/.test(d.storage_path||'')){show('<b>Dit is een afbeelding (foto of scan).</b> Automatisch uitlezen werkt alleen bij digitale PDF\'s. Open het bestand en vul de gegevens handmatig in. De factuur is al gekoppeld.');return}
+ if(!/pdf$/i.test(d.file_name)&&!/pdf/.test(d.storage_path||'')&&!DP_SHEET.test(d.file_name||'')&&!DP_SHEET.test(d.storage_path||'')){show('<b>Dit is een afbeelding (foto of scan).</b> Automatisch uitlezen werkt alleen bij digitale PDF\'s. Open het bestand en vul de gegevens handmatig in. De factuur is al gekoppeld.');return}
  if(btn){btn.disabled=true;btn.textContent='Bezig…'}
  try{
   let lines;
@@ -1285,7 +1285,7 @@ async function extractInvoice(docId,btn){
    const set=(id,v)=>{if(v==null||v==='')return false;$(id).value=v;$(id).classList.add('auto');return true};
    set('#ccat',st.category);set('#ckind','inkoop');set('#csup',st.supplier);set('#cprod',st.product);set('#cfrom',st.period_start);set('#cto',st.period_end);set('#camt',st.total.toFixed(2));set('#cnote',st.note);
    const top=st.priced.slice().sort((a,b)=>b.net-a.net).slice(0,8);
-   show(`<b>${esc(d.file_name)}</b><ul><li>Soort document: <b>${st.kind==='groepen'?'afnameoverzicht per productgroep':'inkoopoverzicht per artikel'}</b> (${st.kind==='groepen'?'totaal per groep, geen prijzen per artikel':st.kind==='mutaties'?'mutaties per levering, '+st.invoices+' facturen':'artikelstatistiek'}).</li>
+   show(`<b>${esc(d.file_name)}</b><ul><li>Soort document: <b>${st.kind==='groepen'?'afnameoverzicht per productgroep':'inkoopoverzicht per artikel'}</b> (${st.kind==='groepen'?'totaal per groep, geen prijzen per artikel':st.kind==='mutaties'?'mutaties per levering, '+st.invoices+' facturen':st.kind==='artikelen'?'Excel/CSV, per artikel opgeteld':'artikelstatistiek'}).</li>
     ${st.kind&&!st.supplier?'<li style="color:var(--warn)">De naam van de leverancier staat niet in dit document. Vul die zelf in.</li>':''}<li>${st.rows.length} ${st.kind==='groepen'?'productgroepen':'artikelen'} · ${st.qty.toLocaleString('nl-NL')} ${st.kind?'eenheden':'stuks'} · totaal ${eur(st.total)} excl. btw${st.free?` · ${st.free} regels à € 0,00 (proef/gratis) niet meegeteld`:''}${st.period_start?` · periode ${fmtDate(st.period_start)} – ${fmtDate(st.period_end)}`:''}</li>
     ${st.pattern?`<li>${esc(st.pattern)}</li>`:''}
     ${st.cut?`<li style="color:var(--warn)">Let op: de laatste regel lijkt onvolledig. Controleer het totaal met de PDF.</li>`:''}
