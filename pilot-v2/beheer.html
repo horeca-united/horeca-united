@@ -158,6 +158,7 @@ function liveApi(){
   async verify(lead,field,year,value,unit,outcome,kind,note){return ok(await client.rpc('huos_beer_lead_verify',{p_lead:lead,p_field:field,p_period_year:year,p_value:value,p_unit:unit,p_outcome:outcome,p_evidence_kind:kind,p_note:note,p_document:null}))},
   async mandateDecide(id,status,method,note,via){return ok(await client.rpc('huos_beer_mandate_decide',{p_mandate:id,p_status:status,p_method:method||null,p_note:note||null,p_revoked_via:via||null}))},
   async beerAlerts(){return ok(await client.from('huos_pilot_beer_scan_alerts').select('*').eq('pending',true).order('changed_at',{ascending:false}))},
+  async beerAllVersions(){return ok(await client.from('huos_pilot_beer_scan_versions').select('organization_id,completed_at,answers').order('completed_at',{ascending:false}).limit(500))},
   async beerVersions(o){return ok(await client.from('huos_pilot_beer_scan_versions').select('*').eq('organization_id',o).order('completed_at',{ascending:false}).limit(10))},
   async beerSeen(o){return ok(await client.rpc('huos_beer_scan_seen',{p_org:o}))},
   async orgMandate(o){return ok(await client.from('huos_beer_mandates').select('*').eq('organization_id',o).in('status',['pending','verified']).maybeSingle())},
@@ -224,6 +225,7 @@ function demoApi(){
   async notes(l){return notes[l]||[]},async verifications(l){return ver[l]||[]},async mandate(l){return mand[l]||null},async events(l){return ev(l)},
   async mandSuppliers(m){return msup[m]||[]},async mandRequests(){return []},
   async beerAlerts(){return [{organization_id:'o1',pending:true,changed_at:d(0)}]},
+  async beerAllVersions(){return (await this.beerVersions('o1'))},
   async beerVersions(o){return o==='o1'?[{id:'v2',organization_id:'o1',completed_at:d(0),answers:{brewery_supplier:'Heineken',tap_beer_brand:'Heineken',distributor:'HANOS',keg_size_l:'20',keg_price_ex_vat:55,annual_volume_source:'invoice',bonus_status:'yes',contract_end_status:'ongoing',purchase_obligation:'no',installation_status:'brewery',brewery_loan_status:'no',proposal_interest:'yes',willingness_to_switch:'maybe',data_route:'mandate'}},{id:'v1',organization_id:'o1',completed_at:d(3),answers:{brewery_supplier:'Heineken',tap_beer_brand:'Heineken',distributor:'Sligro',keg_size_l:'20',keg_price_ex_vat:51.04,annual_volume_source:'invoice',bonus_status:'yes',contract_end_status:'ongoing',purchase_obligation:'no',installation_status:'brewery',brewery_loan_status:'no',proposal_interest:'yes',willingness_to_switch:'maybe',data_route:'mandate'}}]:[]},
   async orgMandate(o){return o==='o1'?{id:'mo1',organization_id:'o1',status:'pending',consent_text_version:'huos-mandate-v2',consent_at:d(1),signer_name:'Demo Eigenaar',signer_function:'Eigenaar',followup:[]}:null},async orgMandEvents(){return []},
   async staffList(){return [{user_id:me,email:'hui@horecaunited.nl',role:'admin',active:true,scope:'all',scope_values:[],last_sign_in_at:d(0),created_at:d(0)}]},
@@ -274,7 +276,7 @@ function renderWho(){
 function render(){
  const nNew=newUploads().length;
  const nReq=(S.requests||[]).filter(r=>r.status==='new').length;
- const tabs=[['leads','Leads'],['costs','Kosten'+(nNew?` <span class="badge">${nNew} nieuw</span>`:'')+((S.beerAlerts||[]).length?` <span class="badge">${S.beerAlerts.length} bierscan</span>`:'')],['requests','Aanvragen'+(nReq?` <span class="badge">${nReq} nieuw</span>`:'')]].concat(S.role==='admin'?[['staff','Medewerkers'],['log','Logboek']]:[]);
+ const tabs=[['leads','Leads'+((S.beerAlerts||[]).length?` <span class="badge">${S.beerAlerts.length} bierscan</span>`:'')],['costs','Kosten'+(nNew?` <span class="badge">${nNew} nieuw</span>`:'')],['requests','Aanvragen'+(nReq?` <span class="badge">${nReq} nieuw</span>`:'')]].concat(S.role==='admin'?[['staff','Medewerkers'],['log','Logboek']]:[]);
  $('#app').innerHTML=`<div class="tabs">${tabs.map(([k,v])=>`<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${v}</button>`).join('')}</div><div id="view"></div>`;
  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.sel=null;render()});
  if(S.tab==='leads')renderLeads();else if(S.tab==='costs')renderCosts();else if(S.tab==='requests')renderRequests();else if(S.tab==='staff')renderStaff();else renderLog();
@@ -301,6 +303,7 @@ function renderLeads(){
   <div class="stat"><span>Opgegeven met bron</span><b>${fmtHl(sum(rep,'hl_submitted'))}</b><small>${rep.length} lead(s), nog te verifiëren</small></div>
   <div class="stat"><span>Geschat volume</span><b>${fmtHl(sum(est,'hl_submitted'))}</b><small>${est.length} lead(s), eigen schatting</small></div>
  </div>
+ <div id="pilotbeer"></div>
  <div class="filters">
   <input id="fq" placeholder="Zoek op bedrijf, contactpersoon of e-mail" value="${esc(S.filters.q)}">
   <select id="fstage"><option value="">Alle fases</option>${Object.entries(STAGES).map(([k,v])=>`<option value="${k}" ${S.filters.stage===k?'selected':''}>${v}</option>`).join('')}</select>
@@ -326,6 +329,7 @@ function renderLeads(){
  bind('#fq','q');bind('#fstage','stage');bind('#fhl','hl');bind('#fm','mandate');
  if($('#exp'))$('#exp').onclick=doExport;
  if(S.sel)renderDetail(S.sel);
+ pilotBeerLoad();
 }
 async function renderDetail(id){
  const l=S.leads.find(x=>x.lead_id===id),box=$('#detail');if(!l){box.hidden=true;return}
@@ -452,14 +456,26 @@ function bindMandSup(l,mand,sups,reqs){
   if(k==='mail'){const r=reqs.find(x=>x.id===id);const t=mandMail(l,r);(navigator.clipboard?.writeText(t)||Promise.reject()).then(()=>{m.className='msg ok';m.textContent='Mailtekst gekopieerd. Voeg de afgedrukte en getekende machtiging als bijlage toe.'},()=>{m.className='msg';m.textContent=t})}
  })}
 const Q_ALL=Q.concat([['data_route','15. Ontbrekende gegevens',ROUTE]]);
-function beerAlertBanner(){const al=(S.beerAlerts||[]);if(!al.length)return '';const nm=id=>((S.orgs||[]).find(x=>x.id===id)||{}).name||'Klant';
- return al.map(a=>`<p class="ptwarn">🍺 <b>${esc(nm(a.organization_id))}</b> heeft de Bier Quick Scan afgerond (${fmtDT(a.changed_at)}). ${a.organization_id===S.costOrg?'Zie hieronder.':`<a href="#" data-goorg="${esc(a.organization_id)}">Bekijken</a>`}</p>`).join('')}
+async function pilotBeerLoad(){const box=$('#pilotbeer');if(!box)return;
+ try{if(!S.orgs)S.orgs=await api.orgs().catch(()=>[])||[];const vs=await api.beerAllVersions()||[];if(!$('#pilotbeer'))return;
+  const latest=new Map(),cnt={};for(const v of vs){cnt[v.organization_id]=(cnt[v.organization_id]||0)+1;if(!latest.has(v.organization_id))latest.set(v.organization_id,v)}
+  if(!latest.size){box.innerHTML='';return}
+  const nm=id=>((S.orgs||[]).find(x=>x.id===id)||{}).name||'Klant',isNew=id=>(S.beerAlerts||[]).some(a=>a.organization_id===id);
+  const qa=(k,v)=>{const q=Q_ALL.find(x=>x[0]===k);return v==null||v===''?'—':v==='unknown'?'Weet ik niet':k==='keg_price_ex_vat'?eur(v):k==='annual_volume_hl'?String(v).replace('.',',')+' hl':ansLabel(k,v,q&&q[2])};
+  const rows=[...latest.values()].sort((a,b)=>(isNew(b.organization_id)-isNew(a.organization_id))||(a.completed_at<b.completed_at?1:-1));
+  const canEdit=S.role==='reviewer'||S.role==='admin';
+  box.innerHTML=`<h3 style="margin-top:6px">Pilotklanten — Bier Quick Scan in de app</h3><div class="card" style="overflow:auto;margin-bottom:14px"><table><thead><tr><th>Afgerond</th><th>Onderneming</th><th class="hide-m">Brouwerij / merk</th><th>Afname 2025</th><th class="hide-m">Fustprijs</th><th class="hide-m">Leverancier</th><th></th></tr></thead><tbody>
+   ${rows.map(v=>{const a=v.answers||{},o=v.organization_id;return `<tr data-pbo="${esc(o)}" class="${S.pbSel===o?'sel':''}"><td>${fmtDate(v.completed_at)}${cnt[o]>1?`<span class="s">${cnt[o]} versies</span>`:''}</td><td><b>${esc(nm(o))}</b></td><td class="hide-m">${esc(qa('brewery_supplier',a.brewery_supplier==='other'?a.brewery_supplier_other:a.brewery_supplier))}<span class="s">${esc(a.tap_beer_brand==='other'?a.tap_beer_brand_other||'':a.tap_beer_brand||'')}</span></td><td>${esc(qa('annual_volume_hl',a.annual_volume_hl))}</td><td class="hide-m">${esc(qa('keg_price_ex_vat',a.keg_price_ex_vat))}</td><td class="hide-m">${esc(a.distributor==='other'?a.distributor_other||'Anders':qa('distributor',a.distributor))}</td><td>${isNew(o)?chip(['Nieuw','c-warn']):''}</td></tr>`}).join('')}
+  </tbody></table></div>${S.pbSel&&latest.has(S.pbSel)?`<div id="beerbox" data-org="${esc(S.pbSel)}" style="margin-bottom:18px"></div>`:''}`;
+  box.querySelectorAll('tr[data-pbo]').forEach(tr=>tr.onclick=()=>{S.pbSel=S.pbSel===tr.dataset.pbo?null:tr.dataset.pbo;pilotBeerLoad()});
+  if(S.pbSel&&latest.has(S.pbSel))beerScanLoad(S.pbSel,canEdit);
+ }catch(e){box.innerHTML=`<p class="msg err">Bier Quick Scans van pilotklanten konden niet worden geladen: ${esc(errText(e))}</p>`}}
 async function beerScanLoad(o,canEdit){const box=$('#beerbox');if(!box)return;
- try{const vs=await api.beerVersions(o)||[];if(S.costOrg!==o||!$('#beerbox'))return;if(!vs.length){box.innerHTML='';return}
+ try{const vs=await api.beerVersions(o)||[];if(!$('#beerbox')||$('#beerbox').dataset.org!==o)return;if(!vs.length){box.innerHTML='';return}
   const cur=vs[0].answers||{},prev=vs[1]?.answers||null,al=(S.beerAlerts||[]).find(a=>a.organization_id===o);
   const show=(k,v,map)=>v==null||v===''?'—':v==='unknown'?'Weet ik niet':k==='keg_price_ex_vat'?eur(v):k==='annual_volume_hl'?String(v).replace('.',',')+' hl':ansLabel(k,v,map);
   const diff=prev?Q_ALL.filter(([k])=>JSON.stringify(cur[k]??null)!==JSON.stringify(prev[k]??null)).map(([k,l,m])=>`<li>${esc(l.trim())}: ${esc(show(k,prev[k],m))} → <b>${esc(show(k,cur[k],m))}</b></li>`).join(''):'';
-  $('#beerbox').innerHTML=`<h3>Bier Quick Scan</h3><div class="card" style="padding:16px">
+  $('#beerbox').innerHTML=`<div class="card" style="padding:16px"><h3 style="margin-top:0">${esc(((S.orgs||[]).find(x=>x.id===o)||{}).name||'Klant')}</h3>
    <p class="hint" style="margin-top:0">Afgerond op ${fmtDT(vs[0].completed_at)}${vs.length>1?` · ${vs.length} versies`:''}${al?' · <b>nieuw</b>':''}</p>
    ${prev?(diff?`<p><b>Gewijzigd t.o.v. ${fmtDT(vs[1].completed_at)}:</b></p><ul style="margin:4px 0 12px 18px">${diff}</ul>`:''):'<p class="hint">Eerste keer afgerond.</p>'}
    <details${al?' open':''}><summary>Alle antwoorden</summary>${Q_ALL.filter(([k])=>cur[k]!=null&&cur[k]!=='').map(([k,l,m])=>`<div class="kv"><span>${esc(l.trim())}</span><b>${esc(show(k,cur[k],m))}</b></div>`).join('')}</details>
@@ -560,7 +576,7 @@ async function renderCosts(){
   const sigs=(cmp||[]).filter(r=>r.is_signal).sort((a,b)=>b.extra_per_month-a.extra_per_month);
   const rows=(cmp||[]).slice().sort((a,b)=>(CCAT[a.category]||'').localeCompare(CCAT[b.category]||'')||a.supplier.localeCompare(b.supplier));
   const docName=id=>(S.costDocs.find(d=>d.id===id)||{}).file_name;
-  v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="sub">Intern — de ondernemer ziet dit overzicht niet. Alle bedragen excl. btw. Elke nieuwe factuur wordt vergeleken met de eerste factuur van dat jaar, de oudste factuur en de vorige factuur.</p>${beerAlertBanner()}
+  v.innerHTML=`<h1>Kosten per bedrijf</h1><p class="sub">Intern — de ondernemer ziet dit overzicht niet. Alle bedragen excl. btw. Elke nieuwe factuur wordt vergeleken met de eerste factuur van dat jaar, de oudste factuur en de vorige factuur.</p>
   ${newUploadsBox()}<div class="orgpick"><select id="corg">${S.orgs.map(x=>`<option value="${esc(x.id)}" ${x.id===o?'selected':''}>${esc(x.name)}${x.city?' — '+esc(x.city):''}</option>`).join('')}</select><span class="hint">${S.costDocs.length} document(en) aangeleverd</span></div>
   <div class="stats">
    <div class="stat"><span>Vaste kosten per jaar</span><b>${eur(Math.round(perYear))}</b><small>${fromCon?`facturen ${eur(Math.round(fromInv))} + contracten ${eur(Math.round(fromCon))}`:'geschat uit de laatste facturen (≤ 13 mnd oud)'}</small></div>
@@ -569,7 +585,6 @@ async function renderCosts(){
    <div class="stat"><span>Stijgingen</span><b>${sigs.length}</b><small>t.o.v. begin dit jaar, of anders de oudste factuur</small></div>
   </div>
   <h3>Advies <span class="hint" style="text-transform:none;letter-spacing:0">(alleen voor jou — kies zelf wat je aan de klant doorgeeft)</span></h3><div id="advbox">${adviceHtml(adviceSync(),canEdit,true)}</div>
-  <div id="beerbox"></div>
   <div id="orgmand"></div>
   <div id="ptbox">${productTypeHtml()}</div>
   ${(()=>{const pr=(S.costCons||[]).filter(c=>c.promo_end_date).map(c=>({c,d:Math.round((new Date(c.promo_end_date+'T12:00:00')-Date.now())/864e5)})).filter(x=>x.d>=-30&&x.d<=120).sort((a,b)=>a.d-b.d);
@@ -597,7 +612,7 @@ async function renderCosts(){
 `;
   $('#corg').onchange=e=>{S.costOrg=e.target.value;S.costEdit=null;renderCosts()};
   document.querySelectorAll('[data-goorg]').forEach(a=>a.onclick=ev=>{ev.preventDefault();S.costOrg=a.dataset.goorg;S.costEdit=null;renderCosts()});
-  bindNoticeControls();bindAdvice();adviceAsync(canEdit);orgMandLoad(o,canEdit);beerScanLoad(o,canEdit);
+  bindNoticeControls();bindAdvice();adviceAsync(canEdit);orgMandLoad(o,canEdit);
   if($('#seenall'))$('#seenall').onclick=()=>{try{localStorage.setItem(seenKey(),new Date().toISOString())}catch(_){}render()};
   document.querySelectorAll('[data-file]').forEach(a=>a.onclick=async ev=>{ev.preventDefault();const d=S.costDocs.find(x=>x.id===a.dataset.file);if(!d)return;const w=window.open('','_blank');try{const u=await api.fileUrl(d.storage_path);if(w)w.location=u;else location.href=u}catch(e){if(w)w.close();alert('Openen mislukt: '+errText(e))}});
   if(!canEdit)return;
