@@ -513,8 +513,9 @@ async function dpLoadPdf(){if(dpPdfLib)return dpPdfLib;const m=await import(DP_P
 async function dpPdfLines(buf){
  const lib=await dpLoadPdf();const doc=await lib.getDocument({data:buf,isEvalSupported:false,disableFontFace:true}).promise;const out=[];
  for(let p=1;p<=Math.min(doc.numPages,40);p++){const tc=await (await doc.getPage(p)).getTextContent();const rows=new Map();
-  for(const it of tc.items){if(!it.str||!it.str.trim())continue;const y=Math.round(it.transform[5]/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
-  [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
+  /* ook gedraaide pagina's (liggend): positie omrekenen naar de leesrichting van de tekst zelf */
+  for(const it of tc.items){if(!it.str||!it.str.trim())continue;const [ta,tb,,,te,tf]=it.transform,nn=Math.hypot(ta,tb)||1;it._v=(-tb*te+ta*tf)/nn;it._u=(ta*te+tb*tf)/nn;const y=Math.round(it._v/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
+  [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a._u-b._u).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
  return out}
 const DP_M={jan:1,januari:1,feb:2,februari:2,mrt:3,maart:3,apr:4,april:4,mei:5,jun:6,juni:6,jul:7,juli:7,aug:8,augustus:8,sep:9,sept:9,september:9,okt:10,oktober:10,nov:11,november:11,dec:12,december:12};
 const DP_DATE=/(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{4}|\d{2})\b|(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|jan|feb|mrt|apr|jun|jul|aug|sept|sep|okt|nov|dec)\.?\s+(\d{4})/gi;
@@ -551,7 +552,8 @@ function dpSupplier(lines,ownName){
  const text=lines.join('\n'),lower=text.toLowerCase();
  const own=String(ownName||'').toLowerCase().split(/[^a-z0-9à-ÿ]+/).filter(w=>w.length>=4&&!['restaurant','eetcafe','cafe','hotel','grand','brasserie','lunchroom','bistro'].includes(w));
  const isOwn=x=>own.some(w=>x.toLowerCase().includes(w));
- for(const [n,c] of DP_SUP)if(lower.includes(n.toLowerCase()))return {supplier:n,category:c};
+ /* groothandel eerst: in een afnameoverzicht staan merken/fabrikanten (Coca-Cola, Heineken) als artikelregels */
+ for(const [n,c] of [...DP_SUP.filter(x=>x[1]==='groothandel'),...DP_SUP.filter(x=>x[1]!=='groothandel')])if(lower.includes(n.toLowerCase()))return {supplier:n,category:c};
  const dm=[...text.matchAll(/(?:www\.|@)([a-z0-9-]{3,40})\.(?:nl|com|eu|be|de)\b/gi)].map(m=>m[1].toLowerCase()).find(d=>!['gmail','hotmail','outlook','live','icloud','yahoo','ziggo','kpnmail','xs4all'].includes(d)&&!isOwn(d));
  if(dm)return {supplier:dm.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' '),category:null};
  const ln=lines.slice(0,15).find(x=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b/.test(x)&&!isOwn(x));
@@ -752,17 +754,21 @@ document.addEventListener('change',e=>{if(e.target&&e.target.id==='ptYear'){S.pt
 const PTYPE={vlees:'Vlees',vis:'Vis',agf:'AGF (groente & fruit)',zuivel:'Zuivel & koeling',diepvries:'Diepvries & frites',brood:'Brood & patisserie',droog:'Droge & overige food',wijn:'Wijn',bier:'Bier',frisdrank:'Frisdrank',gedistilleerd:'Gedistilleerd',nonfood:'Non-food',overig:'Overig'};
 /* Productsoort bij een naam. sure=false: niet herkend, voorlopig ingedeeld -> wordt gemeld als bijzonderheid. */
 function ptypeGuess(name,cat){const n=String(name||'').toLowerCase(),S1=t=>({t,sure:true});
- if(/papier|servies|glas|porselein|porcelein|huishoud|textiel|elektro|schoonmaak|verzorging|kantoor|bedrijfsbenodig|vrije\s*tijd|luxe artikel|verpakking|disposable/.test(n))return S1('nonfood');
+ if(/papier|servies|glas|porselein|porcelein|huishoud|textiel|elektro|schoonmaak|verzorging|kantoor|bedrijfsbenodig|vrije\s*tijd|luxe artikel|verpakkingsmat|disposable|reinig|afwas|vaatmiddel|cosmetica|handzeep/.test(n))return S1('nonfood');
+ if(/saus|sauzen|dressing/.test(n))return S1('droog');
+ if(/boterham|broodbeleg/.test(n))return S1('droog');
+ if(/fruitdrank|vruchtensap|sappen/.test(n))return S1('frisdrank');
+ if(/diepvries|frites|friet/.test(n))return S1('diepvries');
  if(/\bvis\b|^vis|zalm|garnaal|kabeljauw|schaal|mossel|oester/.test(n))return S1('vis');
  if(/slager|poelier|vleeswaren|vlees|kip|rund|varken|kalf|lam|steak|tartaar|haas|ribeye|ribfinger|spek|ham|worst|gehakt|buik naturel|nekken|\bnek\b|filet/.test(n))return S1('vlees');
  if(/^agf|groente|fruit|aardappel|salade|kruiden vers/.test(n))return S1('agf');
- if(/zuivel|koeling|kaas|melk|room|boter|yoghurt|eieren/.test(n))return S1('zuivel');
+ if(/zuivel|koeling|kaas|melk|room|boter|yoghurt|eier/.test(n))return S1('zuivel');
  if(/diepvries|frites|friet/.test(n))return S1('diepvries');
  if(/brood|patisserie|banket|gebak|zoetwaren/.test(n))return S1('brood');
  if(/wijn|champagne|cava|prosecco|port\b/.test(n))return S1('wijn');
  if(/\bbier|brouwerij|pils/.test(n))return S1('bier');
  if(/frisdrank|\bfris\b|water|sap|limonade|tonic|cola/.test(n))return S1('frisdrank');
- if(/gedistilleerd|sterke drank|whisky|gin\b|rum\b|vodka|likeur|jenever/.test(n))return S1('gedistilleerd');
+ if(/gedistilleerd|sterke drank|whisky|gin\b|rum\b|vodka|likeur|jenever|cocktail|mixdrank|aperitief/.test(n))return S1('gedistilleerd');
  if(/conserven|grutters|margarine|vetten|soep|sauz|suiker|zout|koffie|thee|zuren|olie|azijn|specerij|rijst|pasta|meel|bloem|noten|ijsbenodig|chips|snack/.test(n))return S1('droog');
  const one={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd'}[cat];if(one)return S1(one);
  if(cat==='food'||cat==='groothandel')return {t:'overig',sure:!n};
@@ -839,7 +845,23 @@ function parseGroupOverview(lines){
  return {kind:'groepen',rows,priced:rows.filter(r=>r.net>0),free:0,total,qty,stated,cut:stated!=null&&Math.abs(stated-total)>0.05,period_start:ps,period_end:pe,
   supplier:sp&&sp.supplier||null,category:(sp&&sp.category)||'groothandel',
   product:'Inkoop '+(yr||'periode')+' (afnameoverzicht per productgroep)',note:`${rows.length} productgroepen. Uit afnameoverzicht.`,pattern:null}}
+/* Afnameoverzicht per artikel met een kolom Artikelgroep (bv. Sligro): opgeteld per artikelgroep. */
+function parseArticleGroupList(lines){
+ const hi=lines.findIndex(x=>/artikelomschrijving/i.test(x)&&/artikelgroep/i.test(x)&&/omzet|bedrag|waarde/i.test(x));if(hi<0)return null;
+ const hc=lines[hi].split(/\s{2,}/).map(c=>c.trim()),gi=hc.findIndex(c=>/^artikelgroep$/i.test(c)),di=hc.findIndex(c=>/artikelomschrijving/i.test(c));if(gi<0)return null;
+ const num=x=>Number(String(x).replace(/\./g,'').replace(',','.'));const by=new Map();let n=0,bad=0;
+ for(const l of lines){if(!/^\s*\d{3,}\s/.test(l))continue;const c=l.split(/\s{2,}/).map(x=>x.trim());const am=c[c.length-1];if(!/^-?[\d.]*\d,\d{2}$/.test(am)){continue}
+  if(c.length!==hc.length){bad++;continue}n++;const g=c[gi],v=num(am),q=num(c[c.length-2]);const x=by.get(g)||{code:g,name:g.charAt(0)+g.slice(1).toLowerCase(),qty:0,net:0,price:null,items:[]};x.qty+=q;x.net+=v;if(x.items.length<4&&v>0)x.items.push(c[di]);by.set(g,x)}
+ if(n<3||bad>n*0.1)return null;
+ const rows=[...by.values()].map(r=>({...r,qty:Math.round(r.qty*100)/100,net:Math.round(r.net*100)/100}));
+ const total=Math.round(rows.reduce((a,r)=>a+r.net,0)*100)/100,qty=Math.round(rows.reduce((a,r)=>a+r.qty,0)*100)/100;
+ const tl=lines.find(x=>/^\s*totaal\b/i.test(x)),tm=tl&&tl.match(/(-?[\d.]*\d,\d{2})\s*$/),stated=tm?num(tm[1]):null;
+ const pm=lines.join(' ').match(/(20\d{2})(\d{2})(\d{2})\s*t\/?m\s*(20\d{2})(\d{2})(\d{2})/i);const ps=pm?`${pm[1]}-${pm[2]}-${pm[3]}`:null,pe=pm?`${pm[4]}-${pm[5]}-${pm[6]}`:null;
+ const sp=dpSupplier(lines,(((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||''));const yr=ps&&pe&&ps.slice(0,4)===pe.slice(0,4)?ps.slice(0,4):'';
+ return {kind:'groepen',rows,priced:rows.filter(r=>r.net>0),free:0,total,qty,stated,cut:stated!=null&&Math.abs(stated-total)>0.05,period_start:ps,period_end:pe,
+  supplier:sp&&sp.supplier||null,category:(sp&&sp.category)||'groothandel',product:'Inkoop '+(yr||'periode')+' (afnameoverzicht per artikelgroep)',note:`${n} artikelregels in ${rows.length} artikelgroepen. Uit afnameoverzicht.`,pattern:null}}
 function parseArticleStats(lines){
+ const al=parseArticleGroupList(lines);if(al)return al;
  const go=parseGroupOverview(lines);if(go)return go;
  const mu=parseArticleMutations(lines);if(mu)return mu;
  const t=lines.join('\n');if(!/(artikel\s*statistiek|artikeloverzicht|omzet per artikel|inkoopoverzicht)/i.test(t))return null;
@@ -1072,8 +1094,9 @@ async function loadPdfjs(){if(pdfjsLib)return pdfjsLib;const m=await import(PDFJ
 async function pdfLines(buf){
  const lib=await loadPdfjs();const doc=await lib.getDocument({data:buf,isEvalSupported:false,disableFontFace:true}).promise;const out=[];
  for(let p=1;p<=Math.min(doc.numPages,40);p++){const tc=await (await doc.getPage(p)).getTextContent();const rows=new Map();
-  for(const it of tc.items){if(!it.str||!it.str.trim())continue;const y=Math.round(it.transform[5]/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
-  [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
+  /* ook gedraaide pagina's (liggend): positie omrekenen naar de leesrichting van de tekst zelf */
+  for(const it of tc.items){if(!it.str||!it.str.trim())continue;const [ta,tb,,,te,tf]=it.transform,nn=Math.hypot(ta,tb)||1;it._v=(-tb*te+ta*tf)/nn;it._u=(ta*te+tb*tf)/nn;const y=Math.round(it._v/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
+  [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a._u-b._u).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
  return out}
 const NLM={jan:1,januari:1,feb:2,februari:2,mrt:3,maart:3,apr:4,april:4,mei:5,jun:6,juni:6,jul:7,juli:7,aug:8,augustus:8,sep:9,sept:9,september:9,okt:10,oktober:10,nov:11,november:11,dec:12,december:12};
 const DATE_G=/(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{4}|\d{2})\b|(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|jan|feb|mrt|apr|jun|jul|aug|sept|sep|okt|nov|dec)\.?\s+(\d{4})/gi;

@@ -886,8 +886,9 @@ async function dpLoadPdf(){if(dpPdfLib)return dpPdfLib;const m=await import(DP_P
 async function dpPdfLines(buf){
  const lib=await dpLoadPdf();const doc=await lib.getDocument({data:buf,isEvalSupported:false,disableFontFace:true}).promise;const out=[];
  for(let p=1;p<=Math.min(doc.numPages,40);p++){const tc=await (await doc.getPage(p)).getTextContent();const rows=new Map();
-  for(const it of tc.items){if(!it.str||!it.str.trim())continue;const y=Math.round(it.transform[5]/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
-  [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
+  /* ook gedraaide pagina's (liggend): positie omrekenen naar de leesrichting van de tekst zelf */
+  for(const it of tc.items){if(!it.str||!it.str.trim())continue;const [ta,tb,,,te,tf]=it.transform,nn=Math.hypot(ta,tb)||1;it._v=(-tb*te+ta*tf)/nn;it._u=(ta*te+tb*tf)/nn;const y=Math.round(it._v/3)*3;if(!rows.has(y))rows.set(y,[]);rows.get(y).push(it)}
+  [...rows.keys()].sort((a,b)=>b-a).forEach(y=>out.push(rows.get(y).sort((a,b)=>a._u-b._u).map(i=>i.str.trim()).join('  ').replace(/\s{3,}/g,'  ')))}
  return out}
 const DP_M={jan:1,januari:1,feb:2,februari:2,mrt:3,maart:3,apr:4,april:4,mei:5,jun:6,juni:6,jul:7,juli:7,aug:8,augustus:8,sep:9,sept:9,september:9,okt:10,oktober:10,nov:11,november:11,dec:12,december:12};
 const DP_DATE=/(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{4}|\d{2})\b|(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december|jan|feb|mrt|apr|jun|jul|aug|sept|sep|okt|nov|dec)\.?\s+(\d{4})/gi;
@@ -924,7 +925,8 @@ function dpSupplier(lines,ownName){
  const text=lines.join('\n'),lower=text.toLowerCase();
  const own=String(ownName||'').toLowerCase().split(/[^a-z0-9à-ÿ]+/).filter(w=>w.length>=4&&!['restaurant','eetcafe','cafe','hotel','grand','brasserie','lunchroom','bistro'].includes(w));
  const isOwn=x=>own.some(w=>x.toLowerCase().includes(w));
- for(const [n,c] of DP_SUP)if(lower.includes(n.toLowerCase()))return {supplier:n,category:c};
+ /* groothandel eerst: in een afnameoverzicht staan merken/fabrikanten (Coca-Cola, Heineken) als artikelregels */
+ for(const [n,c] of [...DP_SUP.filter(x=>x[1]==='groothandel'),...DP_SUP.filter(x=>x[1]!=='groothandel')])if(lower.includes(n.toLowerCase()))return {supplier:n,category:c};
  const dm=[...text.matchAll(/(?:www\.|@)([a-z0-9-]{3,40})\.(?:nl|com|eu|be|de)\b/gi)].map(m=>m[1].toLowerCase()).find(d=>!['gmail','hotmail','outlook','live','icloud','yahoo','ziggo','kpnmail','xs4all'].includes(d)&&!isOwn(d));
  if(dm)return {supplier:dm.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join(' '),category:null};
  const ln=lines.slice(0,15).find(x=>/\b(B\.?V\.?|N\.?V\.?|V\.?O\.?F\.?)\b/.test(x)&&!isOwn(x));
