@@ -386,7 +386,7 @@ async function doExport(){
 
 
 /* ---------- Kosten (intern; niet zichtbaar voor de ondernemer) ---------- */
-const CCAT={bier:'Bier',frisdrank:'Frisdrank',wijn:'Wijn',gedistilleerd:'Gedistilleerd',food:'Vlees / food',groothandel:'Groothandel',elektra:'Elektra',gas:'Gas',water:'Water',afval:'Afval & milieu',verzekeringen:'Verzekeringen',telecom:'Telecom & internet',muziekrechten:'Muziekrechten',betaalverkeer:'Betaalverkeer / pin',schoonmaak:'Schoonmaak',huur:'Huur',overig:'Overig'};
+const CCAT={bier:'Bier',frisdrank:'Frisdrank',wijn:'Wijn',gedistilleerd:'Gedistilleerd',food:'Vlees / food',vis:'Vis',groothandel:'Groothandel',elektra:'Elektra',gas:'Gas',water:'Water',afval:'Afval & milieu',verzekeringen:'Verzekeringen',telecom:'Telecom & internet',muziekrechten:'Muziekrechten',betaalverkeer:'Betaalverkeer / pin',schoonmaak:'Schoonmaak',huur:'Huur',overig:'Overig'};
 const DEMO_COST=[
  {id:'k3',category:'afval',supplier:'Renewi',product:'Restafval 240L',period_start:'2026-09-01',period_end:'2026-09-30',amount_excl_vat:168,quantity:4,unit:'lediging',monthly_amount:170.45,unit_price:42,document_id:'dd1',invoice_number:'R-2026-0912',note:null},
  {id:'k2',category:'afval',supplier:'Renewi',product:'Restafval 240L',period_start:'2026-01-01',period_end:'2026-01-30',amount_excl_vat:140,quantity:4,unit:'lediging',monthly_amount:142.04,unit_price:35,document_id:null,note:null},
@@ -789,7 +789,7 @@ function ptypeGuess(name,cat){const n=String(name||'').toLowerCase(),S1=t=>({t,s
  if(/frisdrank|\bfris\b|water|sap|limonade|tonic|cola/.test(n))return S1('frisdrank');
  if(/gedistilleerd|sterke drank|whisky|gin\b|rum\b|vodka|likeur|jenever|cocktail|mixdrank|aperitief/.test(n))return S1('gedistilleerd');
  if(/conserven|grutters|margarine|vetten|soep|sauz|suiker|zout|koffie|thee|zuren|olie|azijn|specerij|rijst|pasta|meel|bloem|noten|ijsbenodig|chips|snack/.test(n))return S1('droog');
- const one={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd'}[cat];if(one)return S1(one);
+ const one={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd',vis:'vis'}[cat];if(one)return S1(one);
  if(cat==='food'||cat==='groothandel')return {t:'overig',sure:!n};
  return {t:null,sure:!n}}
 const ptypeOf=(name,cat)=>ptypeGuess(name,cat).t;
@@ -809,7 +809,7 @@ function productTypeHtml(){const ink=(S.costLines||[]).filter(l=>l.cost_kind==='
  const years=[...new Set(ink.map(l=>l.period_start.slice(0,4)))].sort().reverse();const y=S.ptYear&&years.includes(S.ptYear)?S.ptYear:years[0];
  const lines=ink.filter(l=>l.period_start.slice(0,4)===y),sp=S.costSplits||[];const by={};let total=0,unsplit=[];
  for(const l of lines){const own=sp.filter(x=>x.cost_line_id===l.id);
-  const parts=own.length?own.map(x=>({type:x.product_type,amount:Number(x.amount),source:x.source})):(()=>{const t={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd'}[l.category]||null;if(!t)unsplit.push(l);return [{type:t||'overig',amount:Number(l.amount_excl_vat),source:t?null:'nog niet verdeeld'}]})();
+  const parts=own.length?own.map(x=>({type:x.product_type,amount:Number(x.amount),source:x.source})):(()=>{const t={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd',vis:'vis'}[l.category]||null;if(!t)unsplit.push(l);return [{type:t||'overig',amount:Number(l.amount_excl_vat),source:t?null:'nog niet verdeeld'}]})();
   for(const pt of parts){(by[pt.type]=by[pt.type]||{amount:0,sup:[]});by[pt.type].amount+=pt.amount;by[pt.type].sup.push({supplier:l.supplier,amount:pt.amount,source:pt.source});total+=pt.amount}}
  const rows=Object.entries(by).sort((a,b)=>b[1].amount-a[1].amount);
  return `<h3 style="margin-top:18px">Inkoop per productsoort ${years.length>1?`<select id="ptYear" style="font-size:13px;margin-left:6px">${years.map(v=>`<option${v===y?' selected':''}>${v}</option>`).join('')}</select>`:`<span class="hint" style="text-transform:none;letter-spacing:0">(${y})</span>`}</h3>
@@ -894,7 +894,7 @@ function parseSheetArticles(lines){
   const sp=dpSupplier(lines,(((S.orgs||[]).find(o=>o.id===S.costOrg)||{}).name||''));
   const total=Math.round(items.reduce((a,x)=>a+x.net,0)*100)/100,qty=Math.round(items.reduce((a,x)=>a+x.qty,0)*100)/100;
   const byT={};for(const x of items){const t=ptypeOf(x.group||x.name,'food')||'overig';byT[t]=(byT[t]||0)+x.net}const top=Object.entries(byT).sort((a,b)=>b[1]-a[1])[0];
-  const one=top&&total>0&&top[1]/total>=0.8?top[0]:null,cat={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd'}[one]||(sp&&sp.category)||'food';
+  const one=top&&total>0&&top[1]/total>=0.8?top[0]:null,cat={wijn:'wijn',bier:'bier',frisdrank:'frisdrank',gedistilleerd:'gedistilleerd',vis:'vis'}[one]||(sp&&sp.category)||'food';
   const rows2=items.map(x=>({code:x.name,name:x.name,qty:x.qty,net:Math.round(x.net*100)/100,price:x.price,unit:x.unit,group:x.group}));
   return {kind:'artikelen',rows:rows2,priced:rows2.filter(r=>r.net>0),free:rows2.filter(r=>r.net===0).length,total,qty,stated:null,cut:false,
    period_start:yr?yr+'-01-01':null,period_end:yr?yr+'-12-31':null,supplier:sp&&sp.supplier||null,category:cat,
@@ -947,7 +947,7 @@ function policySummaryHtml(p){if(!p||!p.secs.length)return '';const c=p.c;
 
 /* ---------- Advies achter de schermen (per subgroep) ---------- */
 const ADV_GROUP={investeringen:'Investeringen & KIA',energie:'Energie',verzekeringen:'Verzekeringen',afval:'Afval & milieu',inkoop:'Inkoop',telecom:'Telecom',contracten:'Contracten',overig:'Overig'};
-const advGroupOf=cat=>['elektra','gas','water'].includes(cat)?'energie':cat==='verzekeringen'?'verzekeringen':cat==='afval'?'afval':['wijn','bier','frisdrank','gedistilleerd','food','groothandel'].includes(cat)?'inkoop':cat==='telecom'?'telecom':'contracten';
+const advGroupOf=cat=>['elektra','gas','water'].includes(cat)?'energie':cat==='verzekeringen'?'verzekeringen':cat==='afval'?'afval':['wijn','bier','frisdrank','gedistilleerd','food','vis','groothandel'].includes(cat)?'inkoop':cat==='telecom'?'telecom':'contracten';
 const dDays=x=>x?Math.round((new Date(x+'T12:00:00')-Date.now())/864e5):null;
 function adviceSync(){const out=[],cons=(S.costCons||[]).filter(c=>c.status!=='terminated');
  const yr=c=>{const a=Number(c.amount);if(!isFinite(a))return null;return c.amount_period==='month'?a*12:c.amount_period==='quarter'?a*4:c.amount_period==='year'?a:null};
