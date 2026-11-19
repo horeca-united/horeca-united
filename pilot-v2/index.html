@@ -106,6 +106,9 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
 .doc-count{border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600;color:var(--dark);background:#fff;white-space:nowrap}
 @media(max-width:640px){#docList .line-item{flex-wrap:wrap;row-gap:10px}#docList .line-item>span[style]{flex-basis:calc(100% - 52px)!important}#docList .line-item>span[style]+*{margin-left:52px}}
 
+.mg-card{padding:0;gap:0}.mg-card .mg-l{display:flex;align-items:center;gap:14px;flex:1;min-width:0;padding:14px 16px;cursor:pointer}.mg-card .mg-r{padding:0 16px 0 0;flex:0 0 auto}
+.mg-card input:disabled~.mq-dot{opacity:.5}.mg-save{border:1px solid #e3c98f;background:#fffaf0;border-radius:14px;padding:14px 16px;margin:12px 0 4px}.mg-save p{margin:0 0 8px;font-size:14px}
+@media(max-width:640px){.mg-card{flex-wrap:wrap}.mg-card .mg-r{padding:0 16px 12px 52px}}
 .mq{border:1px solid var(--border);border-radius:16px;padding:20px;background:#fff;margin:18px 0 6px}
 .mq h3{margin:0 0 6px}.mq-sub{color:var(--muted);font-size:14px;margin:0 0 6px}
 .mq-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:18px 0 10px}
@@ -123,7 +126,7 @@ body{font-family:var(--font-body);background:#fff}button,input,select,textarea{f
 .mq-card span.t{display:flex;flex-direction:column;min-width:0}
 .mq-card span.t b{font-size:15px;font-weight:600;color:var(--dark)}
 .mq-card span.t small{font-size:12px;color:var(--muted);margin-top:2px}
-.mq-add{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 0}.mq-add input{flex:1 1 200px}.mq-add select{flex:0 0 auto}
+.mq-add{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 0}.mq-add input,.mq-add select{border:1px solid var(--border);border-radius:12px;padding:11px 14px;font:inherit;font-size:14px;background:#fff;color:var(--text)}.mq-add input:focus,.mq-add select:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(49,123,85,.15)}.mq-add input{flex:1 1 200px}.mq-add select{flex:0 0 auto}
 .mq-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
 .mq-fields .field{margin:0}
 .mq-full{margin:16px 0 4px}.mq-full summary{cursor:pointer;font-weight:600;color:var(--green)}
@@ -648,7 +651,7 @@ let mand=null,mandOpen=false,mandDraft=null;
 const MSC={volume:'Afname',prices:'Prijzen',discounts:'Kortingen',bonuses:'Bonussen',contract_terms:'Contractvoorwaarden'};
 const MRL={brouwerij:'Brouwerij',drankleverancier:'Drankleverancier',groothandel:'Groothandel',vers:'Versleverancier',overig:'Overig'};
 const mDate=d=>d?new Date(d).toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'}):'';
-async function loadMandate(){if(!el('mandBlock'))return;try{const r=await client.rpc('huos_my_mandate');if(r.error)throw r.error;mand=r.data||{enabled:false}}catch(_){mand={enabled:false}}renderMandate();m3AutoPdf()}
+async function loadMandate(){if(!el('mandBlock'))return;try{const r=await client.rpc('huos_my_mandate');if(r.error)throw r.error;mand=r.data||{enabled:false}}catch(_){mand={enabled:false}}mg=null;renderMandate();m3AutoPdf()}
 function mScopeBoxes(prefix,scope){return '<div class="mand-scope">'+Object.entries(MSC).map(([k,v])=>'<label><input type="checkbox" data-'+prefix+'="'+k+'"'+(scope.includes(k)?' checked':'')+'> '+v+'</label>').join('')+'</div>'}
 function mReqLabel(s){if(s.status==='revoked')return '<span class="mand-st">Ingetrokken</span>';const r=s.request;if(!r)return '<span class="mand-st">Nog niet opgevraagd</span>';if(r.status==='answered')return '<span class="mand-st ok">Gegevens ontvangen'+(r.answered_at?' · '+mDate(r.answered_at):'')+'</span>';if(r.status==='sent')return '<span class="mand-st wait">Opgevraagd op '+mDate(r.sent_at)+'</span>';return '<span class="mand-st">Wordt voorbereid</span>'}
 function mText(){return safe(((mand.text&&mand.text.body)||'').replace('{bedrijf}',org.name||'mijn onderneming'))}
@@ -668,11 +671,8 @@ function renderMandate(){const b=el('mandBlock');if(!b)return;if(!mand||!mand.en
   return}
  const act=(mand.suppliers||[]).filter(s=>s.status!=='revoked'),off=(mand.suppliers||[]).filter(s=>s.status==='revoked');
  b.innerHTML='<div class="profile-head"><h3>Machtiging leveranciers</h3>'+(m.status==='verified'?'<span class="mand-st ok">Actief</span>':'<span class="mand-st wait">Wacht op controle door Horeca United</span>')+'</div>'+
-  '<p>Ondertekend door '+safe(m.signer_name)+' ('+safe(m.signer_function)+') op '+mDate(m.consent_at)+'.'+(m.status==='verified'?' Horeca United vraagt nu de gegevens op; ontvangen gegevens komen onder Mijn documenten.':' Horeca United controleert eerst of de gegevens kloppen (bijv. met je KvK-nummer). Daarna vragen we de gegevens op.')+'</p>'+
-  ((mand.proposals||[]).length?'<div class="mand-new"><b>Nieuw gevonden in jouw gegevens:</b> '+mand.proposals.map((p,i)=>safe(p.name)+' <button class="btn ghost small" onclick="mandAddProp('+i+')">Toevoegen</button>').join(' · ')+'</div>':'')+
-  act.map(s=>'<div class="mand-sup"><div class="mand-top"><div><b>'+safe(s.name)+'</b><span class="mand-role">'+safe(MRL[s.role]||s.role)+'</span></div>'+mReqLabel(s)+'</div><div id="ms-'+s.id+'"><div class="mand-scope">Mag opvragen: '+s.scope.map(k=>safe(MSC[k]||k)).join(', ')+'</div><div class="mand-btns"><button class="btn ghost small" onclick="mandEdit(\''+s.id+'\')">Aanpassen</button><button class="btn ghost small" onclick="mandRevokeSup(\''+s.id+'\')">Intrekken</button></div></div></div>').join('')+
-  (off.length?'<p style="font-size:12px;margin-top:10px">Ingetrokken: '+off.map(s=>safe(s.name)).join(', ')+'</p>':'')+
-  '<div class="mand-add"><input id="mdName" maxlength="120" placeholder="Leverancier toevoegen (naam)"><select id="mdRole">'+Object.entries(MRL).map(([k,v])=>'<option value="'+k+'"'+(k==='vers'?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn ghost" onclick="mandAddNew()">Toevoegen</button></div>'+
+  '<p>'+(m.signer_name?'Ondertekend door '+safe(m.signer_name)+(m.signer_function?' ('+safe(m.signer_function)+')':'')+' op ':'Akkoord gegeven op ')+mDate(m.consent_at)+'.'+(m.status==='verified'?' Horeca United vraagt nu de gegevens op; ontvangen gegevens komen onder Mijn documenten.':' Horeca United controleert eerst of de gegevens kloppen (bijv. met je KvK-nummer). Daarna vragen we de gegevens op.')+'</p>'+
+  mgHtml(false,true)+
   '<div class="mand-btns" style="margin-top:16px"><button class="btn ghost" onclick="mandPrint()">Machtiging bekijken / afdrukken</button><button class="btn ghost" onclick="mandRevokeAll()">Hele machtiging intrekken</button></div><div id="mandMsg" role="status" aria-live="polite"></div>'}
 function mDefScope(role){return role==='brouwerij'?['volume','prices','discounts','bonuses','contract_terms']:['volume','prices','discounts']}
 function mandStart(){mandOpen=true;mandDraft=(mand.proposals||[]).map(p=>({name:p.name,role:p.role,scope:p.scope.slice(),on:true}));renderMandate()}
@@ -713,11 +713,11 @@ function renderMandateV3(b){const m=mand.mandate;
  if(!m){
   if(!mandOpen){b.innerHTML='<h3>Laat HUOS het uitzoekwerk doen</h3><p>Door jouw leveranciers te machtigen, kunnen wij rechtstreeks jouw inkoopgegevens opvragen. Zo hoef je niet zelf alle facturen en afnameoverzichten te verzamelen. Horeca United onderzoekt vervolgens waar je mogelijk te veel betaalt en welke besparingen we voor jou kunnen realiseren.</p><p>Je bepaalt zelf welke leveranciers je machtigt en over welke periode wij gegevens mogen opvragen.</p><div class="mand-btns"><button class="btn" onclick="mandOpen=true;renderMandate()">Machtiging regelen ↗</button></div><div id="mandMsg" role="status" aria-live="polite"></div>';return}
   const all=m3All(),o=(mand.fiscal||{}).options||{},ps=m3Periods(),ch=m3Chosen();
-  const opt=(v,l,sub)=>'<label class="m3-opt"><input type="radio" name="m3p" value="'+v+'"'+(m3.period===v?' checked':'')+' onchange="m3.period=this.value;renderMandate()"><span><b>'+l+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</span></label>';
+  const opt=(v,l,sub)=>'<label class="mq-card'+(m3.period===v?' on':'')+'"><input type="radio" name="m3p" value="'+v+'"'+(m3.period===v?' checked':'')+' onchange="m3.period=this.value;renderMandate()"><span class="mq-dot" aria-hidden="true"></span><span class="t"><b>'+l+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</span></label>';
   b.innerHTML='<h3>Laat HUOS het uitzoekwerk doen</h3><p>Door jouw leveranciers te machtigen, kunnen wij rechtstreeks jouw inkoopgegevens opvragen. Zo hoef je niet zelf alle facturen en afnameoverzichten te verzamelen. Horeca United onderzoekt vervolgens waar je mogelijk te veel betaalt en welke besparingen we voor jou kunnen realiseren.</p><p>Je bepaalt zelf welke leveranciers je machtigt en over welke periode wij gegevens mogen opvragen.</p>'+
   '<h4 class="m3-h">1. Leveranciers</h4><p class="m3-sub">Selecteer de leveranciers waarbij Horeca United jouw inkoopgegevens mag opvragen.</p>'+
-  '<div class="mand-btns" style="margin:0 0 8px"><button class="btn ghost small" onclick="m3All().forEach(x=>m3.sel[x.name.toLowerCase()]=true);renderMandate()">Alles selecteren</button><button class="btn ghost small" onclick="m3.sel={};renderMandate()">Alles deselecteren</button></div>'+
-  (all.length?all.map((x,i)=>'<label class="m3-sup"><input type="checkbox"'+(m3.sel[x.name.toLowerCase()]?' checked':'')+' onchange="m3Tog('+i+',this.checked)"> <b>'+safe(x.name)+'</b><span class="mand-role">'+safe(MRL[x.role]||x.role)+'</span></label>').join(''):'<p class="m3-sub">We hebben nog geen leveranciers gevonden. Voeg ze hieronder toe.</p>')+
+  '<div class="mq-row" style="margin-top:4px"><b>Gevonden leveranciers</b>'+(m3All().length?(m3All().every(x=>m3.sel[x.name.toLowerCase()])?'<button type="button" class="mq-pill" onclick="m3.sel={};renderMandate()">Alles deselecteren</button>':'<button type="button" class="mq-pill" onclick="m3All().forEach(x=>m3.sel[x.name.toLowerCase()]=true);renderMandate()">Selecteer alles</button>'):'')+'</div>'+
+  (all.length?all.map((x,i)=>{const on=!!m3.sel[x.name.toLowerCase()];return '<label class="mq-card'+(on?' on':'')+'"><input type="checkbox"'+(on?' checked':'')+' onchange="m3Tog('+i+',this.checked)"><span class="mq-dot" aria-hidden="true"></span><span class="t"><b>'+safe(x.name)+'</b><small>'+safe(MRL[x.role]||x.role)+'</small></span></label>'}).join(''):'<p class="m3-sub">We hebben nog geen leveranciers gevonden. Voeg ze hieronder toe.</p>')+
   '<div class="mand-add"><input id="mdName" maxlength="120" placeholder="Leverancier toevoegen (naam)"><select id="mdRole">'+Object.entries(MRL).map(([k,v])=>'<option value="'+k+'"'+(k==='vers'?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn ghost" onclick="m3AddDraft()">Toevoegen</button></div>'+
   '<h4 class="m3-h">2. Periode</h4>'+
   opt('closed','Laatst afgesloten boekjaar',o.closed?nlDate(o.closed.start)+' t/m '+nlDate(o.closed.end)+' · voorstel':'')+
@@ -742,13 +742,48 @@ function renderMandateV3(b){const m=mand.mandate;
   '<p>Ondertekend door '+safe(m.signer_name)+' ('+safe(m.signer_function)+') op '+mDate(m.consent_at)+'. '+(m.valid_until?'Geldig tot '+mDate(m.valid_until)+'.':'')+'</p>'+
   '<p class="m3-period">Periode: <b>'+safe(per)+'</b></p>'+
   (m.status!=='verified'&&!exp?'<p class="m3-sub">Horeca United controleert eerst of je bevoegd bent om te tekenen (bijvoorbeeld met het KvK-uittreksel). Daarna vragen we de gegevens op.</p>':'')+
-  ((mand.proposals||[]).length&&!exp?'<div class="mand-new"><b>Nieuw gevonden in jouw gegevens:</b> '+mand.proposals.map((p,i)=>safe(p.name)+' <button class="btn ghost small" onclick="m3StartAdd('+i+')">Toevoegen</button>').join(' · ')+'</div>':'')+
-  (m3.add?m3AddForm():'')+
-  act.map(s=>{const g=sigOf(s.name);return '<div class="mand-sup"><div class="mand-top"><div><b>'+safe(s.name)+'</b><span class="mand-role">'+safe(MRL[s.role]||s.role)+'</span></div>'+mReqLabel(s)+'</div><div class="mand-scope">'+(g?'Getekend op '+mDate(g.signed_at)+(g.kind==='addendum'?' (aanvulling)':''):'')+'</div><div class="mand-btns"><button class="btn ghost small" onclick="mandRevokeSup(\''+s.id+'\')">Intrekken</button></div></div>'}).join('')+
-  (off.length?'<p style="font-size:12px;margin-top:10px">Ingetrokken: '+off.map(s=>safe(s.name)+(s.revoked_at?' ('+mDate(s.revoked_at)+')':'')).join(', ')+'</p>':'')+
-  (!exp&&!m3.add?'<div class="mand-add"><input id="mdName" maxlength="120" placeholder="Leverancier toevoegen (naam)"><select id="mdRole">'+Object.entries(MRL).map(([k,v])=>'<option value="'+k+'"'+(k==='vers'?' selected':'')+'>'+v+'</option>').join('')+'</select><button class="btn ghost" onclick="m3StartAdd(-1)">Toevoegen</button></div>':'')+
+  mgHtml(true,!exp)+
   '<div class="mand-btns" style="margin-top:16px">'+sigs.map((g,i)=>{const nm=g.kind==='initial'?'machtiging':'aanvulling '+mDate(g.signed_at);return g.pdf?'<button class="btn ghost" onclick="m3OpenPdf('+i+')">PDF '+nm+'</button>':'<button class="btn ghost" onclick="m3Print('+i+')">Bekijk '+nm+'</button>'}).join('')+'<button class="btn ghost" onclick="mandRevokeAll()">Hele machtiging intrekken</button></div>'+
   (sigs.some(g=>!g.pdf)?'<p class="m3-sub">Nog niet alle ondertekeningen staan als PDF klaar. <button class="btn ghost small" id="m3PdfBtn" onclick="m3PdfRetry()">PDF opnieuw maken</button></p>':'<p class="m3-sub">De PDF’s staan ook bij Mijn documenten.</p>')+'<div id="mandMsg" role="status" aria-live="polite"></div>'}
+
+/* ---------- Leveranciers in een lopende machtiging: aanvinken i.p.v. losse knoppen ---------- */
+let mg=null;
+function mgItems(){const act=(mand.suppliers||[]).filter(x=>x.status!=='revoked'),rev=(mand.suppliers||[]).filter(x=>x.status==='revoked');
+ const out=[],has=n=>out.some(y=>y.name.toLowerCase()===String(n).toLowerCase());
+ for(const x of act)if(!has(x.name))out.push({name:x.name,role:x.role,active:x,scope:x.scope});
+ for(const p of (mand.proposals||[]))if(!has(p.name))out.push({name:p.name,role:p.role,scope:p.scope,rev:rev.find(r=>r.name.toLowerCase()===p.name.toLowerCase())});
+ for(const r of rev)if(!has(r.name))out.push({name:r.name,role:r.role,scope:r.scope,rev:r});
+ if(!mg)mg={sel:{},extra:[],sn:'',sf:'',auth:false};
+ for(const e of mg.extra)if(!has(e.name))out.push({name:e.name,role:e.role,scope:mDefScope(e.role),isNew:true});
+ for(const x of out){const k=x.name.toLowerCase();if(!(k in mg.sel))mg.sel[k]=!!x.active}
+ return out}
+function mgChanges(){const it=mgItems();return {add:it.filter(x=>!x.active&&mg.sel[x.name.toLowerCase()]),off:it.filter(x=>x.active&&!mg.sel[x.name.toLowerCase()])}}
+function mgHtml(v3,editable){const it=mgItems(),ch=mgChanges(),m=mand.mandate;
+ const sigs=mand.signatures||[],sigOf=n=>[...sigs].reverse().find(g=>(g.suppliers||[]).some(x=>String(x.name).toLowerCase()===String(n).toLowerCase()));
+ const sub=x=>{const parts=[safe(MRL[x.role]||x.role)];if(x.active){const g=v3&&sigOf(x.name);if(g)parts.push('getekend op '+mDate(g.signed_at)+(g.kind==='addendum'?' (aanvulling)':''));else if(!v3&&x.scope)parts.push('mag opvragen: '+x.scope.map(k=>safe(MSC[k]||k)).join(', '))}
+  else if(x.rev)parts.push('ingetrokken'+(x.rev.revoked_at?' op '+mDate(x.rev.revoked_at):''));else if(x.isNew)parts.push('nieuw toegevoegd');else parts.push('gevonden in jouw gegevens');return parts.join(' · ')};
+ const card=(x,i)=>{const on=!!mg.sel[x.name.toLowerCase()];return '<div class="mq-card mg-card'+(on?' on':'')+'"><label class="mg-l"><input type="checkbox"'+(on?' checked':'')+(editable?'':' disabled')+' onchange="mgTog('+i+',this.checked)"><span class="mq-dot" aria-hidden="true"></span><span class="t"><b>'+safe(x.name)+'</b><small>'+sub(x)+'</small></span></label>'+(x.active?'<span class="mg-r">'+mReqLabel(x.active)+'</span>':'')+'</div>'};
+ const n=ch.add.length+ch.off.length;
+ let save='';
+ if(editable&&n){const lst=a=>a.map(x=>safe(x.name)).join(', ');
+  save='<div class="mg-save"><p><b>Wijzigingen</b>'+(ch.add.length?'<br>Toevoegen: '+lst(ch.add):'')+(ch.off.length?'<br>Intrekken: '+lst(ch.off)+' <small>(Horeca United vraagt daar dan niets meer op)</small>':'')+'</p>'+
+  (v3&&ch.add.length?'<div class="mq-fields"><div class="field"><label for="mg_sn">Jouw naam *</label><input id="mg_sn" maxlength="120" value="'+safe(mg.sn||m.signer_name||'')+'" oninput="mg.sn=this.value"></div><div class="field"><label for="mg_sf">Jouw functie *</label><input id="mg_sf" maxlength="80" value="'+safe(mg.sf||m.signer_function||'')+'" oninput="mg.sf=this.value"></div></div><label class="mq-auth"><input type="checkbox" id="mg_auth"'+(mg.auth?' checked':'')+' onchange="mg.auth=this.checked"><span>Ik verklaar dat ik bevoegd ben en machtig Horeca United ook voor '+lst(ch.add)+', met dezelfde gegevens en periode als mijn machtiging.</span></label>':'')+
+  '<div class="mand-btns"><button class="btn" id="mgGo" onclick="mgSave('+(v3?'true':'false')+')">'+(v3&&ch.add.length?'Ondertekenen en opslaan':'Wijzigingen opslaan')+'</button><button class="btn ghost" onclick="mg=null;renderMandate()">Annuleren</button></div></div>'}
+ return '<div class="mq-row"><b>Leveranciers</b>'+(editable&&it.length?(it.every(x=>mg.sel[x.name.toLowerCase()])?'':'<button type="button" class="mq-pill" onclick="mgAll()">Selecteer alles</button>'):'')+'</div>'+
+  '<p class="m3-sub" style="margin:-4px 0 10px">Aangevinkt = Horeca United mag hier jouw inkoopgegevens opvragen. Vink aan of uit en sla daarna op.</p>'+
+  it.map(card).join('')+
+  (editable?'<div class="mq-add"><input id="mg_addn" maxlength="120" placeholder="Andere leverancier toevoegen (naam)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();mgAdd()}"><select id="mg_addr">'+Object.entries(MRL).map(([k,v])=>'<option value="'+k+'"'+(k==='groothandel'?' selected':'')+'>'+v+'</option>').join('')+'</select><button type="button" class="btn ghost" onclick="mgAdd()">Toevoegen</button></div>':'')+save}
+function mgTog(i,on){const x=mgItems()[i];if(x)mg.sel[x.name.toLowerCase()]=on;renderMandate()}
+function mgAll(){for(const x of mgItems())mg.sel[x.name.toLowerCase()]=true;renderMandate()}
+function mgAdd(){const n=String(el('mg_addn')?.value||'').trim();if(n.length<2)return;const k=n.toLowerCase();if(!mgItems().some(x=>x.name.toLowerCase()===k))mg.extra.push({name:n.slice(0,120),role:el('mg_addr').value});mg.sel[k]=true;renderMandate()}
+async function mgSave(v3){const ch=mgChanges(),m=mand.mandate;if(!ch.add.length&&!ch.off.length)return;
+ let sn='',sf='';if(v3&&ch.add.length){sn=(mg.sn||m.signer_name||'').trim();sf=(mg.sf||m.signer_function||'').trim();if(sn.length<2||sf.length<2)return alert('mandMsg','Vul je naam en functie in.',true);if(!mg.auth)return alert('mandMsg','Vink aan dat je bevoegd bent.',true)}
+ const b=el('mgGo');if(b){b.disabled=true;b.textContent='Bezig…'}const done=[],fail=[];
+ for(const x of ch.add){try{const r=v3?await client.rpc('huos_my_mandate_supplier_add_v3',{p_name:x.name,p_role:x.role,p_signer_name:sn,p_signer_function:sf,p_authority:true}):await client.rpc('huos_my_mandate_supplier_add',{p_name:x.name,p_role:x.role,p_scope:x.scope||mDefScope(x.role)});if(r.error)throw r.error;done.push(x.name+' toegevoegd')}catch(e){fail.push(x.name+': '+e.message)}}
+ for(const x of ch.off){try{const r=await client.rpc('huos_my_mandate_supplier_revoke',{p_supplier:x.active.id});if(r.error)throw r.error;done.push(x.name+' ingetrokken')}catch(e){fail.push(x.name+': '+e.message)}}
+ let pk=true;if(v3&&ch.add.length&&done.some(d=>d.endsWith('toegevoegd')))pk=await m3Pdf(m.id);
+ mg=null;await loadData();
+ alert('mandMsg',(done.length?done.join(', ')+'.':'')+(v3&&ch.add.length&&pk&&done.length?' De PDF van de aanvulling staat bij Mijn documenten.':'')+(fail.length?' Niet gelukt: '+fail.join('; '):''),fail.length>0)}
 function m3AddDraft(){const n=el('mdName').value.trim();if(n.length<2)return;if(m3All().some(x=>x.name.toLowerCase()===n.toLowerCase())){m3.sel[n.toLowerCase()]=true;return renderMandate()}m3.extra.push({name:n,role:el('mdRole').value});m3.sel[n.toLowerCase()]=true;renderMandate()}
 function m3StartAdd(i){if(i>=0){const p=mand.proposals[i];m3.add={name:p.name,role:p.role}}else{const n=el('mdName').value.trim();if(n.length<2)return alert('mandMsg','Vul de naam van de leverancier in.',true);m3.add={name:n,role:el('mdRole').value}}renderMandate()}
 function m3AddForm(){const m=mand.mandate;return '<div class="mand-sup" style="border-color:#e3c98f;background:#fffaf0"><b>'+safe(m3.add.name)+' toevoegen aan je machtiging</b><p class="m3-sub">Dezelfde gegevens en periode als je machtiging. Je tekent hiervoor een korte aanvulling.</p><div class="profile-row"><div class="field"><label for="maName">Jouw naam</label><input id="maName" maxlength="120" value="'+safe(m.signer_name||'')+'"></div><div class="field"><label for="maFunc">Jouw functie</label><input id="maFunc" maxlength="80" value="'+safe(m.signer_function||'')+'"></div></div><label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:6px 0"><input type="checkbox" id="maAuth" style="margin-top:3px"> Ik verklaar dat ik bevoegd ben en machtig Horeca United ook voor '+safe(m3.add.name)+'.</label><div class="mand-btns"><button class="btn" id="maGo" onclick="m3Add()">Toevoegen en ondertekenen</button><button class="btn ghost" onclick="m3.add=null;renderMandate()">Annuleren</button></div></div>'}
