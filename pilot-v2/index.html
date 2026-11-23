@@ -972,7 +972,7 @@ function renderInvestments(){if(!el('kiaSummary'))return;
  el('kiaSummary').innerHTML=years.map(y=>{const L=investments.filter(i=>String(i.invested_on).startsWith(String(y))),cnt=L.filter(i=>Number(i.amount_excl_vat)>=450),small=L.filter(i=>Number(i.amount_excl_vat)<450),tot=cnt.reduce((a,i)=>a+Number(i.amount_excl_vat),0),k=kiaAftrek(tot);
   if(!L.length&&y!==yNow)return '';
   const lines=[];
-  if(!L.length)lines.push('<p class="muted">Nog geen investeringen voor '+y+'. Voeg ze hieronder toe, of klik bij een factuur onder Mijn documenten op “Investering?”.</p>');
+  if(!L.length)lines.push('<p class="muted">Nog geen investeringen voor '+y+'. Voeg ze hieronder toe.</p>');
   else{lines.push('<div class="kia-grid"><div><small>Investeringen '+y+'</small><strong>'+nl(tot)+'</strong><small>'+cnt.length+' bedrijfsmiddel'+(cnt.length===1?'':'en')+' vanaf € 450</small></div><div><small>Geschatte KIA-aftrek</small><strong>'+nl(k)+'</strong><small>'+(tot<2901?'drempel € 2.901 nog niet gehaald':tot<=71683?'28% van je investeringen':'volgens de KIA-tabel')+'</small></div><div><small>Indicatie belastingvoordeel</small><strong>'+nl(k*0.19)+'</strong><small>bij 19% vennootschapsbelasting (B.V.)</small></div></div>');
    if(tot<2901&&tot>0)lines.push('<p class="cov-warn">Nog <strong>'+nl(2901-tot)+'</strong> investeren in '+y+', dan haal je de drempel voor de KIA.</p>');
    if(small.length)lines.push('<p class="muted">Telt niet mee (onder € 450 per bedrijfsmiddel): '+small.map(i=>safe(i.description)).join(', ')+'.</p>')}
