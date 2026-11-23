@@ -9,6 +9,7 @@ import { buildMandatePdf, type Signature } from "./pdf.ts";
 const ACCEPTED_ORIGINS = new Set([
   "https://huos-v2-prive-pilot.vercel.app",
   "https://app.horecaunited.nl",
+  "https://mijn.horecaunited.nl",
 ]);
 const API = Deno.env.get("SUPABASE_URL") ?? "";
 const ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";

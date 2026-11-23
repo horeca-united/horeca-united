@@ -94,7 +94,7 @@ const LIVE_HOST=/(^|\.)vercel\.app$/.test(location.hostname)||location.hostname=
 const DEMO=params.has('demo')||!LIVE_HOST;
 const client=(!DEMO&&window.supabase)?window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE,{auth:{storageKey:'huos-beheer-auth',persistSession:true,detectSessionInUrl:true}}):null;
 /* Eigen sessie, los van de klantomgeving: medewerker en testklant kunnen tegelijk ingelogd zijn in dezelfde browser. */
-const AUTH_REDIRECT=(()=>{try{const o=location.origin;if(/^https:\/\/(app\.horecaunited\.nl|huos-v2-prive-pilot(-[a-z0-9-]+)?\.vercel\.app)$/.test(o))return o+'/'}catch(_){}return 'https://huos-v2-prive-pilot.vercel.app/'})();
+const AUTH_REDIRECT=(()=>{try{const o=location.origin;if(/^https:\/\/((app|mijn)\.horecaunited\.nl|huos-v2-prive-pilot(-[a-z0-9-]+)?\.vercel\.app)$/.test(o))return o+'/'}catch(_){}return 'https://huos-v2-prive-pilot.vercel.app/'})();
 
 const STAGES={new:'Nieuw',contact_needed:'Contact nodig',awaiting_upload:'Wacht op documenten',mandate_pending:'Machtiging in afwachting',document_received:'Document ontvangen',review_needed:'Beoordeling nodig',ready_for_offer:'Klaar voor voorstel',offer_sent:'Voorstel verstuurd',customer:'Klant',closed:'Afgesloten'};
 const STAGE_CLS={new:'c-info',contact_needed:'c-warn',awaiting_upload:'c-warn',mandate_pending:'c-warn',document_received:'c-info',review_needed:'c-info',ready_for_offer:'c-ok',offer_sent:'c-ok',customer:'c-ok',closed:'c-grey'};
