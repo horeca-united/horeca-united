@@ -1,11 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
-const ACCEPTED_ORIGINS = new Set(["https://huos-v2-prive-pilot.vercel.app"]);
+const ACCEPTED_ORIGINS = new Set(["https://huos-v2-prive-pilot.vercel.app","https://mijn.horecaunited.nl"]);
 const TURNSTILE_SITE_KEY=(Deno.env.get("HUOS_TURNSTILE_SITE_KEY")??"").trim();
 const TURNSTILE_SECRET=(Deno.env.get("HUOS_TURNSTILE_SECRET_KEY")??"").trim();
 const TURNSTILE_ENABLED=Boolean(TURNSTILE_SITE_KEY&&TURNSTILE_SECRET);
-const TURNSTILE_HOST="huos-v2-prive-pilot.vercel.app";
+const TURNSTILE_HOSTS=new Set(["huos-v2-prive-pilot.vercel.app","mijn.horecaunited.nl"]);
 const API = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const db = createClient(API, SERVICE_KEY, {auth:{persistSession:false,autoRefreshToken:false}});
@@ -60,7 +60,7 @@ Deno.serve(async(req)=>{
    console.error("Turnstile verification unavailable");
    return response(503,{error:"Anti-spamcontrole tijdelijk niet beschikbaar. Probeer opnieuw."},origin);
   }
-  if(check.success!==true||check.hostname!==TURNSTILE_HOST||check.action!=="beer_intake"){
+  if(check.success!==true||!TURNSTILE_HOSTS.has(check.hostname??"")||check.action!=="beer_intake"){
    return response(403,{error:"Anti-spamcontrole mislukt of verlopen. Probeer opnieuw."},origin);
   }
  }
