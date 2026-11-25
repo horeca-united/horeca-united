@@ -1,0 +1,21 @@
+name: Test beer intake origin policy
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/test-beer-intake.yml"
+      - "supabase/functions/huos-beer-intake/**"
+  push:
+    paths:
+      - ".github/workflows/test-beer-intake.yml"
+      - "supabase/functions/huos-beer-intake/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test supabase/functions/huos-beer-intake/origin-policy.test.mjs
