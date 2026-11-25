@@ -90,7 +90,7 @@ const URL_SUPABASE='https://yyvzqnjumnpotawnrvfw.supabase.co';
 const KEY_SUPABASE='sb_publishable_QDvjBPDGIgrQNcSzEw2FZg_Yj6hfIgY';
 const params=new URLSearchParams(location.search);
 const RECOVERY=/type=recovery/.test(location.hash)||/type=recovery/.test(location.search);
-const LIVE_HOST=/(^|\.)vercel\.app$/.test(location.hostname)||location.hostname==='localhost';
+const LIVE_HOST=/(^|\.)vercel\.app$/.test(location.hostname)||location.hostname==='beheer.horecaunited.nl'||location.hostname==='localhost';
 const DEMO=params.has('demo')||!LIVE_HOST;
 const client=(!DEMO&&window.supabase)?window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE,{auth:{storageKey:'huos-beheer-auth',persistSession:true,detectSessionInUrl:true}}):null;
 /* Eigen sessie, los van de klantomgeving: medewerker en testklant kunnen tegelijk ingelogd zijn in dezelfde browser. */
