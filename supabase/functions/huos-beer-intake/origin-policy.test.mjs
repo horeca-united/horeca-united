@@ -24,7 +24,7 @@ test("rejects origins that are not exact HTTPS allowlist entries", () => {
       "https://sub.mijn.horecaunited.nl",
       "https://mijn.horecaunited.nl.attacker.example",
       "https://localhost:3000",
-      "https://malicious-clone.com",
+      "https://mijn-horecaunited.invalid",
     ]
   ) {
     assert.equal(
