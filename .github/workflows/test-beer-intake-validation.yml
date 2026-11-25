@@ -1,0 +1,30 @@
+name: Test beer intake validation
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/test-beer-intake-validation.yml"
+      - "supabase/functions/huos-beer-intake/index.ts"
+      - "supabase/functions/huos-beer-intake/validation.ts"
+      - "supabase/functions/huos-beer-intake/validation_test.ts"
+  push:
+    paths:
+      - ".github/workflows/test-beer-intake-validation.yml"
+      - "supabase/functions/huos-beer-intake/index.ts"
+      - "supabase/functions/huos-beer-intake/validation.ts"
+      - "supabase/functions/huos-beer-intake/validation_test.ts"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Test request validation
+        run: deno test supabase/functions/huos-beer-intake/validation_test.ts
+      - name: Type-check Edge Function
+        run: deno check supabase/functions/huos-beer-intake/index.ts
+      - name: Format validation module and tests
+        run: deno fmt --check supabase/functions/huos-beer-intake/validation.ts supabase/functions/huos-beer-intake/validation_test.ts
