@@ -197,7 +197,7 @@ const KEY_SUPABASE='sb_publishable_QDvjBPDGIgrQNcSzEw2FZg_Yj6hfIgY';
 /* Kwam de gebruiker binnen via een inloglink? Dan eerst (opnieuw) een wachtwoord laten kiezen. Vastleggen vóórdat de client de URL verwerkt. */
 let cameViaLink=/(access_token|type=magiclink|type=signup|type=invite)/.test(location.hash)||/[?&](code|token_hash)=/.test(location.search);
 const client=window.supabase.createClient(URL_SUPABASE,KEY_SUPABASE);
-const AUTH_REDIRECT=(()=>{try{const o=location.origin;if(/^https:\/\/((app|mijn)\.horecaunited\.nl|huos-v2-prive-pilot(-[a-z0-9-]+)?\.vercel\.app)$/.test(o))return o+'/'}catch(_){}return 'https://huos-v2-prive-pilot.vercel.app/'})();
+const AUTH_REDIRECT=(()=>{try{const o=location.origin;if(/^https:\/\/((app|mijn|beheer)\.horecaunited\.nl|huos-v2-prive-pilot(-[a-z0-9-]+)?\.vercel\.app)$/.test(o))return o+'/'}catch(_){}return 'https://huos-v2-prive-pilot.vercel.app/'})();
 let user=null,org=null,entries=[],docs=[],contracts=[],beerScan=null,activeTab='overview',generation=0;
 let publicBeerMandateResult='',publicBeerAnswers={},publicBeerIndex=0,publicBeerSent=false,publicBeerMandateConfirmed=false,pendingBeerSaveBusy=false;
 let beerTurnstileConfig=null,beerTurnstileToken='',beerTurnstileWidgetId=null,beerTurnstileScriptPromise=null;

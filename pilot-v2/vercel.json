@@ -80,6 +80,28 @@
       ],
       "destination": "/",
       "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "beheer.horecaunited.nl"
+        }
+      ],
+      "destination": "/beheer.html",
+      "permanent": false
+    },
+    {
+      "source": "/index.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "beheer.horecaunited.nl"
+        }
+      ],
+      "destination": "/beheer.html",
+      "permanent": false
     }
   ]
 }
