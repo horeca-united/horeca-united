@@ -11,35 +11,32 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
    ========================================================= */
 let CURRENT_USER = null;
 
+// HUOS 2.0: successful magic-link authentication must NEVER open the legacy
+// customer dashboard. Only the new, independently scoped pilot workspace.
 sb.auth.onAuthStateChange((event, session) => {
   CURRENT_USER = session?.user ?? null;
   AuthUI.updateTopbar();
   if (event === 'SIGNED_IN') {
     AuthUI.closeLogin();
-    Dashboard.open();
-  } else {
-    const dashVisible = document.getElementById('screen-dashboard').classList.contains('active');
-    if (dashVisible) {
-      Dashboard.renderDocuments();
-      Dashboard.renderOverzicht();
-      Dashboard.renderProfiel();
-      Dashboard.renderBesparingen();
-      Dashboard.renderContracten();
-    }
+    // Run outside of the auth callback to avoid a lock/deadlock from async DB calls.
+    setTimeout(() => ManagerV2.open(), 0);
+  } else if (event === 'SIGNED_OUT') {
+    setTimeout(() => {
+      ManagerV2.organization = null;
+      ManagerV2.documents = [];
+      Router.go('landing');
+    }, 0);
   }
 });
 
-// Restore session on page load — re-render dashboard if it's already open
-sb.auth.getSession().then(({ data: { session } }) => {
+// Handle refreshed pages and restored sessions. Supabase may emit SIGNED_IN
+// before getSession resolves; repeating an idempotent read is safe.
+sb.auth.getSession().then(({data:{session},error}) => {
+  if (error) return;
   CURRENT_USER = session?.user ?? null;
   AuthUI.updateTopbar();
-  const dashVisible = document.getElementById('screen-dashboard').classList.contains('active');
-  if (dashVisible) {
-    Dashboard.renderDocuments();
-    Dashboard.renderOverzicht();
-    Dashboard.renderProfiel();
-  }
-});
+  if (CURRENT_USER) ManagerV2.open();
+}).catch(error => console.warn('HUOS session restoration failed:',error));
 
 /* =========================================================
    AuthUI
@@ -72,7 +69,9 @@ const AuthUI = {
     btn.textContent = 'Versturen…';
     const { error } = await sb.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: 'https://horeca-united.github.io/horeca-united/' }
+      // The private Vercel URL must also appear in Supabase Auth → Redirect URLs.
+      // Never use the historical GitHub Pages hostname for this HUOS v2 pilot.
+      options: { emailRedirectTo: 'https://huos-v2-prive-pilot.vercel.app/' }
     });
     btn.disabled = false;
     btn.textContent = 'Stuur inloglink';
@@ -89,8 +88,9 @@ const AuthUI = {
     await sb.auth.signOut();
     CURRENT_USER = null;
     this.updateTopbar();
-    const dashVisible = document.getElementById('screen-dashboard').classList.contains('active');
-    if (dashVisible) Dashboard.renderDocuments();
+    ManagerV2.organization = null;
+    ManagerV2.documents = [];
+    Router.go('landing');
   },
   updateTopbar() {
     const el = document.getElementById('topbarAuth');
@@ -417,7 +417,7 @@ function saveState(){
 }
 
 /* ---------------- Router ---------------- */
-const SCREENS = ["landing","scan","result","dashboard","admin","privacy"];
+const SCREENS = ["landing","scan","result","dashboard","manager","admin","privacy"];
 const Router = {
   go(id){
     SCREENS.forEach(s=>document.getElementById("screen-"+s).classList.remove("active"));
@@ -2595,6 +2595,129 @@ const DemoData = {
     localStorage.removeItem(STORAGE_KEY);
     STATE = defaultState();
     Router.go("landing");
+  }
+};
+
+
+/* =========================================================
+   HUOS 2.0 – Digitale manager, auth + RLS-backed read-only MVP
+   ========================================================= */
+const ManagerV2 = {
+  tab:'overview',
+  organization:null,
+  documents:[],
+  safe(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));},
+  set(id,value){const el=document.getElementById(id);if(el)el.textContent=String(value);},
+  item(title,detail){return '<div class="manager-list-item"><strong>'+this.safe(title)+'</strong><small>'+this.safe(detail)+'</small></div>';},
+  message(msg,isError=false){const el=document.getElementById('managerStatus');if(el)el.innerHTML='<div class="'+(isError?'manager-alert':'manager-notice')+'">'+this.safe(msg)+'</div>';},
+  open(){Router.go('manager');this.show(this.tab);this.refresh();},
+  show(tab){
+    this.tab=tab;
+    document.querySelectorAll('[data-manager-tab]').forEach(el=>el.classList.toggle('active',el.dataset.managerTab===tab));
+    document.querySelectorAll('[data-manager-page]').forEach(el=>el.style.display=el.dataset.managerPage===tab?'':'none');
+  },
+  async refresh(){
+    const logged=Boolean(CURRENT_USER);
+    document.getElementById('managerSignedOut').style.display=logged?'none':'block';
+    document.getElementById('managerSignedIn').style.display=logged?'block':'none';
+    this.organization=null;
+    this.documents=[];
+    document.getElementById('pilotSetup').style.display='none';
+    document.getElementById('pilotWorkspace').style.display='none';
+    if(!logged)return;
+    this.message('Pilotgegevens laden...');
+    try{
+      const result=await sb.from('huos_pilot_organizations')
+        .select('id,owner_id,name,business_type,city,created_at')
+        .eq('owner_id',CURRENT_USER.id).maybeSingle();
+      if(result.error)throw result.error;
+      this.organization=result.data;
+      document.getElementById('pilotSetup').style.display=this.organization?'none':'block';
+      document.getElementById('pilotWorkspace').style.display=this.organization?'block':'none';
+      if(!this.organization){this.message('Welkom bij je nieuwe pilot. Maak hieronder een leeg bedrijfsprofiel aan.');return;}
+      const documents=await sb.from('huos_pilot_documents')
+        .select('id,file_name,file_type,category,status,uploaded_at')
+        .eq('organization_id',this.organization.id)
+        .order('uploaded_at',{ascending:false}).limit(200);
+      if(documents.error)throw documents.error;
+      this.documents=documents.data||[];
+      this.render();
+      document.getElementById('managerStatus').innerHTML='';
+    }catch(error){this.message('Laden mislukt: '+error.message,true);}
+  },
+  async createProfile(){
+    if(!CURRENT_USER){this.message('Log eerst in.',true);return;}
+    const name=document.getElementById('pilotCompanyName').value.trim();
+    const city=document.getElementById('pilotCity').value.trim();
+    const business_type=document.getElementById('pilotBusinessType').value;
+    if(name.length<2||name.length>160){this.message('Vul een bedrijfsnaam van minstens twee tekens in.',true);return;}
+    const btn=document.getElementById('pilotCreateButton');btn.disabled=true;
+    try{
+      // Creates ONE completely new organization. No legacy profile/documents imported.
+      const result=await sb.from('huos_pilot_organizations')
+        .insert({owner_id:CURRENT_USER.id,name,business_type,city:city||null})
+        .select('id').single();
+      if(result.error)throw result.error;
+      this.message('Nieuw pilotprofiel aangemaakt.');
+      await this.refresh();
+    }catch(error){this.message('Aanmelden mislukt: '+error.message,true);}
+    finally{btn.disabled=false;}
+  },
+  async uploadDocument(){
+    if(!CURRENT_USER||!this.organization){this.message('Maak eerst een pilotprofiel aan.',true);return;}
+    const file=document.getElementById('pilotDocumentFile').files?.[0];
+    const category=document.getElementById('pilotDocumentCategory').value;
+    if(!file){this.message('Kies een document om te uploaden.',true);return;}
+    const allowed=['application/pdf','image/png','image/jpeg'];
+    if(!allowed.includes(file.type)||file.size>10485760||file.size<=0){this.message('Gebruik een PDF, PNG of JPG van maximaal 10 MB.',true);return;}
+    const btn=document.getElementById('pilotUploadButton');btn.disabled=true;
+    // Server validates bucket, path, owner and file size again.
+    const extension=file.type==='application/pdf'?'pdf':file.type==='image/png'?'png':'jpg';
+    const path=CURRENT_USER.id+'/'+this.organization.id+'/'+crypto.randomUUID()+'.'+extension;
+    try{
+      const up=await sb.storage.from('huos-pilot-private').upload(path,file,{contentType:file.type,upsert:false});
+      if(up.error)throw up.error;
+      const saved=await sb.from('huos_pilot_documents')
+        .insert({organization_id:this.organization.id,uploaded_by:CURRENT_USER.id,storage_path:path,file_name:file.name.slice(0,255),file_type:file.type,category})
+        .select('id').single();
+      if(saved.error){
+        // Private storage cleanup is intentionally not attempted from browser; flag for admin.
+        throw new Error('Bestand opgeslagen, maar registratie mislukt. Upload niet opnieuw; meld dit aan HUOS. '+saved.error.message);
+      }
+      document.getElementById('pilotDocumentFile').value='';
+      await this.refresh();
+      this.message('Document veilig ontvangen. Dit bestand telt alleen mee in je nieuwe pilot.');
+    }catch(error){this.message('Upload mislukt: '+error.message,true);}
+    finally{btn.disabled=false;}
+  },
+  render(){
+    const o=this.organization,docs=this.documents;
+    this.set('managerCompany',o.name);
+    this.set('managerDocs',docs.length+(docs.length===200?'+':''));
+    this.set('managerTransactions','0');
+    this.set('managerContracts',docs.filter(d=>d.category==='contract'&&d.status==='verified').length);
+    this.set('managerActions',docs.filter(d=>d.status==='received'||d.status==='review').length);
+    document.getElementById('managerCoverage').innerHTML=[
+      ['Basisprofiel','Aangemaakt'],
+      ['Nieuwe documenten',docs.length?docs.length+' ontvangen':'Nog leeg'],
+      ['Geverifieerde inkoopgegevens','Nog niet beschikbaar'],
+      ['Gecontroleerde contracten','Nog niet beschikbaar']
+    ].map(r=>'<div class="manager-coverage-row"><span>'+this.safe(r[0])+'</span><span>'+this.safe(r[1])+'</span></div>').join('');
+    document.getElementById('managerNext').innerHTML=!docs.length?
+      this.item('Begin met één document','Upload bijvoorbeeld een inkoopfactuur. Alle eerdere uploads blijven buiten beeld.'):
+      this.item('Documenten ontvangen','Je hebt '+docs.length+' document(en) toegevoegd. De validatie- en extractiemodule sluiten we hierna aan.');
+    document.getElementById('managerDataTypes').innerHTML=docs.length?
+      docs.map(d=>this.item(d.file_name,({invoice:'Inkoopfactuur',contract:'Contract',overview:'Jaaroverzicht',other:'Overig'}[d.category]||'Document')+' · '+d.status+' · '+new Date(d.uploaded_at).toLocaleDateString('nl-NL'))).join(''):
+      this.item('Nog geen pilotdocumenten','Je begint bewust met een lege documentenbibliotheek.');
+    const contracts=docs.filter(d=>d.category==='contract');
+    document.getElementById('managerContractList').innerHTML=contracts.length?
+      contracts.map(d=>this.item(d.file_name,'Bestand ontvangen; de contractvoorwaarden en opzegdatum zijn nog niet geverifieerd.')).join(''):
+      this.item('Nog geen contracten','Voeg een nieuw contract toe via Mijn gegevens.');
+    document.getElementById('managerInsightList').innerHTML=[
+      this.item('Informatie in deze pilot',docs.length+' document(en); geen oude uploadgegevens geïmporteerd.'),
+      this.item('Automatische documentanalyse','Nog niet ingeschakeld. We tonen geen afgeleide bedragen zonder gecontroleerde bron.'),
+      this.item('Volgende stap','Herkenning van leveranciers, kosten, periodes en contractverplichtingen met controle door de ondernemer.')
+    ].join('');
   }
 };
 
