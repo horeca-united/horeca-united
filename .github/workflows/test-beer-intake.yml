@@ -1,14 +1,16 @@
-name: Test beer intake origin policy
+name: Test backend functions
 
 on:
   pull_request:
     paths:
       - ".github/workflows/test-beer-intake.yml"
-      - "supabase/functions/huos-beer-intake/**"
+      - "supabase/functions/**/*.test.mjs"
+      - "supabase/migrations/20261125000000_huos_admin_audit_log.sql"
   push:
     paths:
       - ".github/workflows/test-beer-intake.yml"
-      - "supabase/functions/huos-beer-intake/**"
+      - "supabase/functions/**/*.test.mjs"
+      - "supabase/migrations/20261125000000_huos_admin_audit_log.sql"
 
 jobs:
   test:
@@ -18,4 +20,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test supabase/functions/huos-beer-intake/origin-policy.test.mjs
+
+      - name: Run all Node unit tests
+        run: node --test 'supabase/functions/**/*.test.mjs'
+
+      - name: Deno check beer-intake
+        run: npx --yes deno check supabase/functions/huos-beer-intake/index.ts
+
+      - name: Deno format check
+        run: npx --yes deno fmt --check supabase/functions/
+
+      - name: Git diff check
+        run: git diff --check
