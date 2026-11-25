@@ -29,6 +29,20 @@ Je hebt twee sleutels nodig voor ontwikkeling (te vinden via **Settings → API*
 | `anon` / publishable key | In `src/app.js` (staat al in de code) | Toegang vanuit de browser — veilig om te committen |
 | `service_role` key | Alleen lokaal in `.env.local` — **nooit committen** | Bypass RLS in Edge Functions en CLI-tools |
 
+### Stagingproject
+
+Een stagingomgeving vereist normaal gesproken **geen tweede Supabase-account**. De projecteigenaar kan een extra project aanmaken binnen dezelfde Supabase-organisatie. Het stagingproject heeft wel een eigen database, project-ref, URL, API-keys en Edge Function secrets; het telt mee voor de project-/compute-limieten en eventuele kosten van het abonnement.
+
+Gebruik nooit de productie-project-ref of productie-secrets voor staging. De huidige `supabase/config.toml` bevat de productie-ref. Link staging daarom alleen expliciet met `--project-ref` en commit geen staging-keys of tokens.
+
+**Belangrijke voorwaarde voor deze repository:** de migraties beginnen bij wijzigingen op een al bestaande database; ze vormen nog geen volledige basisinstallatie. `supabase db reset`/`supabase test db` kan daarom niet als schone installatie worden beschouwd voordat er een gecontroleerde schema-baseline is. Maak die baseline via een beoordeelde schema-only migratie of een andere expliciet goedgekeurde route. Vul staging met synthetische testdata; kopieer geen echte klantgegevens.
+
+### Geplande document-worker
+
+Voor een documentqueue is het aanbevolen patroon: een databasequeue met `next_attempt_at`, een Edge Function die een beperkte batch claimt en idempotent verwerkt, en Supabase Cron als wekker. Cron voert niet zelf de extractie uit; het roept de worker periodiek aan. In Supabase kan dat met `pg_cron` plus `pg_net`; bewaar de aanroepsleutel in Supabase Vault en stuur die als header. Zet geen service-role key als platte tekst in een migration of cron-SQL.
+
+Activeer de schedule pas in een aparte staging-PR nadat de worker, retrylimieten, idempotentie en synthetische tests zijn gevalideerd. Er is nu geen schedule aangemaakt of geactiveerd.
+
 ---
 
 ## Stap 2 — Lokale omgeving instellen
